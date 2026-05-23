@@ -82,17 +82,17 @@ fun UserCard(
     imageUrl: String,
     name: String,
     role: String,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 8.dp)
-            .height(120.dp)
+        modifier = modifier
+            .padding(horizontal = 8.dp, vertical = 8.dp)
+            .height(180.dp)
             .scale(if (isPressed) 0.98f else 1f)
-            .shadow(8.dp, RoundedCornerShape(20.dp))
+            .shadow(8.dp, RoundedCornerShape(24.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -101,31 +101,32 @@ fun UserCard(
                 onClick()
                 isPressed = false
             },
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.8f),
         )
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 20.dp, end = 20.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            // Avatar - Left aligned
+            // Avatar - Centered at top
             Box(
                 modifier = Modifier
-                    .size(60.dp)
+                    .size(72.dp)
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
                             colors = listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                                 MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
                             )
                         )
                     )
-                    .border(1.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                    .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
@@ -140,31 +141,22 @@ fun UserCard(
                 )
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Text - Next to avatar
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                )
-                Text(
-                    text = role,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-            }
-
-            // Arrow - Right aligned
-            Icon(
-                painter = painterResource(R.drawable.arrow_forward),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
+            // Text - Centered
+            Text(
+                text = name,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+            )
+            
+            Spacer(modifier = Modifier.height(2.dp))
+            
+            Text(
+                text = role,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
         }
     }
@@ -506,15 +498,18 @@ fun AboutScreen(
                         )
                     }
 
-                    // Contributors Cards - LEFT ALIGNED CONTENT
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.Start
+                    // Contributors Cards - SIDE-BY-SIDE VERTICAL CARDS
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         UserCard(
                             imageUrl = "https://avatars.githubusercontent.com/u/218248866",
                             name = "Darkboy",
                             role = "Lead Developer",
+                            modifier = Modifier.weight(1f),
                             onClick = { uriHandler.openUri("https://darkboy.pro") }
                         )
 
@@ -522,6 +517,7 @@ fun AboutScreen(
                             imageUrl = "https://avatars.githubusercontent.com/u/227567962",
                             name = "Venom",
                             role = "UI/UX Specialist",
+                            modifier = Modifier.weight(1f),
                             onClick = { uriHandler.openUri("https://drkvenom786.github.io/webpage/") }
                         )
                     }
