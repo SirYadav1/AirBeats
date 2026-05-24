@@ -375,6 +375,7 @@ If you find value in **AirBeats** and want to contribute to its continued develo
 Special thanks to the following contributors and supporters:
 
 - **drkvenom786** - UI/UX Specialist and developer
+- **[shnwazdeveloper](https://github.com/shnwazdeveloper)** - Contributor & Developer
 - **mostafaalagamy** - MetroList implementation
 - **Fabito02** - Unconditional support from the beginning
 - **Community translators** - Making AirBeats accessible worldwide
