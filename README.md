@@ -77,6 +77,12 @@ To enable YouTube PoToken generation (WebView-based BotGuard client):
    google.api.key=YOUR_GOOGLE_API_KEY_HERE
    ```
 
+#### C. Global Stats Database Configuration
+To enable the global listening statistics leaderboard sync:
+1. Open the file **`app/src/main/java/com/darkxvenom/airbeats/utils/AirBeatsStatsCloudClient.kt`**.
+2. Replace `BASE_URL` with your database URL (e.g. `https://your-database-domain.com`).
+3. Replace `API_KEY` with your API key.
+
 ### 3. Cloning & Building
 
 ```bash

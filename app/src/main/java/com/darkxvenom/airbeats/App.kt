@@ -29,8 +29,11 @@ import com.darkxvenom.airbeats.constants.ProxyUrlKey
 import com.darkxvenom.airbeats.constants.SYSTEM_DEFAULT
 import com.darkxvenom.airbeats.constants.UseLoginForBrowse
 import com.darkxvenom.airbeats.constants.VisitorDataKey
+import com.darkxvenom.airbeats.db.MusicDatabase
 import com.darkxvenom.airbeats.extensions.toEnum
 import com.darkxvenom.airbeats.extensions.toInetSocketAddress
+import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
+import com.darkxvenom.airbeats.utils.AirBeatsStatsCloudSync
 import com.darkxvenom.airbeats.utils.dataStore
 import com.darkxvenom.airbeats.utils.get
 import com.darkxvenom.airbeats.utils.reportException
@@ -46,9 +49,16 @@ import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.net.Proxy
 import java.util.Locale
+import javax.inject.Inject
 
 @HiltAndroidApp
 class App : Application(), ImageLoaderFactory {
+    @Inject
+    lateinit var database: MusicDatabase
+
+    @Inject
+    lateinit var namePreferenceManager: NamePreferenceManager
+
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
@@ -84,6 +94,14 @@ class App : Application(), ImageLoaderFactory {
 
         if (dataStore[UseLoginForBrowse] != false) {
             YouTube.useLoginForBrowse = true
+        }
+
+        GlobalScope.launch {
+            AirBeatsStatsCloudSync.syncDaily(
+                context = this@App,
+                database = database,
+                namePreferenceManager = namePreferenceManager,
+            )?.onFailure(::reportException)
         }
 
         GlobalScope.launch {

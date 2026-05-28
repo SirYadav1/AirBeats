@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -42,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -60,6 +62,7 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.darkxvenom.airbeats.innertube.models.WatchEndpoint
@@ -86,10 +89,13 @@ import com.darkxvenom.airbeats.ui.menu.SongMenu
 import com.darkxvenom.airbeats.ui.utils.backToMain
 import com.darkxvenom.airbeats.utils.joinByBullet
 import com.darkxvenom.airbeats.utils.makeTimeString
+import com.darkxvenom.airbeats.utils.GlobalStatsUser
+import com.darkxvenom.airbeats.viewmodels.GlobalStatsUiState
 import com.darkxvenom.airbeats.viewmodels.StatsViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -115,10 +121,18 @@ fun StatsScreen(
     val coroutineScope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
     val selectedOption by viewModel.selectedOption.collectAsState()
+    val globalStats by viewModel.globalStats.collectAsState()
 
     // BottomSheet para Insight
     var showInsightBottomSheet by remember { mutableStateOf(false) }
+    var showWeeklyGlobalStats by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    LaunchedEffect(globalStats.board.updatedAt, globalStats.board.users.size) {
+        if (globalStats.board.users.isNotEmpty() && viewModel.shouldShowWeeklyPopup()) {
+            showWeeklyGlobalStats = true
+        }
+    }
 
     val weeklyDates =
         if (currentDate != null && firstEvent != null) {
@@ -323,6 +337,13 @@ fun StatsScreen(
                         }
                     }
                 }
+            }
+
+            item {
+                GlobalStatsBoardCard(
+                    state = globalStats,
+                    onRefresh = viewModel::refreshGlobalStats,
+                )
             }
 
             item {
@@ -590,6 +611,299 @@ fun StatsScreen(
                 }
             )
         }
+    }
+
+    if (showWeeklyGlobalStats) {
+        WeeklyGlobalStatsSheet(
+            users = globalStats.board.users.take(10),
+            currentUserId = globalStats.currentUserId,
+            onDismiss = {
+                viewModel.markWeeklyPopupSeen()
+                showWeeklyGlobalStats = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun GlobalStatsBoardCard(
+    state: GlobalStatsUiState,
+    onRefresh: () -> Unit,
+) {
+    val users = state.board.users.take(10)
+    val topUser = users.firstOrNull()
+    val currentUser = users.firstOrNull { it.id == state.currentUserId }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                Color(0xFF1DB954),
+                                Color(0xFF2D46B9),
+                                Color(0xFF191414),
+                            ),
+                        ),
+                    )
+                    .padding(18.dp),
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Global Stats",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                        )
+                        Text(
+                            text = topUser?.let { "Most listened: ${it.name}" } ?: "Waiting for daily cloud stats",
+                            color = Color.White.copy(alpha = 0.78f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Button(onClick = onRefresh, enabled = !state.isLoading) {
+                        Text(if (state.isLoading) "Syncing" else "Refresh")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    GlobalStatPill(
+                        label = "Top listener",
+                        value = topUser?.let { formatListenHours(it.totalListenMs) } ?: "--",
+                        modifier = Modifier.weight(1f),
+                    )
+                    GlobalStatPill(
+                        label = "Your rank",
+                        value = currentUser?.rank?.let { "#$it" } ?: "--",
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                users.forEach { user ->
+                    GlobalUserRankRow(
+                        user = user,
+                        isCurrentUser = user.id == state.currentUserId,
+                    )
+                }
+
+                state.error?.let { error ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = error,
+                        color = Color.White.copy(alpha = 0.72f),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlobalStatPill(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier =
+            modifier
+                .background(Color.White.copy(alpha = 0.16f), RoundedCornerShape(12.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(label, color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.labelMedium)
+        Text(value, color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun GlobalUserRankRow(
+    user: GlobalStatsUser,
+    isCurrentUser: Boolean,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .background(
+                    if (isCurrentUser) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f),
+                    RoundedCornerShape(12.dp),
+                )
+                .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "#${user.rank}",
+            modifier = Modifier.width(42.dp),
+            color = Color.White,
+            fontWeight = FontWeight.Black,
+        )
+        ProfileBubble(user.profileUrl, user.name)
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = user.name,
+            modifier = Modifier.weight(1f),
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            fontWeight = if (isCurrentUser) FontWeight.Black else FontWeight.SemiBold,
+        )
+        Text(
+            text = formatListenHours(user.totalListenMs),
+            color = Color.White.copy(alpha = 0.88f),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WeeklyGlobalStatsSheet(
+    users: List<GlobalStatsUser>,
+    currentUserId: String,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xFF1DB954).copy(alpha = 0.35f),
+                                MaterialTheme.colorScheme.surface,
+                                MaterialTheme.colorScheme.surface,
+                            ),
+                        ),
+                    )
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
+        ) {
+            Column {
+                Text(
+                    text = "Weekly Global Top 10",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Black,
+                )
+                Text(
+                    text = "Only names and listened hours are shown.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+                users.forEach { user ->
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 5.dp)
+                                .background(
+                                    if (user.id == currentUserId) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                                    RoundedCornerShape(14.dp),
+                                )
+                                .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "#${user.rank}",
+                            modifier = Modifier.width(46.dp),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black,
+                        )
+                        Text(
+                            text = user.name,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = formatListenHours(user.weeklyListenMs.takeIf { it > 0 } ?: user.totalListenMs),
+                            fontWeight = FontWeight.Black,
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text("Done")
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileBubble(
+    profileUrl: String?,
+    name: String,
+) {
+    if (profileUrl != null) {
+        AsyncImage(
+            model = profileUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier =
+                Modifier
+                    .size(34.dp)
+                    .clip(CircleShape),
+        )
+    } else {
+        Box(
+            modifier =
+                Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
+                color = Color.White,
+                fontWeight = FontWeight.Black,
+            )
+        }
+    }
+}
+
+private fun formatListenHours(milliseconds: Long): String {
+    val hours = milliseconds / 3_600_000.0
+    return if (hours >= 10) {
+        "${hours.toInt()}h"
+    } else {
+        String.format(Locale.US, "%.1fh", hours)
     }
 }
 
