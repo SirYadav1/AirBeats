@@ -200,8 +200,13 @@ import com.darkxvenom.airbeats.ui.component.AvatarSelection
 import com.darkxvenom.airbeats.ui.component.BottomSheetMenu
 import com.darkxvenom.airbeats.ui.component.IconButton
 import com.darkxvenom.airbeats.ui.component.CurvedBottomNavigationBar
+import com.darkxvenom.airbeats.constants.LiquidGlassKey
 import com.darkxvenom.airbeats.ui.component.CurvedBottomNavigationItem
 import com.darkxvenom.airbeats.ui.component.LocalMenuState
+import com.darkxvenom.airbeats.ui.component.rememberBackdrop
+import com.darkxvenom.airbeats.ui.component.layerBackdrop
+import com.darkxvenom.airbeats.ui.component.LocalBackdrop
+import com.darkxvenom.airbeats.ui.component.LiquidGlassBottomNavigationBar
 import com.darkxvenom.airbeats.ui.component.LocaleManager
 import com.darkxvenom.airbeats.ui.component.Lyrics
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
@@ -400,12 +405,17 @@ class MainActivity : ComponentActivity() {
 
             val enableDynamicTheme by rememberPreference(DynamicThemeKey, defaultValue = true)
             val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
+            val enableLiquidGlass by rememberPreference(LiquidGlassKey, defaultValue = false)
 
             val pureBlack by rememberPreference(PureBlackKey, defaultValue = false)
             val isSystemInDarkTheme = isSystemInDarkTheme()
             val useDarkTheme =
-                remember(darkTheme, isSystemInDarkTheme) {
-                    if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
+                remember(darkTheme, isSystemInDarkTheme, enableLiquidGlass) {
+                    if (enableLiquidGlass) {
+                        true
+                    } else {
+                        if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
+                    }
                 }
             LaunchedEffect(useDarkTheme) {
                 setSystemBarAppearance(useDarkTheme)
@@ -443,9 +453,10 @@ class MainActivity : ComponentActivity() {
 
             AirBeatsTheme(
                 darkTheme = useDarkTheme,
-                pureBlack = pureBlack,
+                pureBlack = pureBlack && !enableLiquidGlass,
                 themeColor = themeColor,
             ) {
+                val backdrop = rememberBackdrop()
 
                 if (showSplash) {
                     HeadphoneSplashScreen()
@@ -765,6 +776,7 @@ class MainActivity : ComponentActivity() {
                                 LocalDownloadUtil provides downloadUtil,
                                 LocalShimmerTheme provides ShimmerTheme,
                                 LocalSyncUtils provides syncUtils,
+                                LocalBackdrop provides backdrop,
                             ) {
                                 var showRealNavBar by remember { mutableStateOf(false) }
                                 var playIntroAnimation by remember { mutableStateOf(true) }
@@ -924,6 +936,7 @@ class MainActivity : ComponentActivity() {
                                                                 }
                                                             },
                                                             onDismiss = { onActiveChange(false) },
+                                                            pureBlack = pureBlack,
                                                         )
                                                     }
                                                 }
@@ -1059,53 +1072,67 @@ class MainActivity : ComponentActivity() {
                                                     var lastTappedIcon by remember { mutableStateOf<Int?>(null) }
                                                     var navigateToExplore by remember { mutableStateOf(false) }
 
-                                                    CurvedBottomNavigationBar(
-                                                        items = curvedItems,
-                                                        selectedIndex = selectedIndex,
-                                                        onItemSelected = { index ->
-                                                            val screen = navigationItems[index]
-                                                            val isSelected = index == selectedIndex
+                                                    val onItemSelectedAction: (Int) -> Unit = { index ->
+                                                         val screen = navigationItems[index]
+                                                         val isSelected = index == selectedIndex
 
-                                                            val currentTapTime = System.currentTimeMillis()
-                                                            val timeSinceLastTap = currentTapTime - lastTapTime
-                                                            val isDoubleTap =
-                                                                screen.titleId == R.string.explore &&
-                                                                        lastTappedIcon == R.string.explore &&
-                                                                        timeSinceLastTap < 300L
+                                                         val currentTapTime = System.currentTimeMillis()
+                                                         val timeSinceLastTap = currentTapTime - lastTapTime
+                                                         val isDoubleTap =
+                                                             screen.titleId == R.string.explore &&
+                                                                     lastTappedIcon == R.string.explore &&
+                                                                     timeSinceLastTap < 300L
 
-                                                            lastTapTime = currentTapTime
-                                                            lastTappedIcon = screen.titleId
+                                                         lastTapTime = currentTapTime
+                                                         lastTappedIcon = screen.titleId
 
-                                                            if (screen.titleId == R.string.explore) {
-                                                                if (isDoubleTap) {
-                                                                    onActiveChange(true)
-                                                                    navigateToExplore = false
-                                                                } else {
-                                                                    navigateToExplore = true
-                                                                    coroutineScope.launch {
-                                                                        delay(300L)
-                                                                        if (navigateToExplore) {
-                                                                            navigateToScreen(navController, screen)
-                                                                        }
-                                                                    }
-                                                                }
-                                                            } else {
-                                                                if (isSelected) {
-                                                                    navController.currentBackStackEntry?.savedStateHandle?.set("scrollToTop", true)
-                                                                    coroutineScope.launch {
-                                                                        searchBarScrollBehavior.state.resetHeightOffset()
-                                                                    }
-                                                                } else {
-                                                                    navigateToScreen(navController, screen)
-                                                                }
-                                                            }
-                                                        },
-                                                        modifier = Modifier
-                                                            .fillMaxSize()
-                                                            .offset(y = offsetY)
-                                                            .scale(scale)
-                                                            .alpha(alpha)
-                                                    )
+                                                         if (screen.titleId == R.string.explore) {
+                                                             if (isDoubleTap) {
+                                                                 onActiveChange(true)
+                                                                 navigateToExplore = false
+                                                             } else {
+                                                                 navigateToExplore = true
+                                                                 coroutineScope.launch {
+                                                                     delay(300L)
+                                                                     if (navigateToExplore) {
+                                                                         navigateToScreen(navController, screen)
+                                                                     }
+                                                                 }
+                                                             }
+                                                         } else {
+                                                             if (isSelected) {
+                                                                 navController.currentBackStackEntry?.savedStateHandle?.set("scrollToTop", true)
+                                                                 coroutineScope.launch {
+                                                                     searchBarScrollBehavior.state.resetHeightOffset()
+                                                                 }
+                                                             } else {
+                                                                 navigateToScreen(navController, screen)
+                                                             }
+                                                         }
+                                                     }
+
+                                                     if (enableLiquidGlass) {
+                                                         LiquidGlassBottomNavigationBar(
+                                                             selectedIndex = selectedIndex,
+                                                             onItemSelected = onItemSelectedAction,
+                                                             backdrop = backdrop,
+                                                             modifier = Modifier
+                                                                 .offset(y = offsetY)
+                                                                 .scale(scale)
+                                                                 .alpha(alpha)
+                                                         )
+                                                     } else {
+                                                         CurvedBottomNavigationBar(
+                                                             items = curvedItems,
+                                                             selectedIndex = selectedIndex,
+                                                             onItemSelected = onItemSelectedAction,
+                                                             modifier = Modifier
+                                                                 .fillMaxSize()
+                                                                 .offset(y = offsetY)
+                                                                 .scale(scale)
+                                                                 .alpha(alpha)
+                                                         )
+                                                     }
                                                 }
 
                                                 if (playerBottomSheetState.isDismissed) {
@@ -1135,8 +1162,15 @@ class MainActivity : ComponentActivity() {
                                         .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                                         .background(MaterialTheme.colorScheme.surface)
 
-                                ) {
-                                    var transitionDirection =
+                                ) { paddingValues ->
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .then(
+                                                if (enableLiquidGlass) Modifier.layerBackdrop(backdrop) else Modifier
+                                            )
+                                    ) {
+                                        var transitionDirection =
                                         AnimatedContentTransitionScope.SlideDirection.Left
 
                                     if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
@@ -1239,6 +1273,7 @@ class MainActivity : ComponentActivity() {
                                             topAppBarScrollBehavior,
                                             latestVersionName
                                         )
+                                    }
                                     }
                                 }
 

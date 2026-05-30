@@ -41,6 +41,26 @@ class BackupRestoreViewModel @Inject constructor(
                             outputStream.putNextEntry(ZipEntry(SETTINGS_FILENAME))
                             inputStream.copyTo(outputStream)
                         }
+
+                    val namePrefsFile = context.filesDir / "datastore" / "user_name_preferences.preferences_pb"
+                    if (namePrefsFile.exists()) {
+                        namePrefsFile.inputStream().buffered().use { inputStream ->
+                            outputStream.putNextEntry(ZipEntry("user_name_preferences.preferences_pb"))
+                            inputStream.copyTo(outputStream)
+                        }
+                    }
+
+                    val parentFile = context.filesDir.parentFile
+                    if (parentFile != null) {
+                        val statsPrefsFile = parentFile / "shared_prefs" / "airbeats_global_stats.xml"
+                        if (statsPrefsFile.exists()) {
+                            statsPrefsFile.inputStream().buffered().use { inputStream ->
+                                outputStream.putNextEntry(ZipEntry("airbeats_global_stats.xml"))
+                                inputStream.copyTo(outputStream)
+                            }
+                        }
+                    }
+
                     runBlocking(Dispatchers.IO) {
                         database.checkpoint()
                     }
@@ -70,6 +90,25 @@ class BackupRestoreViewModel @Inject constructor(
                                     .use { outputStream ->
                                         inputStream.copyTo(outputStream)
                                     }
+                            }
+
+                            "user_name_preferences.preferences_pb" -> {
+                                val destFile = context.filesDir / "datastore" / "user_name_preferences.preferences_pb"
+                                destFile.parentFile?.mkdirs()
+                                destFile.outputStream().use { outputStream ->
+                                    inputStream.copyTo(outputStream)
+                                }
+                            }
+
+                            "airbeats_global_stats.xml" -> {
+                                val parentFile = context.filesDir.parentFile
+                                if (parentFile != null) {
+                                    val destFile = parentFile / "shared_prefs" / "airbeats_global_stats.xml"
+                                    destFile.parentFile?.mkdirs()
+                                    destFile.outputStream().use { outputStream ->
+                                        inputStream.copyTo(outputStream)
+                                    }
+                                }
                             }
 
                             InternalDatabase.DB_NAME -> {

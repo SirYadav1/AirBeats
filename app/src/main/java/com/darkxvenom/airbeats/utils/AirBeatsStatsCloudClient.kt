@@ -48,7 +48,9 @@ class AirBeatsStatsCloudClient {
                 val request =
                     Request
                         .Builder()
-                        .url("$BASE_URL/read?file=$GLOBAL_STATS_FILE")
+                        .url("$BASE_URL/read?file=$GLOBAL_STATS_FILE&_t=${System.currentTimeMillis()}")
+                        .header("Cache-Control", "no-cache")
+                        .header("Pragma", "no-cache")
                         .get()
                         .build()
                 client.newCall(request).execute().use { response ->
@@ -64,7 +66,7 @@ class AirBeatsStatsCloudClient {
     suspend fun uploadDaily(upload: LocalStatsUpload): Result<GlobalStatsBoard> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val current = readBoard().getOrElse { GlobalStatsBoard() }
+                val current = readBoard().getOrThrow()
                 val now = System.currentTimeMillis()
                 val users =
                     (current.users.filterNot { it.id == upload.userId } +
@@ -114,7 +116,7 @@ class AirBeatsStatsCloudClient {
                     }
                 }
                 .sortedByDescending { it.totalListenMs }
-                .take(10)
+                .take(MAX_GLOBAL_USERS)
                 .mapIndexed { index, user -> user.copy(rank = index + 1) }
         return GlobalStatsBoard(users = users, updatedAt = json.optLong("updatedAt"))
     }
@@ -148,7 +150,7 @@ class AirBeatsStatsCloudClient {
         const val BASE_URL = "REPLACE_WITH_YOUR_DATABASE_URL"
         const val GLOBAL_STATS_FILE = "airbeats/global_stats.json"
         const val API_KEY = "REPLACE_WITH_YOUR_API_KEY"
-        const val MAX_GLOBAL_USERS = 100
+        const val MAX_GLOBAL_USERS = 1000
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }

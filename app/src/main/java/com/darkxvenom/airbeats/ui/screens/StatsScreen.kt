@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -615,7 +618,7 @@ fun StatsScreen(
 
     if (showWeeklyGlobalStats) {
         WeeklyGlobalStatsSheet(
-            users = globalStats.board.users.take(10),
+            users = globalStats.board.users,
             currentUserId = globalStats.currentUserId,
             onDismiss = {
                 viewModel.markWeeklyPopupSeen()
@@ -630,7 +633,7 @@ private fun GlobalStatsBoardCard(
     state: GlobalStatsUiState,
     onRefresh: () -> Unit,
 ) {
-    val users = state.board.users.take(10)
+    val users = state.board.users
     val topUser = users.firstOrNull()
     val currentUser = users.firstOrNull { it.id == state.currentUserId }
 
@@ -638,84 +641,79 @@ private fun GlobalStatsBoardCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.linearGradient(
-                            listOf(
-                                Color(0xFF1DB954),
-                                Color(0xFF2D46B9),
-                                Color(0xFF191414),
-                            ),
-                        ),
-                    )
-                    .padding(18.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
         ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Global Stats",
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                        )
-                        Text(
-                            text = topUser?.let { "Most listened: ${it.name}" } ?: "Waiting for daily cloud stats",
-                            color = Color.White.copy(alpha = 0.78f),
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    Button(onClick = onRefresh, enabled = !state.isLoading) {
-                        Text(if (state.isLoading) "Syncing" else "Refresh")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    GlobalStatPill(
-                        label = "Top listener",
-                        value = topUser?.let { formatListenHours(it.totalListenMs) } ?: "--",
-                        modifier = Modifier.weight(1f),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Global Stats",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                     )
-                    GlobalStatPill(
-                        label = "Your rank",
-                        value = currentUser?.rank?.let { "#$it" } ?: "--",
-                        modifier = Modifier.weight(1f),
+                    Text(
+                        text = topUser?.let { "Most listened: ${it.name} • Total Users: ${users.size}" } ?: "Waiting for daily cloud stats",
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
+                Button(onClick = onRefresh, enabled = !state.isLoading) {
+                    Text(if (state.isLoading) "Syncing" else "Refresh")
+                }
+            }
 
-                Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                GlobalStatPill(
+                    label = "Top listener",
+                    value = topUser?.let { formatListenHours(it.totalListenMs) } ?: "--",
+                    modifier = Modifier.weight(1f),
+                )
+                GlobalStatPill(
+                    label = "Your rank",
+                    value = currentUser?.rank?.let { "#$it" } ?: "--",
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 users.forEach { user ->
                     GlobalUserRankRow(
                         user = user,
                         isCurrentUser = user.id == state.currentUserId,
                     )
                 }
+            }
 
-                state.error?.let { error ->
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = error,
-                        color = Color.White.copy(alpha = 0.72f),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
+            state.error?.let { error ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = error,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
         }
     }
@@ -730,11 +728,11 @@ private fun GlobalStatPill(
     Column(
         modifier =
             modifier
-                .background(Color.White.copy(alpha = 0.16f), RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                 .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
-        Text(label, color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.labelMedium)
-        Text(value, color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+        Text(value, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -749,7 +747,8 @@ private fun GlobalUserRankRow(
                 .fillMaxWidth()
                 .padding(vertical = 4.dp)
                 .background(
-                    if (isCurrentUser) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f),
+                    if (isCurrentUser) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) 
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                     RoundedCornerShape(12.dp),
                 )
                 .padding(10.dp),
@@ -758,22 +757,24 @@ private fun GlobalUserRankRow(
         Text(
             text = "#${user.rank}",
             modifier = Modifier.width(42.dp),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Black,
+            style = MaterialTheme.typography.bodyMedium,
         )
         ProfileBubble(user.profileUrl, user.name)
         Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = user.name,
             modifier = Modifier.weight(1f),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             fontWeight = if (isCurrentUser) FontWeight.Black else FontWeight.SemiBold,
+            style = MaterialTheme.typography.bodyMedium,
         )
         Text(
             text = formatListenHours(user.totalListenMs),
-            color = Color.White.copy(alpha = 0.88f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
         )
@@ -808,47 +809,53 @@ private fun WeeklyGlobalStatsSheet(
         ) {
             Column {
                 Text(
-                    text = "Weekly Global Top 10",
+                    text = "Weekly Global Stats",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Black,
                 )
                 Text(
-                    text = "Only names and listened hours are shown.",
+                    text = "Total Users: ${users.size} • Only names and listened hours are shown.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
                 )
                 Spacer(modifier = Modifier.height(18.dp))
-                users.forEach { user ->
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 5.dp)
-                                .background(
-                                    if (user.id == currentUserId) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-                                    RoundedCornerShape(14.dp),
-                                )
-                                .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "#${user.rank}",
-                            modifier = Modifier.width(46.dp),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Black,
-                        )
-                        Text(
-                            text = user.name,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            text = formatListenHours(user.weeklyListenMs.takeIf { it > 0 } ?: user.totalListenMs),
-                            fontWeight = FontWeight.Black,
-                        )
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    users.forEach { user ->
+                        Row(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 5.dp)
+                                    .background(
+                                        if (user.id == currentUserId) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                                        RoundedCornerShape(14.dp),
+                                    )
+                                    .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "#${user.rank}",
+                                modifier = Modifier.width(46.dp),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Black,
+                            )
+                            Text(
+                                text = user.name,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                text = formatListenHours(user.weeklyListenMs.takeIf { it > 0 } ?: user.totalListenMs),
+                                fontWeight = FontWeight.Black,
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(18.dp))
@@ -886,12 +893,12 @@ private fun ProfileBubble(
                 Modifier
                     .size(34.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.2f)),
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
                 fontWeight = FontWeight.Black,
             )
         }

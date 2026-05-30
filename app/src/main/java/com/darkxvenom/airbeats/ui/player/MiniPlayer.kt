@@ -1,6 +1,8 @@
 package com.darkxvenom.airbeats.ui.player
 
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
@@ -52,6 +54,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -65,6 +68,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -88,13 +93,22 @@ import com.darkxvenom.airbeats.constants.PlayerScreenStyle
 import com.darkxvenom.airbeats.constants.PlayerScreenStyleKey
 import com.darkxvenom.airbeats.constants.PureBlackKey
 import com.darkxvenom.airbeats.constants.ThumbnailCornerRadius
+import com.darkxvenom.airbeats.constants.LiquidGlassKey
+import com.darkxvenom.airbeats.ui.component.LocalBackdrop
+import com.darkxvenom.airbeats.ui.component.drawBackdropCustomShape
 import com.darkxvenom.airbeats.extensions.togglePlayPause
 import com.darkxvenom.airbeats.models.MediaMetadata
 import com.darkxvenom.airbeats.ui.screens.settings.DarkMode
 import com.darkxvenom.airbeats.utils.getMiniPlayerThumbnailShape
 import com.darkxvenom.airbeats.utils.rememberEnumPreference
 import com.darkxvenom.airbeats.utils.rememberPreference
+import com.darkxvenom.airbeats.ui.utils.highQualityThumbnail
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.nio.IntBuffer
 import kotlin.math.absoluteValue
 import kotlin.math.exp
 import kotlin.math.roundToInt
@@ -114,16 +128,39 @@ fun MiniPlayer(
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val currentSong by playerConnection.currentSong.collectAsState(initial = null)
-    // Obtener el estado del tema para calcular el color de fondo correcto
     val isSystemInDarkTheme = isSystemInDarkTheme()
     val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
     val pureBlack by rememberPreference(PureBlackKey, defaultValue = false)
+    val enableLiquidGlass by rememberPreference(LiquidGlassKey, defaultValue = false)
+    val backdrop = LocalBackdrop.current
+
+    val layer = rememberGraphicsLayer()
+    val luminanceAnimation = remember { Animatable(0.3f) }
+
+    val themeContrastColor by animateColorAsState(
+        targetValue = if (enableLiquidGlass && backdrop != null) {
+            Color.White
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
+        animationSpec = tween(500),
+        label = "ContrastColor"
+    )
+
+    val themeContrastSecondaryColor by animateColorAsState(
+        targetValue = if (enableLiquidGlass && backdrop != null) {
+            Color.White.copy(alpha = 0.7f)
+        } else {
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        },
+        animationSpec = tween(500),
+        label = "ContrastSecondaryColor"
+    )
 
     val useDarkTheme = remember(darkTheme, isSystemInDarkTheme) {
         if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
     }
 
-    // Obtener la forma del thumbnail del MiniPlayer
     val miniPlayerThumbnailShapeState = rememberPreference(
         key = MiniPlayerThumbnailShapeKey,
         defaultValue = DefaultMiniPlayerThumbnailShape
@@ -137,8 +174,8 @@ fun MiniPlayer(
         }
     }
 
-    // Calcular el color de fondo correcto
     val miniPlayerBackgroundColor = when {
+        enableLiquidGlass && backdrop != null -> Color.Transparent
         useDarkTheme && pureBlack -> Color.Black.copy(alpha = 0.95f)
         else -> MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f)
     }
@@ -166,15 +203,13 @@ fun MiniPlayer(
         animationSpec = animationSpec
     )
 
-    // Animación INFINITA de rotación para el thumbnail
-    // Se ejecuta continuamente mientras isPlaying = true
     val infiniteTransition = rememberInfiniteTransition(label = "thumbnail_rotation")
     val thumbnailRotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = 8000, // 8 segundos para una rotación completa (velocidad lenta)
+                durationMillis = 8000,
                 easing = LinearEasing
             ),
             repeatMode = RepeatMode.Restart
@@ -182,8 +217,6 @@ fun MiniPlayer(
         label = "rotation"
     )
 
-    // Convertir RoundedPolygon a Shape usando la API oficial
-    // Cambia a Square cuando está en pausa, usa la forma seleccionada cuando está reproduciendo
     val currentThumbnailShape = remember(isPlaying, miniPlayerThumbnailShape) {
         if (isPlaying) {
             miniPlayerThumbnailShape
@@ -192,9 +225,6 @@ fun MiniPlayer(
         }
     }.toShape()
 
-    /**
-     * Calculates the auto-swipe threshold based on swipe sensitivity.
-     */
     fun calculateAutoSwipeThreshold(swipeSensitivity: Float): Int {
         return (600 / (1f + exp(-(-11.44748 * swipeSensitivity + 9.04945)))).roundToInt()
     }
@@ -221,10 +251,23 @@ fun MiniPlayer(
                 )
                 .height(64.dp)
                 .offset { IntOffset(offsetXAnimatable.value.roundToInt(), 0) }
-                .shadow(
-                    elevation = 8.dp,
-                    shape = RoundedCornerShape(32.dp),
-                    clip = false
+                .then(
+                    if (enableLiquidGlass && backdrop != null) {
+                        Modifier
+                            .clip(RoundedCornerShape(32.dp))
+                            .drawBackdropCustomShape(
+                                backdrop = backdrop,
+                                layer = layer,
+                                luminanceAnimation = luminanceAnimation.value,
+                                shape = RoundedCornerShape(32.dp)
+                            )
+                    } else {
+                        Modifier.shadow(
+                            elevation = 8.dp,
+                            shape = RoundedCornerShape(32.dp),
+                            clip = false
+                        )
+                    }
                 ),
             tonalElevation = 2.dp,
             shape = RoundedCornerShape(32.dp),
@@ -318,7 +361,7 @@ fun MiniPlayer(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
                                 .size(40.dp)
-                                .rotate(if (isPlaying) thumbnailRotation else 0f) // Solo rota cuando está reproduciendo
+                                .rotate(if (isPlaying) thumbnailRotation else 0f)
                                 .clip(currentThumbnailShape)
                                 .border(
                                     width = 1.dp,
@@ -336,7 +379,7 @@ fun MiniPlayer(
                         ) {
                             mediaMetadata?.let { metadata ->
                                 AsyncImage(
-                                    model = metadata.thumbnailUrl,
+                                    model = metadata.thumbnailUrl?.highQualityThumbnail(),
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
@@ -389,7 +432,7 @@ fun MiniPlayer(
                             ) { title ->
                                 Text(
                                     text = title,
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                    color = themeContrastColor,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                     maxLines = 1,
@@ -406,7 +449,7 @@ fun MiniPlayer(
                                 ) { artists ->
                                     Text(
                                         text = artists,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                        color = themeContrastSecondaryColor,
                                         fontSize = 12.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
@@ -445,7 +488,7 @@ fun MiniPlayer(
                             tint = if (currentSong?.song?.liked == true) {
                                 MaterialTheme.colorScheme.error
                             } else {
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                themeContrastSecondaryColor
                             },
                             modifier = Modifier.size(18.dp)
                         )
@@ -459,7 +502,7 @@ fun MiniPlayer(
                         Icon(
                             painter = painterResource(R.drawable.skip_next),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            tint = themeContrastSecondaryColor,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -505,10 +548,38 @@ private fun ModernMiniPlayer(
     val isSystemInDarkTheme = isSystemInDarkTheme()
     val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
     val pureBlack by rememberPreference(PureBlackKey, defaultValue = false)
+    val enableLiquidGlass by rememberPreference(LiquidGlassKey, defaultValue = false)
+    val backdrop = LocalBackdrop.current
+
+    val layer = rememberGraphicsLayer()
+    val luminanceAnimation = remember { Animatable(0.3f) }
+
+    val themeContrastColor by animateColorAsState(
+        targetValue = if (enableLiquidGlass && backdrop != null) {
+            Color.White
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
+        animationSpec = tween(500),
+        label = "ContrastColor"
+    )
+
+    val themeContrastVariantColor by animateColorAsState(
+        targetValue = if (enableLiquidGlass && backdrop != null) {
+            Color.White.copy(alpha = 0.7f)
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = tween(500),
+        label = "ContrastVariantColor"
+    )
+
     val useDarkTheme = remember(darkTheme, isSystemInDarkTheme) {
         if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
     }
-    val backgroundColor = if (useDarkTheme && pureBlack) {
+    val backgroundColor = if (enableLiquidGlass && backdrop != null) {
+        Color.Transparent
+    } else if (useDarkTheme && pureBlack) {
         Color.Black.copy(alpha = 0.96f)
     } else {
         MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.96f)
@@ -581,8 +652,22 @@ private fun ModernMiniPlayer(
             modifier = Modifier
                 .fillMaxSize()
                 .offset { IntOffset(offsetXAnimatable.value.roundToInt(), 0) }
-                .clip(RoundedCornerShape(32.dp))
-                .background(backgroundColor)
+                .then(
+                    if (enableLiquidGlass && backdrop != null) {
+                        Modifier
+                            .clip(RoundedCornerShape(32.dp))
+                            .drawBackdropCustomShape(
+                                backdrop = backdrop,
+                                layer = layer,
+                                luminanceAnimation = luminanceAnimation.value,
+                                shape = RoundedCornerShape(32.dp)
+                            )
+                    } else {
+                        Modifier
+                            .clip(RoundedCornerShape(32.dp))
+                            .background(backgroundColor)
+                    }
+                )
         ) {
             if (duration > 0) {
                 LinearProgressIndicator(
@@ -618,7 +703,7 @@ private fun ModernMiniPlayer(
                 ) {
                     mediaMetadata?.let { metadata ->
                         AsyncImage(
-                            model = metadata.thumbnailUrl,
+                            model = metadata.thumbnailUrl?.highQualityThumbnail(),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
@@ -653,7 +738,7 @@ private fun ModernMiniPlayer(
                     mediaMetadata?.let { metadata ->
                         Text(
                             text = metadata.title,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = themeContrastColor,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
@@ -662,7 +747,7 @@ private fun ModernMiniPlayer(
                         )
                         Text(
                             text = metadata.artists.joinToString { it.name },
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = themeContrastVariantColor,
                             fontSize = 12.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -693,7 +778,7 @@ private fun ModernMiniPlayer(
                         tint = if (currentSong?.song?.liked == true) {
                             MaterialTheme.colorScheme.error
                         } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                            themeContrastVariantColor
                         },
                         modifier = Modifier.size(18.dp)
                     )
@@ -707,7 +792,7 @@ private fun ModernMiniPlayer(
                     Icon(
                         painter = painterResource(R.drawable.skip_next),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = themeContrastVariantColor,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -744,7 +829,7 @@ fun MiniMediaInfo(
     ) {
         Box(modifier = Modifier.padding(6.dp)) {
             AsyncImage(
-                model = mediaMetadata.thumbnailUrl,
+                model = mediaMetadata.thumbnailUrl?.highQualityThumbnail(),
                 contentDescription = null,
                 modifier = Modifier
                     .size(48.dp)

@@ -6,7 +6,7 @@ import androidx.media3.common.MediaMetadata.MEDIA_TYPE_MUSIC
 import com.darkxvenom.airbeats.innertube.models.SongItem
 import com.darkxvenom.airbeats.db.entities.Song
 import com.darkxvenom.airbeats.models.MediaMetadata
-import com.darkxvenom.airbeats.ui.utils.resize
+import com.darkxvenom.airbeats.ui.utils.highQualityThumbnail
 import com.darkxvenom.airbeats.models.toMediaMetadata
 
 val MediaItem.metadata: MediaMetadata?
@@ -25,7 +25,7 @@ fun Song.toMediaItem() =
                 .setTitle(song.title)
                 .setSubtitle(artists.joinToString { it.name })
                 .setArtist(artists.joinToString { it.name })
-                .setArtworkUri(song.thumbnailUrl?.resize(544, 544)?.toUri())
+                .setArtworkUri(song.thumbnailUrl?.highQualityThumbnail()?.toUri())
                 .setAlbumTitle(song.albumName)
                 .setMediaType(MEDIA_TYPE_MUSIC)
                 .build(),
@@ -44,7 +44,7 @@ fun SongItem.toMediaItem() =
                 .setTitle(title)
                 .setSubtitle(artists.joinToString { it.name })
                 .setArtist(artists.joinToString { it.name })
-                .setArtworkUri(thumbnail.resize(544, 544).toUri())
+                .setArtworkUri(thumbnail.highQualityThumbnail().toUri())
                 .setAlbumTitle(album?.name)
                 .setMediaType(MEDIA_TYPE_MUSIC)
                 .build(),
@@ -63,7 +63,7 @@ fun MediaMetadata.toMediaItem() =
                 .setTitle(title)
                 .setSubtitle(artists.joinToString { it.name })
                 .setArtist(artists.joinToString { it.name })
-                .setArtworkUri(thumbnailUrl?.resize(544, 544)?.toUri())
+                .setArtworkUri(thumbnailUrl?.highQualityThumbnail()?.toUri())
                 .setAlbumTitle(album?.title)
                 .setMediaType(MEDIA_TYPE_MUSIC)
                 .build(),

@@ -43,6 +43,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -111,6 +112,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -155,6 +158,11 @@ import com.darkxvenom.airbeats.constants.SliderStyleKey
 import com.darkxvenom.airbeats.constants.SmallButtonsShapeKey
 import com.darkxvenom.airbeats.extensions.togglePlayPause
 import com.darkxvenom.airbeats.extensions.toggleRepeatMode
+import com.darkxvenom.airbeats.db.entities.LyricsEntity
+import com.darkxvenom.airbeats.db.entities.LyricsEntity.Companion.LYRICS_NOT_FOUND
+import com.darkxvenom.airbeats.db.entities.ArtistEntity
+import com.darkxvenom.airbeats.lyrics.LyricsEntry
+import com.darkxvenom.airbeats.lyrics.LyricsUtils.parseLyrics
 import com.darkxvenom.airbeats.models.MediaMetadata
 import com.darkxvenom.airbeats.playback.ExoDownloadService
 import com.darkxvenom.airbeats.ui.component.BottomSheet
@@ -164,6 +172,9 @@ import com.darkxvenom.airbeats.ui.component.PlayerSliderTrack
 import com.darkxvenom.airbeats.ui.component.ResizableIconButton
 import com.darkxvenom.airbeats.ui.component.rememberBottomSheetState
 import com.darkxvenom.airbeats.ui.menu.PlayerMenu
+import com.darkxvenom.airbeats.ui.menu.AddToPlaylistDialog
+import com.darkxvenom.airbeats.innertube.YouTube
+import androidx.compose.runtime.rememberCoroutineScope
 import com.darkxvenom.airbeats.ui.screens.settings.DarkMode
 import com.darkxvenom.airbeats.ui.screens.settings.PlayerTextAlignment
 import com.darkxvenom.airbeats.ui.theme.PlayerColorExtractor
@@ -174,12 +185,22 @@ import com.darkxvenom.airbeats.utils.getSmallButtonShape
 import com.darkxvenom.airbeats.utils.makeTimeString
 import com.darkxvenom.airbeats.utils.rememberEnumPreference
 import com.darkxvenom.airbeats.utils.rememberPreference
+import com.darkxvenom.airbeats.ui.utils.highQualityThumbnail
+import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import me.saket.squiggles.SquigglySlider
 import kotlin.math.roundToInt
+
+private val SpotifyFontFamily = FontFamily(
+    Font(R.font.poppins_regular, FontWeight.Normal),
+    Font(R.font.poppins_medium, FontWeight.SemiBold),
+    Font(R.font.poppins_bold, FontWeight.Bold),
+)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -192,6 +213,7 @@ fun BottomSheetPlayer(
     val context = LocalContext.current
     val database = LocalDatabase.current
     val menuState = LocalMenuState.current
+    val coroutineScope = rememberCoroutineScope()
 
     val clipboardManager = LocalClipboardManager.current
 
@@ -243,8 +265,17 @@ fun BottomSheetPlayer(
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val currentSong by playerConnection.currentSong.collectAsState(initial = null)
+    val currentLyrics by playerConnection.currentLyrics.collectAsState(initial = null)
+    val primaryArtistId = mediaMetadata?.artists?.firstOrNull { it.id != null }?.id
+    val primaryArtist by remember(primaryArtistId) {
+        primaryArtistId?.let(database::artist) ?: flowOf(null)
+    }.collectAsState(initial = null)
+    val spotifyArtistThumbnailUrl =
+        primaryArtist?.thumbnailUrl ?: currentSong?.artists?.firstOrNull()?.thumbnailUrl
+    var spotifyLyricsEntity by remember { mutableStateOf<LyricsEntity?>(null) }
     val automix by playerConnection.service.automixItems.collectAsState()
     val repeatMode by playerConnection.repeatMode.collectAsState()
+    val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
 
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
@@ -304,13 +335,51 @@ fun BottomSheetPlayer(
         playerConnection.service.addToQueueAutomix(automix[0], 0)
     }
 
+    LaunchedEffect(playerScreenStyle, mediaMetadata?.id, currentLyrics) {
+        val metadata = mediaMetadata
+        if (playerScreenStyle != PlayerScreenStyle.SPOTIFY || metadata == null) {
+            spotifyLyricsEntity = null
+            return@LaunchedEffect
+        }
+        if (!currentLyrics?.lyrics.isNullOrBlank() && currentLyrics?.lyrics != LYRICS_NOT_FOUND) {
+            spotifyLyricsEntity = currentLyrics
+            return@LaunchedEffect
+        }
+
+        withContext(Dispatchers.IO) {
+            val entity = runCatching { database.getLyrics(metadata.id) }.getOrNull()
+                ?.takeUnless { it.lyrics.isBlank() || it.lyrics == LYRICS_NOT_FOUND }
+                ?: runCatching {
+                    val entryPoint = EntryPointAccessors.fromApplication(
+                        context.applicationContext,
+                        com.darkxvenom.airbeats.di.LyricsHelperEntryPoint::class.java,
+                    )
+                    val fetchedLyrics = entryPoint.lyricsHelper().getLyrics(metadata)
+                    LyricsEntity(
+                        id = metadata.id,
+                        lyrics = fetchedLyrics.takeUnless { it.isBlank() } ?: LYRICS_NOT_FOUND,
+                    ).also { fetched ->
+                        runCatching {
+                            database.query {
+                                upsert(fetched)
+                            }
+                        }
+                    }
+                }.getOrNull()
+
+            withContext(Dispatchers.Main) {
+                spotifyLyricsEntity = entity
+            }
+        }
+    }
+
     // Obtener el color del tema antes de LaunchedEffect
     val surfaceColor = MaterialTheme.colorScheme.surface
     val fallbackColorArgb = surfaceColor.toArgb()
 
     LaunchedEffect(mediaMetadata, playerBackground, fallbackColorArgb) {
         // Update image URL for smooth transitions
-        backgroundImageUrl = mediaMetadata?.thumbnailUrl
+        backgroundImageUrl = mediaMetadata?.thumbnailUrl?.highQualityThumbnail()
 
         if (useBlackBackground && playerBackground != PlayerBackgroundStyle.BLUR) {
             gradientColors = listOf(Color.Black, Color.Black)
@@ -324,7 +393,7 @@ fun BottomSheetPlayer(
                         .execute(
                             ImageRequest
                                 .Builder(context)
-                                .data(mediaMetadata?.thumbnailUrl)
+                                .data(mediaMetadata?.thumbnailUrl?.highQualityThumbnail())
                                 .allowHardware(false)
                                 .build(),
                         ).drawable as? BitmapDrawable
@@ -350,6 +419,45 @@ fun BottomSheetPlayer(
             gradientColors = emptyList()
         }
     }
+
+    var spotifyColors by remember {
+        mutableStateOf<List<Color>>(emptyList())
+    }
+
+    LaunchedEffect(mediaMetadata, fallbackColorArgb) {
+        val metadata = mediaMetadata ?: return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            val result = runCatching {
+                ImageLoader(context)
+                    .execute(
+                        ImageRequest
+                            .Builder(context)
+                            .data(metadata.thumbnailUrl?.highQualityThumbnail())
+                            .allowHardware(false)
+                            .build(),
+                    ).drawable as? BitmapDrawable
+            }.getOrNull()
+
+            result?.bitmap?.let { bitmap ->
+                val palette = Palette.from(bitmap)
+                    .maximumColorCount(8)
+                    .resizeBitmapArea(100 * 100)
+                    .generate()
+
+                val extractedColors = PlayerColorExtractor.extractGradientColors(
+                    palette = palette,
+                    fallbackColor = fallbackColorArgb
+                )
+
+                withContext(Dispatchers.Main) {
+                    spotifyColors = extractedColors
+                }
+            }
+        }
+    }
+
+    val spotifySurfaceColor = spotifyColors.firstOrNull() ?: Color(0xFF311000)
+    val spotifyHeaderColor = spotifyColors.getOrNull(1) ?: Color(0xFF260300)
 
     val TextBackgroundColor =
         when (playerBackground) {
@@ -679,6 +787,24 @@ fun BottomSheetPlayer(
         )
     }
 
+    AddToPlaylistDialog(
+        isVisible = showChoosePlaylistDialog,
+        onGetSong = { playlist ->
+            mediaMetadata?.let { metadata ->
+                database.transaction {
+                    insert(metadata)
+                }
+                coroutineScope.launch(Dispatchers.IO) {
+                    playlist.playlist.browseId?.let { YouTube.addToPlaylist(it, metadata.id) }
+                }
+                listOf(metadata.id)
+            } ?: emptyList()
+        },
+        onDismiss = {
+            showChoosePlaylistDialog = false
+        }
+    )
+
     val queueSheetState =
         rememberBottomSheetState(
             dismissedBound = QueuePeekHeight + WindowInsets.systemBars.asPaddingValues()
@@ -716,8 +842,7 @@ fun BottomSheetPlayer(
                                 Box(modifier = Modifier.alpha(backgroundAlpha)) {
                                     AsyncImage(
                                         model = ImageRequest.Builder(context)
-                                            .data(thumbnailUrl)
-                                            .size(100, 100)
+                                            .data(thumbnailUrl.highQualityThumbnail())
                                             .allowHardware(false)
                                             .build(),
                                         contentDescription = null,
@@ -1647,7 +1772,7 @@ fun BottomSheetPlayer(
                 exit = fadeOut(tween(400))
             ) {
                 AsyncImage(
-                    model = backgroundImageUrl,
+                    model = backgroundImageUrl?.highQualityThumbnail(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -1714,7 +1839,106 @@ fun BottomSheetPlayer(
             }
         }
 
-        if (playerScreenStyle == PlayerScreenStyle.MODERN) {
+        if (playerScreenStyle == PlayerScreenStyle.SPOTIFY) {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+                val spotifyScrollState = rememberScrollState()
+                SpotifyPlayerBackdrop(
+                    thumbnailUrl = mediaMetadata?.thumbnailUrl,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(state.preUpPostDownNestedScrollConnection)
+                        .verticalScroll(spotifyScrollState)
+                        .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = queueSheetState.collapsedBound + 28.dp),
+                ) {
+                    Spacer(Modifier.height(22.dp))
+
+                    mediaMetadata?.let { metadata ->
+                        SpotifyPlayerContent(
+                            mediaMetadata = metadata,
+                            position = sliderPosition ?: position,
+                            duration = duration,
+                            isPlaying = isPlaying,
+                            isLoading = playbackState != STATE_READY && playbackState != STATE_ENDED,
+                            canSkipPrevious = canSkipPrevious,
+                            canSkipNext = canSkipNext,
+                            repeatMode = repeatMode,
+                            sliderStyle = sliderStyle,
+                            lyricsPreview = (spotifyLyricsEntity ?: currentLyrics)?.lyrics,
+                            onSeek = { sliderPosition = it },
+                            onSeekFinished = {
+                                sliderPosition?.let(playerConnection.player::seekTo)
+                                sliderPosition = null
+                            },
+                            onPlayPause = playerConnection.player::togglePlayPause,
+                            onPrevious = playerConnection.player::seekToPrevious,
+                            onNext = playerConnection::seekToNext,
+                            onShuffle = { playerConnection.player.shuffleModeEnabled = !playerConnection.player.shuffleModeEnabled },
+                            onRepeat = playerConnection.player::toggleRepeatMode,
+                            onOpenLyrics = onOpenFullscreenLyrics,
+                            onOpenQueue = queueSheetState::expandSoft,
+                            onStartRadio = playerConnection.service::startRadioSeamlessly,
+                            onCollapse = state::collapseSoft,
+                            onOpenArtist = { artistId ->
+                                navController.navigate("artist/$artistId")
+                                state.collapseSoft()
+                            },
+                            onOpenMenu = {
+                                menuState.show {
+                                    PlayerMenu(
+                                        mediaMetadata = metadata,
+                                        navController = navController,
+                                        playerBottomSheetState = state,
+                                        onShowDetailsDialog = { showDetailsDialog = true },
+                                        onDismiss = menuState::dismiss,
+                                    )
+                                }
+                            },
+                            isLiked = currentSong?.song?.liked == true,
+                            onLike = playerConnection::toggleLike,
+                            onAddToPlaylist = { showChoosePlaylistDialog = true },
+                            onShowDetails = { showDetailsDialog = true },
+                            shuffleModeEnabled = shuffleModeEnabled,
+                            currentSongArtists = currentSong?.artists ?: emptyList(),
+                            surfaceColor = spotifySurfaceColor,
+                        )
+                    }
+                }
+
+                mediaMetadata?.let { metadata ->
+                    AnimatedVisibility(
+                        visible = spotifyScrollState.value > 980,
+                        enter = fadeIn(tween(180)),
+                        exit = fadeOut(tween(180)),
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    ) {
+                        SpotifyCollapsedHeader(
+                            mediaMetadata = metadata,
+                            surfaceColor = spotifyHeaderColor,
+                            isLiked = currentSong?.song?.liked == true,
+                            onLike = playerConnection::toggleLike,
+                            onOpenMenu = {
+                                menuState.show {
+                                    PlayerMenu(
+                                        mediaMetadata = metadata,
+                                        navController = navController,
+                                        playerBottomSheetState = state,
+                                        onShowDetailsDialog = { showDetailsDialog = true },
+                                        onDismiss = menuState::dismiss,
+                                    )
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+        } else if (playerScreenStyle == PlayerScreenStyle.MODERN) {
             val playbackOutputName = rememberPlaybackOutputName()
 
             Box(modifier = Modifier.fillMaxSize()) {
@@ -1823,7 +2047,7 @@ fun BottomSheetPlayer(
             }
         }
 
-        if (playerScreenStyle != PlayerScreenStyle.MODERN || !queueSheetState.isCollapsed) {
+        if (playerScreenStyle == PlayerScreenStyle.CLASSIC || !queueSheetState.isCollapsed) {
             Queue(
                 state = queueSheetState,
                 playerBottomSheetState = state,
@@ -1842,6 +2066,684 @@ fun BottomSheetPlayer(
 }
 
 @Composable
+private fun SpotifyPlayerBackdrop(
+    thumbnailUrl: String?,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.background(Color.Black)) {
+        AsyncImage(
+            model = thumbnailUrl?.highQualityThumbnail(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(110.dp)
+                .alpha(0.42f)
+                .scale(1.14f)
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0f to Color.Black.copy(alpha = 0.1f),
+                            0.42f to Color.Black.copy(alpha = 0.5f),
+                            1f to Color.Black,
+                        )
+                    )
+                )
+        )
+    }
+}
+
+@Composable
+private fun SpotifyPlayerContent(
+    mediaMetadata: MediaMetadata,
+    position: Long,
+    duration: Long,
+    isPlaying: Boolean,
+    isLoading: Boolean,
+    canSkipPrevious: Boolean,
+    canSkipNext: Boolean,
+    repeatMode: Int,
+    sliderStyle: SliderStyle,
+    lyricsPreview: String?,
+    onSeek: (Long) -> Unit,
+    onSeekFinished: () -> Unit,
+    onPlayPause: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onShuffle: () -> Unit,
+    onRepeat: () -> Unit,
+    onOpenLyrics: () -> Unit,
+    onOpenQueue: () -> Unit,
+    onStartRadio: () -> Unit,
+    onCollapse: () -> Unit,
+    onOpenArtist: (String) -> Unit,
+    onOpenMenu: () -> Unit,
+    isLiked: Boolean,
+    onLike: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onShowDetails: () -> Unit,
+    shuffleModeEnabled: Boolean,
+    currentSongArtists: List<ArtistEntity>,
+    surfaceColor: Color,
+) {
+    val safeDuration = duration.takeIf { it > 0 } ?: 0L
+    val sliderValue = if (safeDuration > 0) position.coerceIn(0L, safeDuration).toFloat() else 0f
+    val artists = mediaMetadata.artists.joinToString { it.name }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp, bottom = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SpotifyRoundIconButton(
+                icon = R.drawable.expand_more,
+                transparent = true,
+                onClick = onCollapse,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.now_playing).uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = SpotifyFontFamily, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+                    color = Color.White,
+                )
+                Text(
+                    text = "\"${mediaMetadata.title}\" in Search",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontFamily = SpotifyFontFamily, fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee(),
+                )
+            }
+            SpotifyRoundIconButton(
+                icon = R.drawable.more_vert,
+                transparent = true,
+                onClick = onOpenMenu,
+            )
+        }
+    }
+
+    Spacer(Modifier.height(78.dp))
+
+    AsyncImage(
+        model = mediaMetadata.thumbnailUrl?.highQualityThumbnail(),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .fillMaxWidth(0.94f)
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(8.dp))
+    )
+
+    Spacer(Modifier.height(54.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = mediaMetadata.title,
+                style = MaterialTheme.typography.titleLarge.copy(fontFamily = SpotifyFontFamily, fontSize = 25.sp, fontWeight = FontWeight.Bold),
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee()
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = artists,
+                style = MaterialTheme.typography.bodyLarge.copy(fontFamily = SpotifyFontFamily, fontSize = 18.sp, fontWeight = FontWeight.Normal),
+                color = Color.White.copy(alpha = 0.68f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee()
+            )
+        }
+        SpotifyRoundIconButton(
+            icon = if (isLiked) R.drawable.favorite else R.drawable.favorite_border,
+            transparent = true,
+            tint = if (isLiked) Color(0xFF1DB954) else Color.White,
+            onClick = onLike
+        )
+    }
+
+    Spacer(Modifier.height(18.dp))
+
+    SpotifyStyledSlider(
+        value = sliderValue,
+        duration = safeDuration,
+        sliderStyle = sliderStyle,
+        isPlaying = isPlaying,
+        onSeek = onSeek,
+        onSeekFinished = onSeekFinished,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = makeTimeString(position.coerceAtLeast(0L)),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White.copy(alpha = 0.68f),
+        )
+        Spacer(Modifier.weight(1f))
+        Text(
+            text = makeTimeString(safeDuration),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White.copy(alpha = 0.68f),
+        )
+    }
+
+    Spacer(Modifier.height(12.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SpotifyPlainIconButton(
+            if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle,
+            onShuffle,
+            if (shuffleModeEnabled) Color(0xFF1DB954) else Color.White,
+        )
+        SpotifyPlainIconButton(
+            R.drawable.skip_previous,
+            onPrevious,
+            if (canSkipPrevious) Color.White else Color.White.copy(alpha = 0.32f),
+        )
+        Box(
+            modifier = Modifier
+                .size(74.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+                .clickable(onClick = onPlayPause),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(if (isPlaying && !isLoading) R.drawable.pause else R.drawable.play),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(Color.Black),
+                modifier = Modifier.size(38.dp)
+            )
+        }
+        SpotifyPlainIconButton(
+            R.drawable.skip_next,
+            onNext,
+            if (canSkipNext) Color.White else Color.White.copy(alpha = 0.32f),
+        )
+        SpotifyPlainIconButton(
+            if (repeatMode == Player.REPEAT_MODE_ONE) R.drawable.repeat_one else R.drawable.repeat,
+            onRepeat,
+            if (repeatMode == Player.REPEAT_MODE_OFF) Color.White else Color(0xFF1DB954),
+        )
+    }
+
+    Spacer(Modifier.height(22.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SpotifyRoundIconButton(icon = R.drawable.info, transparent = true, onClick = onShowDetails)
+        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            SpotifyRoundIconButton(icon = R.drawable.playlist_add, transparent = true, onClick = onAddToPlaylist)
+            SpotifyRoundIconButton(icon = R.drawable.queue_music, transparent = true, onClick = onOpenQueue)
+        }
+    }
+
+    Spacer(Modifier.height(26.dp))
+
+    SpotifyLyricsPreviewCard(
+        lyrics = lyricsPreview,
+        position = position,
+        surfaceColor = surfaceColor,
+        onClick = onOpenLyrics,
+    )
+
+    Spacer(Modifier.height(12.dp))
+
+    mediaMetadata.artists.forEach { artist ->
+        val artistEntity = currentSongArtists.find { it.id == artist.id }
+        val thumbnailUrl = artistEntity?.thumbnailUrl?.takeIf { it.isNotBlank() } ?: mediaMetadata.thumbnailUrl
+        SpotifyArtistCard(
+            artist = artist.name,
+            thumbnailUrl = thumbnailUrl,
+            onClick = {
+                artist.id?.let { artistId ->
+                    onOpenArtist(artistId)
+                }
+            },
+        )
+        Spacer(Modifier.height(12.dp))
+    }
+
+    Spacer(Modifier.height(12.dp))
+
+    SpotifyDetailsCard(
+        mediaMetadata = mediaMetadata,
+        artists = artists,
+        surfaceColor = surfaceColor,
+        onClick = onOpenMenu,
+    )
+}
+
+@Composable
+private fun SpotifyActionTile(
+    icon: Int,
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .height(58.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White.copy(alpha = 0.12f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Image(
+                painter = painterResource(icon),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(Color.White),
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpotifyCollapsedHeader(
+    mediaMetadata: MediaMetadata,
+    surfaceColor: Color,
+    isLiked: Boolean,
+    onLike: () -> Unit,
+    onOpenMenu: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(surfaceColor.copy(alpha = 0.96f))
+            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
+            .padding(horizontal = 36.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = mediaMetadata.thumbnailUrl?.highQualityThumbnail(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(45.dp)
+                .clip(RoundedCornerShape(8.dp))
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = mediaMetadata.title,
+                style = MaterialTheme.typography.labelSmall.copy(fontFamily = SpotifyFontFamily, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+                    color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee(),
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = mediaMetadata.artists.joinToString { it.name },
+                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = SpotifyFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Normal),
+                color = Color.White.copy(alpha = 0.68f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee(),
+            )
+        }
+        Spacer(Modifier.width(22.dp))
+        SpotifyRoundIconButton(
+            icon = if (isLiked) R.drawable.favorite else R.drawable.favorite_border,
+            transparent = true,
+            tint = if (isLiked) Color(0xFF1DB954) else Color.White,
+            onClick = onLike
+        )
+        Spacer(Modifier.width(18.dp))
+        SpotifyRoundIconButton(icon = R.drawable.more_vert, transparent = true, onClick = onOpenMenu)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SpotifyStyledSlider(
+    value: Float,
+    duration: Long,
+    sliderStyle: SliderStyle,
+    isPlaying: Boolean,
+    onSeek: (Long) -> Unit,
+    onSeekFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val valueRange = 0f..duration.coerceAtLeast(1L).toFloat()
+    val sliderColors = SliderDefaults.colors(
+        thumbColor = Color.White,
+        activeTrackColor = Color.White,
+        inactiveTrackColor = Color.White.copy(alpha = 0.26f),
+    )
+
+    when (sliderStyle) {
+        SliderStyle.DEFAULT -> {
+            Slider(
+                value = value,
+                valueRange = valueRange,
+                onValueChange = { onSeek(it.toLong()) },
+                onValueChangeFinished = onSeekFinished,
+                colors = sliderColors,
+                modifier = modifier,
+            )
+        }
+
+        SliderStyle.SQUIGGLY -> {
+            SquigglySlider(
+                value = value,
+                valueRange = valueRange,
+                onValueChange = { onSeek(it.toLong()) },
+                onValueChangeFinished = onSeekFinished,
+                colors = PlayerSliderColors.getSliderColors(
+                    textButtonColor = Color.White,
+                    playerBackground = PlayerBackgroundStyle.DEFAULT,
+                    useDarkTheme = true,
+                ),
+                modifier = modifier,
+                squigglesSpec = SquigglySlider.SquigglesSpec(
+                    amplitude = if (isPlaying) 2.dp else 0.dp,
+                    strokeWidth = 3.dp,
+                ),
+            )
+        }
+
+        SliderStyle.SLIM -> {
+            Slider(
+                value = value,
+                valueRange = valueRange,
+                onValueChange = { onSeek(it.toLong()) },
+                onValueChangeFinished = onSeekFinished,
+                thumb = { Spacer(modifier = Modifier.size(0.dp)) },
+                track = { sliderState ->
+                    PlayerSliderTrack(
+                        sliderState = sliderState,
+                        colors = sliderColors,
+                    )
+                },
+                modifier = modifier,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpotifyLyricsPreviewCard(
+    lyrics: String?,
+    position: Long,
+    surfaceColor: Color,
+    onClick: () -> Unit,
+) {
+    val lyricEntries = remember(lyrics) {
+        when {
+            lyrics.isNullOrBlank() || lyrics == LYRICS_NOT_FOUND -> emptyList()
+            lyrics.startsWith("[") -> parseLyrics(lyrics)
+            else -> lyrics.lines()
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .mapIndexed { index, line -> LyricsEntry(index * 2500L, line) }
+        }
+    }
+    val activeLineIndex = remember(lyricEntries, position) {
+        lyricEntries.indexOfLast { it.time <= position }.coerceAtLeast(0)
+    }
+    val previewLines = remember(lyricEntries, activeLineIndex) {
+        if (lyricEntries.isEmpty()) {
+            emptyList()
+        } else {
+            lyricEntries.drop(activeLineIndex.coerceAtMost(lyricEntries.lastIndex)).take(4)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(surfaceColor.copy(alpha = 0.9f))
+            .clickable(onClick = onClick)
+            .padding(15.dp),
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.lyrics),
+                    style = MaterialTheme.typography.labelMedium.copy(fontFamily = SpotifyFontFamily, fontSize = 16.sp, fontWeight = FontWeight.Bold),
+                    color = Color.White,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "Show",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.72f),
+                )
+            }
+
+            Spacer(Modifier.height(26.dp))
+
+            if (previewLines.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.lyrics_not_found),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White.copy(alpha = 0.45f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = 20.dp),
+                )
+            }
+            previewLines.forEachIndexed { index, line ->
+                Text(
+                    text = line.text,
+                    style = MaterialTheme.typography.headlineMedium.copy(fontFamily = SpotifyFontFamily, fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                    color = Color.White.copy(alpha = if (index == 0) 1f else 0.34f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = 20.dp),
+                )
+            }
+
+            Spacer(Modifier.height(18.dp))
+            Text(
+                text = if (previewLines.isEmpty()) "" else "Line Synced\nLyrics provided by LRCLIB",
+                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = SpotifyFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Normal),
+                color = Color.White.copy(alpha = 0.68f),
+                modifier = Modifier.align(Alignment.End),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpotifyArtistCard(
+    artist: String,
+    thumbnailUrl: String?,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(250.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+    ) {
+        AsyncImage(
+            model = thumbnailUrl?.highQualityThumbnail(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().alpha(0.82f),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Black.copy(alpha = 0.1f), Color.Black.copy(alpha = 0.66f))
+                    )
+                )
+        )
+        Text(
+            text = stringResource(R.string.artists),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color.White,
+            modifier = Modifier.align(Alignment.TopStart).padding(28.dp),
+        )
+        Column(
+            modifier = Modifier.align(Alignment.BottomStart).padding(28.dp),
+        ) {
+            Text(
+                text = artist,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+            )
+            Text(
+                text = "Artist",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White.copy(alpha = 0.7f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpotifyDetailsCard(
+    mediaMetadata: MediaMetadata,
+    artists: String,
+    surfaceColor: Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(surfaceColor.copy(alpha = 0.9f))
+            .clickable(onClick = onClick)
+            .padding(28.dp),
+    ) {
+        Column {
+            Text(
+                text = mediaMetadata.album?.title?.takeIf { it.isNotBlank() } ?: mediaMetadata.title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = makeTimeString(mediaMetadata.duration * 1000L),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = artists,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White.copy(alpha = 0.62f),
+            )
+            Spacer(Modifier.height(22.dp))
+            Text(
+                text = "Description",
+                style = MaterialTheme.typography.headlineSmall.copy(fontFamily = SpotifyFontFamily, fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                    color = Color.White,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = listOf(mediaMetadata.title, artists).joinToString(" • "),
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White.copy(alpha = 0.62f),
+            )
+            Spacer(Modifier.height(18.dp))
+            Text(
+                text = "More",
+                style = MaterialTheme.typography.headlineSmall.copy(fontFamily = SpotifyFontFamily, fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                    color = Color.White,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpotifyRoundIconButton(
+    icon: Int,
+    transparent: Boolean = false,
+    tint: Color = Color.White,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(42.dp)
+            .clip(CircleShape)
+            .background(if (transparent) Color.Transparent else Color.White.copy(alpha = 0.12f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(icon),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(tint),
+            modifier = Modifier.size(23.dp)
+        )
+    }
+}
+
+@Composable
+private fun SpotifyPlainIconButton(
+    icon: Int,
+    onClick: () -> Unit,
+    tint: Color,
+) {
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(icon),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(tint),
+            modifier = Modifier.size(30.dp)
+        )
+    }
+}
+
+@Composable
 private fun ImmersivePlayerBackdrop(
     thumbnailUrl: String?,
     modifier: Modifier = Modifier,
@@ -1855,7 +2757,7 @@ private fun ImmersivePlayerBackdrop(
             if (artworkUrl != null) {
                 Box(Modifier.fillMaxSize()) {
                     AsyncImage(
-                        model = artworkUrl,
+                        model = artworkUrl.highQualityThumbnail(),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -1868,7 +2770,7 @@ private fun ImmersivePlayerBackdrop(
                     )
 
                     AsyncImage(
-                        model = artworkUrl,
+                        model = artworkUrl.highQualityThumbnail(),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -2156,3 +3058,9 @@ fun ConcentricWaveEffect(
         }
     }
 }
+
+
+
+
+
+

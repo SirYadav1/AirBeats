@@ -6,10 +6,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.darkxvenom.airbeats.App
+import com.darkxvenom.airbeats.utils.AirBeatsStatsCloudSync
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import timber.log.Timber
 
 val LocalUserName = staticCompositionLocalOf { "" }
 
@@ -21,6 +25,7 @@ fun NameProvider(
     var userName by remember { mutableStateOf("") }
     var showNameDialog by remember { mutableStateOf(false) }
     var isInitialized by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     // Check if name is set when component first loads
     LaunchedEffect(Unit) {
@@ -38,9 +43,20 @@ fun NameProvider(
         if (name.isNotBlank()) {
             userName = name
             showNameDialog = false
-            // Save to preferences
-            runBlocking {
+            // Save to preferences and sync immediately
+            scope.launch {
                 namePreferenceManager.saveUserName(name)
+                try {
+                    AirBeatsStatsCloudSync.syncDaily(
+                        context = App.instance,
+                        database = App.instance.database,
+                        namePreferenceManager = namePreferenceManager,
+                    )?.onFailure {
+                        Timber.e(it, "Failed to sync stats after name confirmation")
+                    }
+                } catch (e: Exception) {
+                    Timber.e(e, "Exception syncing stats after name confirmation")
+                }
             }
         }
     }
@@ -54,11 +70,7 @@ fun NameProvider(
     // Show dialog if needed
     if (showNameDialog && isInitialized) {
         NameSetupDialog(
-            onNameConfirmed = onNameConfirmed,
-            onDismiss = {
-                // If user skips, set a default name
-                onNameConfirmed("Friend")
-            }
+            onNameConfirmed = onNameConfirmed
         )
     }
 }

@@ -31,8 +31,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun NameSetupDialog(
-    onNameConfirmed: (String) -> Unit,
-    onDismiss: () -> Unit
+    onNameConfirmed: (String) -> Unit
 ) {
     var nameInput by remember { mutableStateOf(TextFieldValue("")) }
     val focusRequester = remember { FocusRequester() }
@@ -40,7 +39,7 @@ fun NameSetupDialog(
     val isNameValid = nameInput.text.length in 1..9
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         title = {
             Text(
                 text = "Welcome! 👋",
@@ -116,14 +115,6 @@ fun NameSetupDialog(
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text("Continue")
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text("Cancel")
             }
         },
         shape = RoundedCornerShape(16.dp)

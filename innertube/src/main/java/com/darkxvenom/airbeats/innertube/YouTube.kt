@@ -102,47 +102,75 @@ object YouTube {
 
     suspend fun searchSuggestions(query: String): Result<SearchSuggestions> = runCatching {
         val response = innerTube.getSearchSuggestions(WEB_REMIX, query).body<GetSearchSuggestionsResponse>()
+        val contents = response.contents.orEmpty()
         SearchSuggestions(
-            queries = response.contents?.getOrNull(0)?.searchSuggestionsSectionRenderer?.contents?.mapNotNull { content ->
+            queries = contents.flatMap { it.searchSuggestionsSectionRenderer?.contents.orEmpty() }.mapNotNull { content ->
                 content.searchSuggestionRenderer?.suggestion?.runs?.joinToString(separator = "") { it.text }
-            }.orEmpty(),
-            recommendedItems = response.contents?.getOrNull(1)?.searchSuggestionsSectionRenderer?.contents?.mapNotNull {
-                it.musicResponsiveListItemRenderer?.let { renderer ->
+            },
+            recommendedItems = contents.flatMap { it.searchSuggestionsSectionRenderer?.contents.orEmpty() }.mapNotNull { content ->
+                content.musicResponsiveListItemRenderer?.let { renderer ->
                     SearchSuggestionPage.fromMusicResponsiveListItemRenderer(renderer)
                 }
-            }.orEmpty()
+            }
         )
     }
 
 
     suspend fun searchSummary(query: String): Result<SearchSummaryPage> = runCatching {
         val response = innerTube.search(WEB_REMIX, query).body<SearchResponse>()
+        val contents = response.contents?.tabbedSearchResultsRenderer?.tabs?.firstOrNull()
+            ?.tabRenderer?.content?.sectionListRenderer?.contents.orEmpty()
+
+        val shelfSummaries = contents.mapNotNull { it ->
+            if (it.musicCardShelfRenderer != null) {
+                SearchSummary(
+                    title = it.musicCardShelfRenderer.header?.musicCardShelfHeaderBasicRenderer?.title?.runs?.firstOrNull()?.text ?: "Top result",
+                    items = listOfNotNull(SearchSummaryPage.fromMusicCardShelfRenderer(it.musicCardShelfRenderer))
+                        .plus(
+                            it.musicCardShelfRenderer.contents
+                                ?.mapNotNull { it.musicResponsiveListItemRenderer }
+                                ?.mapNotNull(SearchSummaryPage.Companion::fromMusicResponsiveListItemRenderer)
+                                .orEmpty()
+                        )
+                        .distinctBy { it.id }
+                        .ifEmpty { null } ?: return@mapNotNull null
+                )
+            } else if (it.musicShelfRenderer != null) {
+                SearchSummary(
+                    title = it.musicShelfRenderer.title?.runs?.firstOrNull()?.text ?: "Other",
+                    items = it.musicShelfRenderer.contents?.getItems()
+                        ?.mapNotNull {
+                            SearchSummaryPage.fromMusicResponsiveListItemRenderer(it)
+                        }
+                        ?.distinctBy { it.id }
+                        ?.ifEmpty { null } ?: return@mapNotNull null
+                )
+            } else {
+                null
+            }
+        }
+
+        val flatItems = contents
+            .mapNotNull { it.itemSectionRenderer?.contents }
+            .flatten()
+            .mapNotNull { it.musicResponsiveListItemRenderer }
+            .mapNotNull { SearchSummaryPage.fromMusicResponsiveListItemRenderer(it) }
+            .distinctBy { it.id }
+
+        val itemSectionSummaries = flatItems.groupBy { item ->
+            when (item) {
+                is SongItem -> "Songs"
+                is AlbumItem -> "Albums"
+                is ArtistItem -> "Artists"
+                is PlaylistItem -> "Playlists"
+                else -> "Other"
+            }
+        }.map { (title, items) ->
+            SearchSummary(title = title, items = items)
+        }
+
         SearchSummaryPage(
-            summaries = response.contents?.tabbedSearchResultsRenderer?.tabs?.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents?.mapNotNull { it ->
-                if (it.musicCardShelfRenderer != null)
-                    SearchSummary(
-                        title = it.musicCardShelfRenderer.header?.musicCardShelfHeaderBasicRenderer?.title?.runs?.firstOrNull()?.text ?: "Top result",
-                        items = listOfNotNull(SearchSummaryPage.fromMusicCardShelfRenderer(it.musicCardShelfRenderer))
-                            .plus(
-                                it.musicCardShelfRenderer.contents
-                                    ?.mapNotNull { it.musicResponsiveListItemRenderer }
-                                    ?.mapNotNull(SearchSummaryPage.Companion::fromMusicResponsiveListItemRenderer)
-                                    .orEmpty()
-                            )
-                            .distinctBy { it.id }
-                            .ifEmpty { null } ?: return@mapNotNull null
-                    )
-                else
-                    SearchSummary(
-                        title = it.musicShelfRenderer?.title?.runs?.firstOrNull()?.text ?: "Other",
-                        items = it.musicShelfRenderer?.contents?.getItems()
-                            ?.mapNotNull {
-                                SearchSummaryPage.fromMusicResponsiveListItemRenderer(it)
-                            }
-                            ?.distinctBy { it.id }
-                            ?.ifEmpty { null } ?: return@mapNotNull null
-                    )
-            }!!
+            summaries = shelfSummaries + itemSectionSummaries
         )
     }
 

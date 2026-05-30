@@ -20,7 +20,6 @@ object AirBeatsStatsCloudSync {
         namePreferenceManager: NamePreferenceManager,
     ): Result<GlobalStatsBoard>? {
         val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-        if (preferences.getString(KEY_LAST_UPLOAD_DAY, "") == LocalDate.now().toString()) return null
         val userId = stableUserId(preferences)
         val upload = buildUpload(context, database, namePreferenceManager, userId) ?: return null
         return AirBeatsStatsCloudClient()
@@ -36,6 +35,9 @@ object AirBeatsStatsCloudSync {
         namePreferenceManager: NamePreferenceManager,
         userId: String,
     ): LocalStatsUpload? {
+        val isNameSet = namePreferenceManager.isNameSet.first()
+        if (!isNameSet) return null
+
         val now = LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli()
         val weekStart =
             LocalDate
@@ -48,7 +50,6 @@ object AirBeatsStatsCloudSync {
         val weekSongs = database.mostPlayedSongsStats(weekStart, limit = -1, toTimeStamp = now).first()
         val totalListenMs = allSongs.sumOf { it.timeListened?.toLong() ?: 0L }
         val weeklyListenMs = weekSongs.sumOf { it.timeListened?.toLong() ?: 0L }
-        if (totalListenMs <= 0L && weeklyListenMs <= 0L) return null
         val name = namePreferenceManager.userName.first().ifBlank { android.os.Build.MODEL ?: "AirBeats User" }
         val profileUrl =
             when (val avatar = AvatarPreferenceManager(context).getAvatarSelection.first()) {

@@ -18,9 +18,12 @@ fun String.resize(
 
     if (this.contains("ytimg.com")) {
         if (this.endsWith("/default.jpg") || this.endsWith("/hqdefault.jpg") || this.endsWith("/mqdefault.jpg") || this.endsWith("/sddefault.jpg")) {
-            return this.substringBeforeLast("/") + "/hqdefault.jpg"
+            return this.substringBeforeLast("/") + "/maxresdefault.jpg"
         }
     }
 
     return this
 }
+
+fun String.highQualityThumbnail(): String =
+    resize(2160, 2160)

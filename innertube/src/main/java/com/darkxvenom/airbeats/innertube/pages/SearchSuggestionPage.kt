@@ -15,7 +15,7 @@ object SearchSuggestionPage {
         return when {
             renderer.isSong -> {
                 SongItem(
-                    id = renderer.playlistItemData?.videoId ?: return null,
+                    id = renderer.playlistItemData?.videoId ?: renderer.navigationEndpoint?.watchEndpoint?.videoId ?: return null,
                     title =
                         renderer.flexColumns
                             .firstOrNull()
@@ -38,7 +38,7 @@ object SearchSuggestionPage {
                                     name = it.text,
                                     id = it.navigationEndpoint?.browseEndpoint?.browseId,
                                 )
-                            } ?: return null,
+                            } ?: listOf(Artist(name = "Unknown Artist", id = null)),
                     album =
                         renderer.flexColumns
                             .getOrNull(
@@ -111,7 +111,9 @@ object SearchSuggestionPage {
                             }?.menuNavigationItemRenderer
                             ?.navigationEndpoint
                             ?.watchPlaylistEndpoint
-                            ?.playlistId ?: return null,
+                            ?.playlistId
+                            ?: renderer.navigationEndpoint?.browseEndpoint?.browseId?.let { "OLAK5uy_$it" }
+                            ?: return null,
                     title =
                         renderer.flexColumns
                             .firstOrNull()

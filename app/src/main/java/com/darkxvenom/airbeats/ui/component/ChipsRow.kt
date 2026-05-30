@@ -1,3 +1,11 @@
+/*
+ * OpenTune Project Original (2026)
+ * Arturo254 (github.com/Arturo254)
+ * Licensed Under GPL-3.0 | see git history for contributors
+ */
+
+
+
 package com.darkxvenom.airbeats.ui.component
 
 import android.annotation.SuppressLint
@@ -18,6 +26,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,25 +61,45 @@ fun <E> ChipsRow(
     onValueUpdate: (E) -> Unit,
     modifier: Modifier = Modifier,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    icons: Map<E, Int> = emptyMap(),
 ) {
     Row(
         modifier =
-            modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+        modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .horizontalScroll(rememberScrollState()),
     ) {
         Spacer(Modifier.width(12.dp))
 
         chips.forEach { (value, label) ->
+            val isSelected = currentValue == value
+            val iconRes = icons[value]
+
             FilterChip(
+                selected = isSelected,
+                onClick = { onValueUpdate(value) },
                 label = { Text(label) },
-                selected = currentValue == value,
+                leadingIcon = {
+                    if (isSelected) {
+                        Icon(
+                            painter = painterResource(R.drawable.done),
+                            contentDescription = null,
+                            modifier = Modifier.size(FilterChipDefaults.IconSize),
+                        )
+                    } else if (iconRes != null) {
+                        Icon(
+                            painter = painterResource(iconRes),
+                            contentDescription = null,
+                            modifier = Modifier.size(FilterChipDefaults.IconSize),
+                        )
+                    }
+                },
+                shape = RoundedCornerShape(16.dp),
+                border = null,
                 colors = FilterChipDefaults.filterChipColors(
                     containerColor = containerColor,
                 ),
-                onClick = { onValueUpdate(value) },
-                shape = RoundedCornerShape(16.dp),
-                border = null
             )
 
             Spacer(Modifier.width(8.dp))
@@ -99,9 +128,9 @@ fun <Int> ChoiceChipsRow(
 
     Row(
         modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(start = 12.dp),
+        modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp),
     ) {
         var expanded by remember { mutableStateOf(false) }
 
@@ -114,12 +143,12 @@ fun <Int> ChoiceChipsRow(
                 label = {
                     Text(
                         text =
-                            when (selectedOption) {
-                                OptionStats.WEEKS -> stringResource(id = R.string.weeks)
-                                OptionStats.MONTHS -> stringResource(id = R.string.months)
-                                OptionStats.YEARS -> stringResource(id = R.string.years)
-                                OptionStats.CONTINUOUS -> stringResource(id = R.string.continuous)
-                            },
+                        when (selectedOption) {
+                            OptionStats.WEEKS -> stringResource(id = R.string.weeks)
+                            OptionStats.MONTHS -> stringResource(id = R.string.months)
+                            OptionStats.YEARS -> stringResource(id = R.string.years)
+                            OptionStats.CONTINUOUS -> stringResource(id = R.string.continuous)
+                        },
                     )
                 },
                 trailingIcon = {
@@ -171,9 +200,9 @@ fun <Int> ChoiceChipsRow(
         ) {
             Row(
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
             ) {
                 chips.forEach { (value, label) ->
                     Spacer(Modifier.width(8.dp))
@@ -193,3 +222,4 @@ fun <Int> ChoiceChipsRow(
         }
     }
 }
+

@@ -1,5 +1,8 @@
 package com.darkxvenom.airbeats.innertube.models
 
+import com.darkxvenom.airbeats.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.Companion.MUSIC_VIDEO_TYPE_OMV
+import com.darkxvenom.airbeats.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.Companion.MUSIC_VIDEO_TYPE_UGC
+
 sealed class YTItem {
     abstract val id: String
     abstract val title: String
@@ -81,6 +84,22 @@ data class ArtistItem(
 fun <T : YTItem> List<T>.filterExplicit(enabled: Boolean = true) =
     if (enabled) {
         filter { !it.explicit }
+    } else {
+        this
+    }
+
+fun <T : YTItem> List<T>.filterVideo(enabled: Boolean = true) =
+    if (enabled) {
+        filter {
+            when (it) {
+                is SongItem -> {
+                    val musicVideoType = it.endpoint?.watchEndpointMusicSupportedConfigs?.watchEndpointMusicConfig?.musicVideoType
+                    val isMusicVideo = musicVideoType == MUSIC_VIDEO_TYPE_OMV || musicVideoType == MUSIC_VIDEO_TYPE_UGC
+                    !isMusicVideo
+                }
+                else -> true
+            }
+        }
     } else {
         this
     }

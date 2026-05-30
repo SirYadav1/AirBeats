@@ -1,3 +1,11 @@
+/*
+ * OpenTune Project Original (2026)
+ * Arturo254 (github.com/Arturo254)
+ * Licensed Under GPL-3.0 | see git history for contributors
+ */
+
+
+
 package com.darkxvenom.airbeats.viewmodels
 
 import androidx.lifecycle.ViewModel
@@ -56,14 +64,14 @@ constructor(
                         query = query,
                         filter = filter,
                         map =
-                            list.groupBy {
-                                when (it) {
-                                    is Song -> LocalFilter.SONG
-                                    is Album -> LocalFilter.ALBUM
-                                    is Artist -> LocalFilter.ARTIST
-                                    is Playlist -> LocalFilter.PLAYLIST
-                                }
-                            },
+                        list.groupBy {
+                            when (it) {
+                                is Song -> LocalFilter.SONG
+                                is Album -> LocalFilter.ALBUM
+                                is Artist -> LocalFilter.ARTIST
+                                is Playlist -> LocalFilter.PLAYLIST
+                            }
+                        },
                     )
                 }
             }
@@ -91,3 +99,4 @@ data class LocalSearchResult(
     val filter: LocalFilter,
     val map: Map<LocalFilter, List<LocalItem>>,
 )
+

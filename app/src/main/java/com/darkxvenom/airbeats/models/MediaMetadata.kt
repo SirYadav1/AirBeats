@@ -4,7 +4,7 @@ import androidx.compose.runtime.Immutable
 import com.darkxvenom.airbeats.innertube.models.SongItem
 import com.darkxvenom.airbeats.db.entities.Song
 import com.darkxvenom.airbeats.db.entities.SongEntity
-import com.darkxvenom.airbeats.ui.utils.resize
+import com.darkxvenom.airbeats.ui.utils.highQualityThumbnail
 import java.io.Serializable
 
 @Immutable
@@ -52,7 +52,7 @@ fun Song.toMediaMetadata() =
                 )
             },
         duration = song.duration,
-        thumbnailUrl = song.thumbnailUrl?.resize(544, 544),
+        thumbnailUrl = song.thumbnailUrl?.highQualityThumbnail(),
         album =
             album?.let {
                 MediaMetadata.Album(
@@ -79,7 +79,7 @@ fun SongItem.toMediaMetadata() =
                 )
             },
         duration = duration ?: -1,
-        thumbnailUrl = thumbnail.resize(544, 544),
+        thumbnailUrl = thumbnail.highQualityThumbnail(),
         album =
             album?.let {
                 MediaMetadata.Album(

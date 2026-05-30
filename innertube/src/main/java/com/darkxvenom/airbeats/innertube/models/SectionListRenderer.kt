@@ -48,5 +48,6 @@ data class SectionListRenderer(
         val musicResponsiveHeaderRenderer: BrowseResponse.Header.MusicHeaderRenderer?, // mantiene compatibilidad
         val musicEditablePlaylistDetailHeaderRenderer: BrowseResponse.Header.MusicEditablePlaylistDetailHeaderRenderer?, // mantiene compatibilidad
         val gridRenderer: GridRenderer?,
+        val itemSectionRenderer: ItemSectionRenderer?,
     )
 }

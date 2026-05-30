@@ -3,7 +3,7 @@
 plugins {
     id("com.android.application")
     kotlin("android")
-    kotlin("plugin.serialization") version "2.1.0"
+    alias(libs.plugins.kotlin.serialization)
     kotlin("kapt")
     id("com.google.gms.google-services")
     alias(libs.plugins.hilt)
@@ -31,8 +31,8 @@ android {
         applicationId = "com.darkxvenom.airbeats"
         minSdk = 24
         targetSdk = 35
-        versionCode = 130
-        versionName = "4.5.0"
+        versionCode = 134
+        versionName = "4.7.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GOOGLE_API_KEY", "\"$googleApiKey\"")
     }
@@ -77,11 +77,10 @@ android {
 
     kotlin {
         jvmToolchain(21)
-    }
-
-    kotlinOptions {
-        freeCompilerArgs = freeCompilerArgs + "-Xcontext-receivers"
-        jvmTarget = "21"
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+            freeCompilerArgs.add("-Xcontext-receivers")
+        }
     }
 
     testOptions {
@@ -140,13 +139,13 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.blurry)
     implementation(libs.material.ripple)
-    implementation(libs.room.runtime.android)
     implementation(libs.material.icons.extended)
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
     implementation(libs.graphics.shapes)
     implementation(libs.work.runtime.ktx)
     implementation(libs.constraintlayout)
+    implementation(libs.constraintlayout.compose)
     implementation(libs.itextg)
     implementation(libs.mpandroidchart)
     implementation(libs.foundation)
@@ -171,6 +170,10 @@ dependencies {
     implementation(libs.ktor.client.core)
 
     coreLibraryDesugaring(libs.desugaring)
+    implementation(libs.liquid.glass)
+    implementation(libs.liquid.glass.shape)
 
     implementation(libs.timber)
 }
+
+

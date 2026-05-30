@@ -15,6 +15,7 @@ import com.darkxvenom.airbeats.innertube.models.SongItem
 import com.darkxvenom.airbeats.innertube.models.YTItem
 import com.darkxvenom.airbeats.innertube.models.clean
 import com.darkxvenom.airbeats.innertube.models.filterExplicit
+import com.darkxvenom.airbeats.innertube.models.filterVideo
 import com.darkxvenom.airbeats.innertube.models.oddElements
 import com.darkxvenom.airbeats.innertube.models.splitBySeparator
 import com.darkxvenom.airbeats.innertube.utils.parseTime
@@ -37,6 +38,20 @@ data class SearchSummaryPage(
                             s.items.filterExplicit().ifEmpty {
                                 return@mapNotNull null
                             },
+                    )
+                },
+            )
+        } else {
+            this
+        }
+
+    fun filterVideo(enabled: Boolean) =
+        if (enabled) {
+            SearchSummaryPage(
+                summaries.mapNotNull { s ->
+                    SearchSummary(
+                        title = s.title,
+                        items = s.items.filterVideo().ifEmpty { return@mapNotNull null },
                     )
                 },
             )
@@ -221,7 +236,7 @@ data class SearchSummaryPage(
             return when {
                 renderer.isSong -> {
                     SongItem(
-                        id = renderer.playlistItemData?.videoId ?: return null,
+                        id = renderer.playlistItemData?.videoId ?: renderer.navigationEndpoint?.watchEndpoint?.videoId ?: return null,
                         title =
                             renderer.flexColumns
                                 .firstOrNull()
@@ -276,13 +291,13 @@ data class SearchSummaryPage(
                                 ?.find { it.menuNavigationItemRenderer?.icon?.iconType == "MUSIC_SHUFFLE" }
                                 ?.menuNavigationItemRenderer
                                 ?.navigationEndpoint
-                                ?.watchPlaylistEndpoint ?: return null,
+                                ?.watchPlaylistEndpoint,
                         radioEndpoint =
-                            renderer.menu.menuRenderer.items
-                                .find { it.menuNavigationItemRenderer?.icon?.iconType == "MIX" }
+                            renderer.menu?.menuRenderer?.items
+                                ?.find { it.menuNavigationItemRenderer?.icon?.iconType == "MIX" }
                                 ?.menuNavigationItemRenderer
                                 ?.navigationEndpoint
-                                ?.watchPlaylistEndpoint ?: return null,
+                                ?.watchPlaylistEndpoint,
                     )
                 }
 
@@ -295,8 +310,9 @@ data class SearchSummaryPage(
                                 ?.content
                                 ?.musicPlayButtonRenderer
                                 ?.playNavigationEndpoint
-                                ?.watchPlaylistEndpoint
+                                ?.anyWatchEndpoint
                                 ?.playlistId
+                                ?: renderer.navigationEndpoint?.browseEndpoint?.browseId?.let { "OLAK5uy_$it" }
                                 ?: return null,
                         title =
                             renderer.flexColumns
@@ -331,7 +347,8 @@ data class SearchSummaryPage(
                             renderer.navigationEndpoint
                                 ?.browseEndpoint
                                 ?.browseId
-                                ?.removePrefix("VL") ?: return null,
+                                ?.removePrefix("VL")
+                                ?.removePrefix("MPSP") ?: return null,
                         title =
                             renderer.flexColumns
                                 .firstOrNull()
@@ -362,7 +379,7 @@ data class SearchSummaryPage(
                                 ?.content
                                 ?.musicPlayButtonRenderer
                                 ?.playNavigationEndpoint
-                                ?.watchPlaylistEndpoint ?: return null,
+                                ?.watchPlaylistEndpoint,
                         shuffleEndpoint =
                             renderer.menu
                                 ?.menuRenderer
@@ -370,13 +387,13 @@ data class SearchSummaryPage(
                                 ?.find { it.menuNavigationItemRenderer?.icon?.iconType == "MUSIC_SHUFFLE" }
                                 ?.menuNavigationItemRenderer
                                 ?.navigationEndpoint
-                                ?.watchPlaylistEndpoint ?: return null,
+                                ?.watchPlaylistEndpoint,
                         radioEndpoint =
-                            renderer.menu.menuRenderer.items
-                                .find { it.menuNavigationItemRenderer?.icon?.iconType == "MIX" }
+                            renderer.menu?.menuRenderer?.items
+                                ?.find { it.menuNavigationItemRenderer?.icon?.iconType == "MIX" }
                                 ?.menuNavigationItemRenderer
                                 ?.navigationEndpoint
-                                ?.watchPlaylistEndpoint ?: return null,
+                                ?.watchPlaylistEndpoint,
                     )
                 }
 

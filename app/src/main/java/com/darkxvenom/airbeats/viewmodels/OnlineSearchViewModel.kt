@@ -1,3 +1,11 @@
+/*
+ * OpenTune Project Original (2026)
+ * Arturo254 (github.com/Arturo254)
+ * Licensed Under GPL-3.0 | see git history for contributors
+ */
+
+
+
 package com.darkxvenom.airbeats.viewmodels
 
 import android.content.Context
@@ -10,8 +18,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.darkxvenom.airbeats.innertube.YouTube
 import com.darkxvenom.airbeats.innertube.models.filterExplicit
+import com.darkxvenom.airbeats.innertube.models.filterVideo
 import com.darkxvenom.airbeats.innertube.pages.SearchSummaryPage
 import com.darkxvenom.airbeats.constants.HideExplicitKey
+import com.darkxvenom.airbeats.constants.HideVideoKey
 import com.darkxvenom.airbeats.models.ItemsPage
 import com.darkxvenom.airbeats.utils.dataStore
 import com.darkxvenom.airbeats.utils.get
@@ -42,13 +52,7 @@ constructor(
                         YouTube
                             .searchSummary(query)
                             .onSuccess {
-                                summaryPage =
-                                    it.filterExplicit(
-                                        context.dataStore.get(
-                                            HideExplicitKey,
-                                            false,
-                                        ),
-                                    )
+                                summaryPage = it.filterExplicit(context.dataStore.get(HideExplicitKey, false)).filterVideo(context.dataStore.get(HideVideoKey, false))
                             }.onFailure {
                                 reportException(it)
                             }
@@ -67,7 +71,7 @@ constructor(
                                                     HideExplicitKey,
                                                     false
                                                 )
-                                            ),
+                                            ).filterVideo(context.dataStore.get(HideVideoKey, false)),
                                         result.continuation,
                                     )
                             }.onFailure {
@@ -96,3 +100,4 @@ constructor(
         }
     }
 }
+

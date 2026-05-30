@@ -72,6 +72,7 @@ import com.darkxvenom.airbeats.constants.PlayerBackgroundStyleKey
 import com.darkxvenom.airbeats.constants.PlayerHorizontalPadding
 import com.darkxvenom.airbeats.constants.SwipeThumbnailKey
 import com.darkxvenom.airbeats.constants.ThumbnailCornerRadius
+import com.darkxvenom.airbeats.ui.utils.highQualityThumbnail
 import com.darkxvenom.airbeats.utils.rememberEnumPreference
 import com.darkxvenom.airbeats.utils.rememberPreference
 import kotlinx.coroutines.delay
@@ -312,7 +313,7 @@ fun Thumbnail(
                                     // 🎵 Circular Album Art
                                     AsyncImage(
                                         model = ImageRequest.Builder(LocalContext.current)
-                                            .data(item.mediaMetadata.artworkUri?.toString())
+                                            .data(item.mediaMetadata.artworkUri?.toString()?.highQualityThumbnail())
                                             .build(),
                                         contentDescription = null,
                                         contentScale = ContentScale.Crop,

@@ -1,8 +1,17 @@
 package com.darkxvenom.airbeats.ui.menu
 
+import android.Manifest
+import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -439,6 +448,73 @@ fun PlayerMenu(
                                 )
                             }
                             onDismiss()
+                        }
+                    }
+                    item {
+                        val savingToastMsg = stringResource(R.string.saving_song)
+                        val savedToastMsg = stringResource(R.string.song_saved_successfully)
+                        val failedToastMsg = stringResource(R.string.song_save_failed)
+                        val permReqMsg = stringResource(R.string.storage_permission_required)
+
+                        val permissionLauncher = rememberLauncherForActivityResult(
+                            contract = ActivityResultContracts.RequestPermission()
+                        ) { isGranted ->
+                            if (isGranted) {
+                                Toast.makeText(context, savingToastMsg, Toast.LENGTH_SHORT).show()
+                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO).launch {
+                                    com.darkxvenom.airbeats.utils.SaveToStorageUtil
+                                        .saveToMusicFolder(context, mediaMetadata)
+                                        .onSuccess {
+                                            launch(Dispatchers.Main) {
+                                                Toast.makeText(context, savedToastMsg, Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                        .onFailure { e ->
+                                            launch(Dispatchers.Main) {
+                                                Toast.makeText(context, "$failedToastMsg: ${e.message}", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                }
+                                onDismiss()
+                            } else {
+                                Toast.makeText(context, permReqMsg, Toast.LENGTH_LONG).show()
+                            }
+                        }
+
+                        PlayerMenuActionTile(
+                            icon = R.drawable.save_to_storage,
+                            title = R.string.save_to_local,
+                        ) {
+                            val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                // Android 10+ uses scoped storage, no permission needed
+                                true
+                            } else {
+                                ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                                ) == PackageManager.PERMISSION_GRANTED
+                            }
+
+                            if (hasPermission) {
+                                Toast.makeText(context, savingToastMsg, Toast.LENGTH_SHORT).show()
+                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO).launch {
+                                    com.darkxvenom.airbeats.utils.SaveToStorageUtil
+                                        .saveToMusicFolder(context, mediaMetadata)
+                                        .onSuccess {
+                                            launch(Dispatchers.Main) {
+                                                Toast.makeText(context, savedToastMsg, Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                        .onFailure { e ->
+                                            launch(Dispatchers.Main) {
+                                                Toast.makeText(context, "$failedToastMsg: ${e.message}", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                }
+                                onDismiss()
+                            } else {
+                                permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                            }
                         }
                     }
                     item {

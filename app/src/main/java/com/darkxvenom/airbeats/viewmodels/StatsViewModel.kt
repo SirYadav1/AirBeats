@@ -263,6 +263,9 @@ constructor(
     }
 
     private suspend fun buildUpload(userId: String): LocalStatsUpload? {
+        val isNameSet = namePreferenceManager.isNameSet.first()
+        if (!isNameSet) return null
+
         val now = LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli()
         val weekStart =
             LocalDate
@@ -275,7 +278,6 @@ constructor(
         val weekSongs = database.mostPlayedSongsStats(weekStart, limit = -1, toTimeStamp = now).first()
         val totalListenMs = allSongs.sumOf { it.timeListened?.toLong() ?: 0L }
         val weeklyListenMs = weekSongs.sumOf { it.timeListened?.toLong() ?: 0L }
-        if (totalListenMs <= 0L && weeklyListenMs <= 0L) return null
         val name = namePreferenceManager.userName.first().ifBlank { android.os.Build.MODEL ?: "AirBeats User" }
         val profileUrl =
             when (val avatar = AvatarPreferenceManager(context).getAvatarSelection.first()) {
@@ -291,8 +293,7 @@ constructor(
         )
     }
 
-    private fun shouldUploadToday(): Boolean =
-        statsPreferences.getString(KEY_LAST_UPLOAD_DAY, "") != LocalDate.now().toString()
+    private fun shouldUploadToday(): Boolean = true
 
     private fun stableUserId(): String {
         val existing = statsPreferences.getString(KEY_USER_ID, null)
