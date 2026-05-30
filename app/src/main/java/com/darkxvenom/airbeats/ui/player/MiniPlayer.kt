@@ -81,6 +81,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.darkxvenom.airbeats.LocalPlayerConnection
 import com.darkxvenom.airbeats.R
 import com.darkxvenom.airbeats.constants.DarkModeKey
@@ -338,7 +339,10 @@ fun MiniPlayer(
                         ) {
                             mediaMetadata?.let { metadata ->
                                 AsyncImage(
-                                    model = metadata.thumbnailUrl,
+                                    model = ImageRequest.Builder(LocalView.current.context)
+                                        .data(metadata.thumbnailUrl)
+                                        .crossfade(true)
+                                        .build(),
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
