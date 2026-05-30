@@ -386,7 +386,10 @@ fun MiniPlayer(
                         mediaMetadata?.let { metadata ->
                             AnimatedContent(
                                 targetState = metadata.title,
-                                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                                transitionSpec = {
+                                fadeIn(animationSpec = tween(180)) togetherWith
+                                    fadeOut(animationSpec = tween(120))
+                            },
                                 label = "",
                             ) { title ->
                                 Text(
@@ -403,7 +406,10 @@ fun MiniPlayer(
                             if (metadata.artists.any { it.name.isNotBlank() }) {
                                 AnimatedContent(
                                     targetState = metadata.artists.joinToString { it.name },
-                                    transitionSpec = { fadeIn() togetherWith fadeOut() },
+                                    transitionSpec = {
+                                fadeIn(animationSpec = tween(180)) togetherWith
+                                    fadeOut(animationSpec = tween(120))
+                            },
                                     label = "",
                                 ) { artists ->
                                     Text(
