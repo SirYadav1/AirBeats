@@ -445,6 +445,7 @@ fun MiniPlayer(
                     )
 
                     val likeScale = remember { Animatable(1f) }
+                    val skipScale = remember { Animatable(1f) }
 
                     IconButton(
                         onClick = {
@@ -480,8 +481,22 @@ fun MiniPlayer(
 
                     IconButton(
                         enabled = canSkipNext,
-                        onClick = { playerConnection.player.seekToNext() },
-                        modifier = Modifier.size(36.dp)
+                        onClick = {
+                            coroutineScope.launch {
+                                skipScale.animateTo(
+                                    targetValue = 0.9f,
+                                    animationSpec = tween(80)
+                                )
+                                skipScale.animateTo(
+                                    targetValue = 1f,
+                                    animationSpec = tween(80)
+                                )
+                            }
+                            playerConnection.player.seekToNext()
+                        },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .scale(skipScale.value)
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.skip_next),
