@@ -3218,18 +3218,35 @@ fun LiquidPlayer(
                 .drawBehind {
                     val w = size.width
                     val h = size.height
+
+                    // Layer 1: Ambient background deep indigo/blue glow (large)
                     drawCircle(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                Color(0xFF0055FF).copy(alpha = 0.5f),
-                                Color(0xFF0F1B5F).copy(alpha = 0.25f),
+                                Color(0xFF0055FF).copy(alpha = 0.6f),
+                                Color(0xFF0F1B5F).copy(alpha = 0.35f),
                                 Color.Transparent
                             ),
                             center = Offset(w / 2f, h * 0.92f),
-                            radius = w * 0.9f
+                            radius = w * 1.0f
                         ),
                         center = Offset(w / 2f, h * 0.92f),
-                        radius = w * 0.9f
+                        radius = w * 1.0f
+                    )
+
+                    // Layer 2: Intense bright neon cyan/blue glow centered at play button
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFF00E5FF).copy(alpha = 0.8f),
+                                Color(0xFF0055FF).copy(alpha = 0.4f),
+                                Color.Transparent
+                            ),
+                            center = Offset(w / 2f, h * 0.94f),
+                            radius = w * 0.5f
+                        ),
+                        center = Offset(w / 2f, h * 0.94f),
+                        radius = w * 0.5f
                     )
                 }
         )
@@ -3335,14 +3352,14 @@ fun LiquidPlayer(
                     modifier = Modifier
                         .weight(1f)
                         .graphicsLayer {
-                            rotationZ = -22f
-                            translationY = 24.dp.toPx()
-                            translationX = -12.dp.toPx()
+                            rotationZ = -70f
+                            translationY = 56.dp.toPx()
+                            translationX = -32.dp.toPx()
                         },
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     if (previousMediaItem != null) {
-                        Column(horizontalAlignment = Alignment.End) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = String.format("%02d", displayCurrentIndex - 1),
                                 color = Color.White.copy(alpha = 0.35f),
@@ -3418,14 +3435,14 @@ fun LiquidPlayer(
                     modifier = Modifier
                         .weight(1f)
                         .graphicsLayer {
-                            rotationZ = 22f
-                            translationY = 24.dp.toPx()
-                            translationX = 12.dp.toPx()
+                            rotationZ = 70f
+                            translationY = 56.dp.toPx()
+                            translationX = 32.dp.toPx()
                         },
                     contentAlignment = Alignment.CenterStart
                 ) {
                     if (nextMediaItem != null) {
-                        Column(horizontalAlignment = Alignment.Start) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = String.format("%02d", displayCurrentIndex + 1),
                                 color = Color.White.copy(alpha = 0.35f),
@@ -3635,6 +3652,7 @@ fun LiquidPlayer(
                                 .size(56.dp)
                                 .aspectRatio(1f)
                                 .background(Color.White, CircleShape)
+                                .border(width = 2.dp, color = Color(0xFF00E5FF), shape = CircleShape)
                                 .clip(CircleShape)
                                 .clickable(onClick = onPlayPause),
                             contentAlignment = Alignment.Center
@@ -3934,11 +3952,28 @@ fun LiquidControlBarBackground(
             path = path,
             color = Color.White.copy(alpha = 0.05f)
         )
-        // Draw thin white border
+        // Draw soft glowing cyan/blue outer border (wide)
         drawPath(
             path = path,
-            color = Color.White.copy(alpha = 0.12f),
-            style = Stroke(width = 1.dp.toPx())
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFF00E5FF).copy(alpha = 0.25f),
+                    Color(0xFF0055FF).copy(alpha = 0.25f),
+                    Color.Transparent
+                )
+            ),
+            style = Stroke(width = 4.dp.toPx())
+        )
+        // Draw sharp glowing cyan/blue inner border (thin)
+        drawPath(
+            path = path,
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFF00E5FF).copy(alpha = 0.65f),
+                    Color(0xFF0055FF).copy(alpha = 0.65f)
+                )
+            ),
+            style = Stroke(width = 1.5.dp.toPx())
         )
     }
 }
