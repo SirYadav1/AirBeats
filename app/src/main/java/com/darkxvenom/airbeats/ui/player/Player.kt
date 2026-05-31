@@ -3349,37 +3349,46 @@ fun LiquidPlayer(
             ) {
                 // Previous
                 Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .graphicsLayer {
-                            rotationZ = -70f
-                            translationY = 56.dp.toPx()
-                            translationX = -32.dp.toPx()
-                        },
+                    modifier = Modifier.weight(1f),
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     if (previousMediaItem != null) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.graphicsLayer {
+                                rotationZ = -26f
+                                translationY = 24.dp.toPx()
+                                translationX = -6.dp.toPx()
+                            }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = String.format("%02d", displayCurrentIndex - 1),
+                                    color = Color.White.copy(alpha = 0.35f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = SpotifyFontFamily
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = previousMediaItem.mediaMetadata.title?.toString() ?: "",
+                                    color = Color.White.copy(alpha = 0.35f),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontFamily = SpotifyFontFamily
+                                )
+                            }
+                            Spacer(Modifier.height(2.dp))
                             Text(
-                                text = String.format("%02d", displayCurrentIndex - 1),
-                                color = Color.White.copy(alpha = 0.35f),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = SpotifyFontFamily
-                            )
-                            Text(
-                                text = previousMediaItem.mediaMetadata.title?.toString() ?: "",
-                                color = Color.White.copy(alpha = 0.35f),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontFamily = SpotifyFontFamily
-                            )
-                            Text(
-                                text = previousMediaItem.mediaMetadata.artist?.toString() ?: "",
+                                text = (previousMediaItem.mediaMetadata.artist?.toString() ?: "").uppercase(),
                                 color = Color.White.copy(alpha = 0.25f),
-                                fontSize = 10.sp,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 fontFamily = SpotifyFontFamily
@@ -3400,27 +3409,35 @@ fun LiquidPlayer(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = String.format("%02d", displayCurrentIndex),
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = SpotifyFontFamily
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = mediaMetadata?.title ?: "",
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.basicMarquee(),
+                                fontFamily = SpotifyFontFamily
+                            )
+                        }
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            text = String.format("%02d", displayCurrentIndex),
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = SpotifyFontFamily
-                        )
-                        Text(
-                            text = mediaMetadata?.title ?: "",
-                            color = Color.White,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.basicMarquee(),
-                            fontFamily = SpotifyFontFamily
-                        )
-                        Text(
-                            text = mediaMetadata?.artists?.joinToString { it.name } ?: "",
+                            text = (mediaMetadata?.artists?.joinToString { it.name } ?: "").uppercase(),
                             color = Color.White.copy(alpha = 0.65f),
                             fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             fontFamily = SpotifyFontFamily
@@ -3432,37 +3449,46 @@ fun LiquidPlayer(
 
                 // Next
                 Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .graphicsLayer {
-                            rotationZ = 70f
-                            translationY = 56.dp.toPx()
-                            translationX = 32.dp.toPx()
-                        },
+                    modifier = Modifier.weight(1f),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     if (nextMediaItem != null) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.graphicsLayer {
+                                rotationZ = 26f
+                                translationY = 24.dp.toPx()
+                                translationX = 6.dp.toPx()
+                            }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = String.format("%02d", displayCurrentIndex + 1),
+                                    color = Color.White.copy(alpha = 0.35f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = SpotifyFontFamily
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = nextMediaItem.mediaMetadata.title?.toString() ?: "",
+                                    color = Color.White.copy(alpha = 0.35f),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontFamily = SpotifyFontFamily
+                                )
+                            }
+                            Spacer(Modifier.height(2.dp))
                             Text(
-                                text = String.format("%02d", displayCurrentIndex + 1),
-                                color = Color.White.copy(alpha = 0.35f),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = SpotifyFontFamily
-                            )
-                            Text(
-                                text = nextMediaItem.mediaMetadata.title?.toString() ?: "",
-                                color = Color.White.copy(alpha = 0.35f),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontFamily = SpotifyFontFamily
-                            )
-                            Text(
-                                text = nextMediaItem.mediaMetadata.artist?.toString() ?: "",
+                                text = (nextMediaItem.mediaMetadata.artist?.toString() ?: "").uppercase(),
                                 color = Color.White.copy(alpha = 0.25f),
-                                fontSize = 10.sp,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 fontFamily = SpotifyFontFamily
