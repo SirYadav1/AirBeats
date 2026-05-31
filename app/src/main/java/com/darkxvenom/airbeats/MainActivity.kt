@@ -209,6 +209,9 @@ import com.darkxvenom.airbeats.ui.component.LocalBackdrop
 import com.darkxvenom.airbeats.ui.component.LiquidGlassBottomNavigationBar
 import com.darkxvenom.airbeats.ui.component.LocaleManager
 import com.darkxvenom.airbeats.ui.component.Lyrics
+import com.darkxvenom.airbeats.ui.component.SpotifyLyrics
+import com.darkxvenom.airbeats.constants.PlayerScreenStyleKey
+import com.darkxvenom.airbeats.constants.PlayerScreenStyle
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
 import com.darkxvenom.airbeats.ui.component.NameProvider
 import com.darkxvenom.airbeats.ui.component.SwitchPreference
@@ -402,6 +405,8 @@ class MainActivity : ComponentActivity() {
             }
 
             var showFullscreenLyrics by remember { mutableStateOf(false) }
+
+            val playerScreenStyle by rememberEnumPreference(PlayerScreenStyleKey, defaultValue = PlayerScreenStyle.CLASSIC)
 
             val enableDynamicTheme by rememberPreference(DynamicThemeKey, defaultValue = true)
             val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
@@ -980,13 +985,22 @@ class MainActivity : ComponentActivity() {
                                                     ?: return@AnimatedVisibility
 
                                                 if (mediaMetadata != null) {
-                                                    Lyrics(
-                                                        sliderPositionProvider = { null },
-                                                        onNavigateBack = {
-                                                            showFullscreenLyrics = false
-                                                        },
-                                                        modifier = Modifier.fillMaxSize()
-                                                    )
+                                                    if (playerScreenStyle == PlayerScreenStyle.SPOTIFY) {
+                                                        SpotifyLyrics(
+                                                            onNavigateBack = {
+                                                                showFullscreenLyrics = false
+                                                            },
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    } else {
+                                                        Lyrics(
+                                                            sliderPositionProvider = { null },
+                                                            onNavigateBack = {
+                                                                showFullscreenLyrics = false
+                                                            },
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    }
                                                 } else {
                                                     Box(
                                                         modifier = Modifier
