@@ -252,6 +252,12 @@ class BottomSheetState(
             var isTopReached = false
 
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val isSheetDragging = value < expandedBound
+                if (isSheetDragging && source == NestedScrollSource.UserInput) {
+                    dispatchRawDelta(available.y)
+                    return available
+                }
+
                 if (isExpanded && available.y < 0) {
                     isTopReached = false
                 }
@@ -282,10 +288,10 @@ class BottomSheetState(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                return if (isTopReached) {
+                val isSheetDragging = value < expandedBound
+                return if (isSheetDragging || isTopReached) {
                     val velocity = -available.y
                     performFling(velocity, null)
-
                     available
                 } else {
                     Velocity.Zero

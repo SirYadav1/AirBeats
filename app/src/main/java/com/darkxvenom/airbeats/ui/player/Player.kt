@@ -1954,8 +1954,7 @@ fun BottomSheetPlayer(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 58.dp)
-                        .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
-                        .nestedScroll(state.preUpPostDownNestedScrollConnection),
+                        .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal)),
                 ) {
                     mediaMetadata?.let {
                         selectedControlsContent(it)
