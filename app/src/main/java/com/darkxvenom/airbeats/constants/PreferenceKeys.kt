@@ -32,6 +32,7 @@ enum class PlayerScreenStyle {
     CLASSIC,
     MODERN,
     SPOTIFY,
+    LIQUID,
 }
 
 const val SYSTEM_DEFAULT = "SYSTEM_DEFAULT"

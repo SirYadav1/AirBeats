@@ -60,6 +60,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.shape.GenericShape
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.material3.IconButton
+import com.darkxvenom.airbeats.db.MusicDatabase
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
@@ -1841,7 +1853,49 @@ fun BottomSheetPlayer(
             }
         }
 
-        if (playerScreenStyle == PlayerScreenStyle.SPOTIFY) {
+        if (playerScreenStyle == PlayerScreenStyle.LIQUID) {
+            LiquidPlayer(
+                mediaMetadata = mediaMetadata,
+                position = sliderPosition ?: position,
+                duration = duration,
+                isPlaying = isPlaying,
+                isLoading = playbackState != STATE_READY && playbackState != STATE_ENDED,
+                canSkipPrevious = canSkipPrevious,
+                canSkipNext = canSkipNext,
+                repeatMode = repeatMode,
+                shuffleModeEnabled = shuffleModeEnabled,
+                onSeek = { sliderPosition = it },
+                onSeekFinished = {
+                    sliderPosition?.let(playerConnection.player::seekTo)
+                    sliderPosition = null
+                },
+                onPlayPause = playerConnection.player::togglePlayPause,
+                onPrevious = playerConnection.player::seekToPrevious,
+                onNext = playerConnection::seekToNext,
+                onShuffle = { playerConnection.player.shuffleModeEnabled = !playerConnection.player.shuffleModeEnabled },
+                onRepeat = playerConnection.player::toggleRepeatMode,
+                onOpenLyrics = onOpenFullscreenLyrics,
+                onOpenQueue = queueSheetState::expandSoft,
+                onCollapse = state::collapseSoft,
+                onOpenArtist = { artistId ->
+                    navController.navigate("artist/$artistId")
+                    state.collapseSoft()
+                },
+                onOpenMenu = {
+                    menuState.show {
+                        PlayerMenu(
+                            mediaMetadata = mediaMetadata ?: return@show,
+                            navController = navController,
+                            playerBottomSheetState = state,
+                            onShowDetailsDialog = { showDetailsDialog = true },
+                            onDismiss = menuState::dismiss,
+                        )
+                    }
+                },
+                currentLyrics = currentLyrics,
+                database = database,
+            )
+        } else if (playerScreenStyle == PlayerScreenStyle.SPOTIFY) {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
                 val spotifyScrollState = rememberScrollState()
                 SpotifyPlayerBackdrop(
@@ -3079,6 +3133,783 @@ fun ConcentricWaveEffect(
                 style = Stroke(width = 2.dp.toPx())
             )
         }
+    }
+}
+
+@Composable
+fun LiquidPlayer(
+    mediaMetadata: MediaMetadata?,
+    position: Long,
+    duration: Long,
+    isPlaying: Boolean,
+    isLoading: Boolean,
+    canSkipPrevious: Boolean,
+    canSkipNext: Boolean,
+    repeatMode: Int,
+    shuffleModeEnabled: Boolean,
+    onSeek: (Long) -> Unit,
+    onSeekFinished: () -> Unit,
+    onPlayPause: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onShuffle: () -> Unit,
+    onRepeat: () -> Unit,
+    onOpenLyrics: () -> Unit,
+    onOpenQueue: () -> Unit,
+    onCollapse: () -> Unit,
+    onOpenArtist: (String) -> Unit,
+    onOpenMenu: () -> Unit,
+    currentLyrics: LyricsEntity?,
+    database: MusicDatabase,
+) {
+    val context = LocalContext.current
+    val playerConnection = LocalPlayerConnection.current ?: return
+
+    val timeline = playerConnection.player.currentTimeline
+    val currentIndex = playerConnection.player.currentMediaItemIndex
+
+    val previousMediaItem = if (!timeline.isEmpty) {
+        val prevIndex = timeline.getPreviousWindowIndex(
+            currentIndex,
+            Player.REPEAT_MODE_OFF,
+            playerConnection.player.shuffleModeEnabled
+        )
+        if (prevIndex != C.INDEX_UNSET) {
+            try { playerConnection.player.getMediaItemAt(prevIndex) } catch (e: Exception) { null }
+        } else null
+    } else null
+
+    val nextMediaItem = if (!timeline.isEmpty) {
+        val nextIndex = timeline.getNextWindowIndex(
+            currentIndex,
+            Player.REPEAT_MODE_OFF,
+            playerConnection.player.shuffleModeEnabled
+        )
+        if (nextIndex != C.INDEX_UNSET) {
+            try { playerConnection.player.getMediaItemAt(nextIndex) } catch (e: Exception) { null }
+        } else null
+    } else null
+
+    val displayCurrentIndex = currentIndex + 1
+
+    val bottomArcShape = remember {
+        GenericShape { size, _ ->
+            moveTo(0f, 0f)
+            lineTo(size.width, 0f)
+            lineTo(size.width, size.height * 0.82f)
+            quadraticTo(
+                size.width / 2f, size.height * 1.05f,
+                0f, size.height * 0.82f
+            )
+            close()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF070814)) // Very deep dark space color
+    ) {
+        // Deep blue radial glow in the center-bottom
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF0F1B5F).copy(alpha = 0.5f),
+                            Color.Transparent
+                        ),
+                        center = Offset(
+                            x = LocalConfiguration.current.screenWidthDp.dp.value * 1.5f,
+                            y = LocalConfiguration.current.screenHeightDp.dp.value * 2.8f
+                        ),
+                        radius = 450.dp.value
+                    )
+                )
+        )
+
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Album Art with bottom arc
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(370.dp)
+            ) {
+                AsyncImage(
+                    model = mediaMetadata?.thumbnailUrl?.highQualityThumbnail(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(bottomArcShape)
+                )
+
+                // Overlay for dark theme fading
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(bottomArcShape)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color(0xFF070814).copy(alpha = 0.85f))
+                            )
+                        )
+                )
+
+                // Top Header Controls
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onCollapse,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.arrow_back),
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = mediaMetadata?.artists?.joinToString { it.name } ?: "",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontFamily = SpotifyFontFamily
+                        )
+                        Text(
+                            text = mediaMetadata?.album?.title ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.6f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontFamily = SpotifyFontFamily
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onOpenMenu,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.more_vert),
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            // Carousel of tracks (Fumar -> Vampiro -> Hate Me)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Previous
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .graphicsLayer {
+                            rotationZ = -18f
+                            translationY = 20.dp.toPx()
+                            translationX = -6.dp.toPx()
+                        },
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    if (previousMediaItem != null) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = String.format("%02d", displayCurrentIndex - 1),
+                                color = Color.White.copy(alpha = 0.35f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = SpotifyFontFamily
+                            )
+                            Text(
+                                text = previousMediaItem.mediaMetadata.title?.toString() ?: "",
+                                color = Color.White.copy(alpha = 0.35f),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontFamily = SpotifyFontFamily
+                            )
+                            Text(
+                                text = previousMediaItem.mediaMetadata.artist?.toString() ?: "",
+                                color = Color.White.copy(alpha = 0.25f),
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontFamily = SpotifyFontFamily
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.width(16.dp))
+
+                // Current
+                Box(
+                    modifier = Modifier
+                        .width(170.dp)
+                        .graphicsLayer {
+                            translationY = -6.dp.toPx()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = String.format("%02d", displayCurrentIndex),
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = SpotifyFontFamily
+                        )
+                        Text(
+                            text = mediaMetadata?.title ?: "",
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.basicMarquee(),
+                            fontFamily = SpotifyFontFamily
+                        )
+                        Text(
+                            text = mediaMetadata?.artists?.joinToString { it.name } ?: "",
+                            color = Color.White.copy(alpha = 0.65f),
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontFamily = SpotifyFontFamily
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(16.dp))
+
+                // Next
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .graphicsLayer {
+                            rotationZ = 18f
+                            translationY = 20.dp.toPx()
+                            translationX = 6.dp.toPx()
+                        },
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    if (nextMediaItem != null) {
+                        Column(horizontalAlignment = Alignment.Start) {
+                            Text(
+                                text = String.format("%02d", displayCurrentIndex + 1),
+                                color = Color.White.copy(alpha = 0.35f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = SpotifyFontFamily
+                            )
+                            Text(
+                                text = nextMediaItem.mediaMetadata.title?.toString() ?: "",
+                                color = Color.White.copy(alpha = 0.35f),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontFamily = SpotifyFontFamily
+                            )
+                            Text(
+                                text = nextMediaItem.mediaMetadata.artist?.toString() ?: "",
+                                color = Color.White.copy(alpha = 0.25f),
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontFamily = SpotifyFontFamily
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(30.dp))
+
+            // Controller dial containing curved progress, like button and time
+            Box(
+                modifier = Modifier
+                    .size(280.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // Curved Progress Slider
+                CurvedProgressSlider(
+                    position = position,
+                    duration = duration,
+                    onSeek = onSeek,
+                    onSeekFinished = onSeekFinished,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+
+                // Time, Like button & Shuffle/Repeat buttons inside center space
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(top = 18.dp)
+                ) {
+                    // Heart like button
+                    IconButton(
+                        onClick = playerConnection::toggleLike,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(
+                                if (playerConnection.currentSong.collectAsState(initial = null).value?.song?.liked == true)
+                                    R.drawable.favorite
+                                else
+                                    R.drawable.favorite_border
+                            ),
+                            contentDescription = null,
+                            tint = if (playerConnection.currentSong.collectAsState(initial = null).value?.song?.liked == true)
+                                Color(0xFF2979FF)
+                            else
+                                Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    // Time position/duration
+                    Text(
+                        text = "${makeTimeString(position)} / ${makeTimeString(duration)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontFamily = SpotifyFontFamily
+                    )
+                }
+
+                // Shuffle button (bottom-left)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 32.dp, bottom = 48.dp)
+                        .size(46.dp)
+                        .background(Color.White.copy(alpha = 0.05f), CircleShape)
+                        .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape)
+                        .clip(CircleShape)
+                        .clickable(onClick = onShuffle),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.shuffle),
+                        contentDescription = null,
+                        tint = if (shuffleModeEnabled) Color(0xFF2979FF) else Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                // Repeat button (bottom-right)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 32.dp, bottom = 48.dp)
+                        .size(46.dp)
+                        .background(Color.White.copy(alpha = 0.05f), CircleShape)
+                        .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape)
+                        .clip(CircleShape)
+                        .clickable(onClick = onRepeat),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            if (repeatMode == Player.REPEAT_MODE_ONE) R.drawable.repeat_one else R.drawable.repeat
+                        ),
+                        contentDescription = null,
+                        tint = if (repeatMode != Player.REPEAT_MODE_OFF) Color(0xFF2979FF) else Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            // Bottom control bar (Prev -> Play -> Next)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 54.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // Background shape
+                LiquidControlBarBackground(modifier = Modifier.fillMaxWidth())
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Previous button
+                    IconButton(
+                        onClick = onPrevious,
+                        enabled = canSkipPrevious,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.skip_previous),
+                            contentDescription = null,
+                            tint = if (canSkipPrevious) Color.White else Color.White.copy(alpha = 0.35f),
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.width(62.dp)) // Reserve center space for overlapping play button
+
+                    // Next button
+                    IconButton(
+                        onClick = onNext,
+                        enabled = canSkipNext,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.skip_next),
+                            contentDescription = null,
+                            tint = if (canSkipNext) Color.White else Color.White.copy(alpha = 0.35f),
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+
+                // Centered Pulsing Glowing waves and Play/Pause Button
+                Box(
+                    modifier = Modifier.align(Alignment.Center),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ConcentricGlowRings(isPlaying = isPlaying)
+
+                    Box(
+                        modifier = Modifier
+                            .size(62.dp)
+                            .background(Color.White, CircleShape)
+                            .clip(CircleShape)
+                            .clickable(onClick = onPlayPause),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(if (isPlaying) R.drawable.pause else R.drawable.play),
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CurvedProgressSlider(
+    position: Long,
+    duration: Long,
+    onSeek: (Long) -> Unit,
+    onSeekFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var canvasSize by remember { mutableStateOf(Size.Zero) }
+
+    val safeDuration = duration.takeIf { it > 0 } ?: 1000L
+    val progress = (position.toFloat() / safeDuration.toFloat()).coerceIn(0f, 1f)
+
+    // Arc geometry constants
+    val startAngle = 160f
+    val sweepAngle = 220f
+    val radiusDp = 110.dp
+    val strokeWidthDp = 4.dp
+
+    Box(
+        modifier = modifier
+            .size(260.dp)
+            .pointerInput(safeDuration) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val center = Offset(canvasSize.width / 2f, canvasSize.height / 2f)
+                        val angle = calculateAngle(offset, center)
+                        val newProgress = calculateProgressFromAngle(angle, startAngle, sweepAngle)
+                        onSeek((newProgress * safeDuration).toLong())
+                    },
+                    onDrag = { change, _ ->
+                        val center = Offset(canvasSize.width / 2f, canvasSize.height / 2f)
+                        val angle = calculateAngle(change.position, center)
+                        val newProgress = calculateProgressFromAngle(angle, startAngle, sweepAngle)
+                        onSeek((newProgress * safeDuration).toLong())
+                    },
+                    onDragEnd = {
+                        onSeekFinished()
+                    }
+                )
+            }
+            .pointerInput(safeDuration) {
+                detectTapGestures { offset ->
+                    val center = Offset(canvasSize.width / 2f, canvasSize.height / 2f)
+                    val angle = calculateAngle(offset, center)
+                    val newProgress = calculateProgressFromAngle(angle, startAngle, sweepAngle)
+                    onSeek((newProgress * safeDuration).toLong())
+                    onSeekFinished()
+                }
+            }
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            canvasSize = size
+            val radius = radiusDp.toPx()
+            val strokeWidth = strokeWidthDp.toPx()
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val rect = Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius)
+
+            // 1. Draw background arc track
+            drawArc(
+                color = Color.White.copy(alpha = 0.12f),
+                startAngle = startAngle,
+                sweepAngle = sweepAngle,
+                useCenter = false,
+                topLeft = rect.topLeft,
+                size = rect.size,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            )
+
+            // 2. Draw active progress track
+            drawArc(
+                color = Color.White,
+                startAngle = startAngle,
+                sweepAngle = sweepAngle * progress,
+                useCenter = false,
+                topLeft = rect.topLeft,
+                size = rect.size,
+                style = Stroke(width = strokeWidth + 1.dp.toPx(), cap = StrokeCap.Round)
+            )
+
+            // 3. Draw white thumb dot at the end of progress
+            val thumbAngleRad = Math.toRadians((startAngle + sweepAngle * progress).toDouble())
+            val thumbX = center.x + radius * Math.cos(thumbAngleRad).toFloat()
+            val thumbY = center.y + radius * Math.sin(thumbAngleRad).toFloat()
+            drawCircle(
+                color = Color.White,
+                radius = 7.dp.toPx(),
+                center = Offset(thumbX, thumbY)
+            )
+            drawCircle(
+                color = Color(0xFF0F1B5F),
+                radius = 3.dp.toPx(),
+                center = Offset(thumbX, thumbY)
+            )
+        }
+    }
+}
+
+// Helpers for angle mapping
+private fun calculateAngle(point: Offset, center: Offset): Float {
+    val dx = point.x - center.x
+    val dy = point.y - center.y
+    var angle = Math.toDegrees(Math.atan2(dy.toDouble(), dx.toDouble())).toFloat()
+    if (angle < 0) {
+        angle += 360f
+    }
+    return angle
+}
+
+private fun calculateProgressFromAngle(angle: Float, startAngle: Float, sweepAngle: Float): Float {
+    var normalizedAngle = angle
+    if (normalizedAngle < startAngle - 40f) {
+        normalizedAngle += 360f
+    }
+    return ((normalizedAngle - startAngle) / sweepAngle).coerceIn(0f, 1f)
+}
+
+@Composable
+fun ConcentricGlowRings(
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val transition = rememberInfiniteTransition(label = "rings")
+    val pulseScale1 by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2000, easing = LinearOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ring1Scale"
+    )
+    val pulseAlpha1 by transition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2000, easing = LinearOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ring1Alpha"
+    )
+
+    val pulseScale2 by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2000, easing = LinearOutSlowInEasing),
+            initialStartOffset = StartOffset(1000),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ring2Scale"
+    )
+    val pulseAlpha2 by transition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2000, easing = LinearOutSlowInEasing),
+            initialStartOffset = StartOffset(1000),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ring2Alpha"
+    )
+
+    Box(
+        modifier = modifier.size(160.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        // Outer pulsing ring 1
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .graphicsLayer {
+                    scaleX = if (isPlaying) pulseScale1 else 1f
+                    scaleY = if (isPlaying) pulseScale1 else 1f
+                    alpha = if (isPlaying) pulseAlpha1 else 0f
+                }
+                .border(
+                    width = 2.dp,
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color(0xFF2979FF), Color.Transparent),
+                    ),
+                    shape = CircleShape
+                )
+        )
+
+        // Outer pulsing ring 2
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .graphicsLayer {
+                    scaleX = if (isPlaying) pulseScale2 else 1f
+                    scaleY = if (isPlaying) pulseScale2 else 1f
+                    alpha = if (isPlaying) pulseAlpha2 else 0f
+                }
+                .border(
+                    width = 2.dp,
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color(0xFF2979FF), Color.Transparent),
+                    ),
+                    shape = CircleShape
+                )
+        )
+
+        // Static glowing base ring
+        Box(
+            modifier = Modifier
+                .size(96.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color(0xFF2979FF).copy(alpha = 0.25f), Color.Transparent),
+                    ),
+                    shape = CircleShape
+                )
+        )
+    }
+}
+
+@Composable
+fun LiquidControlBarBackground(
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier = modifier.height(64.dp).fillMaxWidth()) {
+        val h = size.height
+        val w = size.width
+        val r = h / 2f
+        val path = Path().apply {
+            moveTo(r, 0f)
+            lineTo(w / 2f - 60.dp.toPx(), 0f)
+            // Dip down in the center
+            cubicTo(
+                w / 2f - 30.dp.toPx(), 0f,
+                w / 2f - 35.dp.toPx(), h * 0.45f,
+                w / 2f, h * 0.45f
+            )
+            cubicTo(
+                w / 2f + 35.dp.toPx(), h * 0.45f,
+                w / 2f + 30.dp.toPx(), 0f,
+                w / 2f + 60.dp.toPx(), 0f
+            )
+            lineTo(w - r, 0f)
+            // Right cap
+            arcTo(
+                rect = Rect(w - 2 * r, 0f, w, h),
+                startAngleDegrees = -90f,
+                sweepAngleDegrees = 180f,
+                forceMoveTo = false
+            )
+            lineTo(w / 2f + 60.dp.toPx(), h)
+            // Dip up in the center
+            cubicTo(
+                w / 2f + 30.dp.toPx(), h,
+                w / 2f + 35.dp.toPx(), h * 1.45f,
+                w / 2f, h * 1.45f
+            )
+            cubicTo(
+                w / 2f - 35.dp.toPx(), h * 1.45f,
+                w / 2f - 30.dp.toPx(), h,
+                w / 2f - 60.dp.toPx(), h
+            )
+            lineTo(r, h)
+            // Left cap
+            arcTo(
+                rect = Rect(0f, 0f, 2 * r, h),
+                startAngleDegrees = 90f,
+                sweepAngleDegrees = 180f,
+                forceMoveTo = false
+            )
+            close()
+        }
+
+        // Draw background glass
+        drawPath(
+            path = path,
+            color = Color.White.copy(alpha = 0.05f)
+        )
+        // Draw thin white border
+        drawPath(
+            path = path,
+            color = Color.White.copy(alpha = 0.12f),
+            style = Stroke(width = 1.dp.toPx())
+        )
     }
 }
 

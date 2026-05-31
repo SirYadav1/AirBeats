@@ -276,6 +276,7 @@
     <string name="classic_player">Classic player</string>
     <string name="modern_player">Immersive player</string>
     <string name="spotify_player">Spotify player</string>
+    <string name="liquid_player">Liquid player</string>
     <string name="follow_theme">Follow theme</string>
     <string name="gradient">Gradient</string>
     <string name="player_background_blur">Blur</string>
