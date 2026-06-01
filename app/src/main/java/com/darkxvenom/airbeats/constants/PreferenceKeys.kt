@@ -11,6 +11,7 @@ import java.time.ZoneOffset
 val DynamicThemeKey = booleanPreferencesKey("dynamicTheme")
 val DarkModeKey = stringPreferencesKey("darkMode")
 val LiquidGlassKey = booleanPreferencesKey("enableLiquidGlass")
+val DynamicIslandKey = booleanPreferencesKey("enableDynamicIsland")
 
 val UserNameKey = stringPreferencesKey("user_name")
 
@@ -20,6 +21,7 @@ val SlimNavBarKey = booleanPreferencesKey("slimNavBar")
 val GridItemsSizeKey = stringPreferencesKey("gridItemSize")
 val SliderStyleKey = stringPreferencesKey("sliderStyle")
 val PlayerScreenStyleKey = stringPreferencesKey("playerScreenStyle")
+val HomeScreenStyleKey = stringPreferencesKey("homeScreenStyle")
 val HideVideoKey = booleanPreferencesKey("hideVideo")
 
 enum class SliderStyle {
@@ -28,13 +30,21 @@ enum class SliderStyle {
     SLIM,
 }
 
+enum class HomeScreenStyle {
+    CLASSIC,
+    PLAYFUL,
+}
+
 enum class PlayerScreenStyle {
+    PAPER,
     CLASSIC,
     MODERN,
     SPOTIFY,
     LIQUID,
     CLOUDGLOW,
     FROST,
+    FOLD,
+    GROOVE,
 }
 
 const val SYSTEM_DEFAULT = "SYSTEM_DEFAULT"

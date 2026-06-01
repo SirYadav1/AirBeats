@@ -273,6 +273,7 @@
     <string name="dark_theme_follow_system">Follow system</string>
     <string name="player_background_style">Player background style</string>
     <string name="player_screen_style">Player screen style</string>
+    <string name="paper_player">Paper player</string>
     <string name="classic_player">Classic player</string>
     <string name="modern_player">Immersive player</string>
     <string name="spotify_player">Spotify player</string>
@@ -284,6 +285,8 @@
     <string name="enable_swipe_thumbnail">Enable swipe to change song</string>
     <string name="enable_liquid_glass">Enable Liquid Glass</string>
     <string name="enable_liquid_glass_desc">Apply frosted glass blur and vibrancy to the bottom navigation and miniplayer. Automatically forces dark theme.</string>
+    <string name="enable_dynamic_island">Enable Dynamic Island</string>
+    <string name="enable_dynamic_island_desc">Show a compact playback island at the top of the screen over other apps while music is playing or paused.</string>
     <string name="pure_black">Pure black</string>
     <string name="customize_navigation_tabs">Customize navigation tabs</string>
     <string name="player">Player</string>

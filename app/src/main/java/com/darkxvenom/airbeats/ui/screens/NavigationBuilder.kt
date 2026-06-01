@@ -12,17 +12,22 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.darkxvenom.airbeats.BuildConfig
+import com.darkxvenom.airbeats.constants.HomeScreenStyle
+import com.darkxvenom.airbeats.constants.HomeScreenStyleKey
+import com.darkxvenom.airbeats.utils.rememberEnumPreference
 import com.darkxvenom.airbeats.ui.screens.artist.ArtistItemsScreen
 import com.darkxvenom.airbeats.ui.screens.artist.ArtistScreen
 import com.darkxvenom.airbeats.ui.screens.artist.ArtistSongsScreen
 import com.darkxvenom.airbeats.ui.screens.library.CachePlaylistScreen
 import com.darkxvenom.airbeats.ui.screens.library.LibraryScreen
+import com.darkxvenom.airbeats.ui.screens.library.PlayfulLibraryScreen
 import com.darkxvenom.airbeats.ui.screens.playlist.AutoPlaylistScreen
 import com.darkxvenom.airbeats.ui.screens.playlist.LocalPlaylistScreen
 import com.darkxvenom.airbeats.ui.screens.playlist.OnlinePlaylistScreen
@@ -47,21 +52,55 @@ fun NavGraphBuilder.navigationBuilder(
     navController: NavHostController,
     scrollBehavior: TopAppBarScrollBehavior,
     latestVersionName: String,
+    playerBottomSheetState: BottomSheetState,
+    onSearchClick: () -> Unit,
 ) {
     composable(Screens.Home.route) {
-        HomeScreen(
-            navController = navController
+        val (homeScreenStyle, _) = rememberEnumPreference(
+            HomeScreenStyleKey,
+            defaultValue = HomeScreenStyle.CLASSIC
         )
 
+        if (homeScreenStyle == HomeScreenStyle.PLAYFUL) {
+            PlayfulHomeScreen(navController = navController, playerBottomSheetState = playerBottomSheetState, onSearchClick = onSearchClick)
+        } else {
+            HomeScreen(navController = navController)
+        }
     }
 
     composable(
         Screens.Library.route,
     ) {
-        LibraryScreen(navController)
+        val (homeScreenStyle, _) = rememberEnumPreference(
+            HomeScreenStyleKey,
+            defaultValue = HomeScreenStyle.CLASSIC
+        )
+
+        if (homeScreenStyle == HomeScreenStyle.PLAYFUL) {
+            PlayfulLibraryScreen(
+                navController = navController,
+                playerBottomSheetState = playerBottomSheetState,
+                onSearchClick = onSearchClick
+            )
+        } else {
+            LibraryScreen(navController)
+        }
     }
     composable(Screens.Explore.route) {
-        ExploreScreen(navController,scrollBehavior)
+        val (homeScreenStyle, _) = rememberEnumPreference(
+            HomeScreenStyleKey,
+            defaultValue = HomeScreenStyle.CLASSIC
+        )
+
+        if (homeScreenStyle == HomeScreenStyle.PLAYFUL) {
+            PlayfulExploreScreen(
+                navController = navController,
+                playerBottomSheetState = playerBottomSheetState,
+                onSearchClick = onSearchClick
+            )
+        } else {
+            ExploreScreen(navController,scrollBehavior)
+        }
     }
     composable("history") {
         HistoryScreen(navController)

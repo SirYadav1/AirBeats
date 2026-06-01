@@ -213,6 +213,8 @@ import com.darkxvenom.airbeats.ui.component.SpotifyLyrics
 import com.darkxvenom.airbeats.constants.PlayerScreenStyleKey
 import com.darkxvenom.airbeats.constants.PlayerScreenStyle
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
+import com.darkxvenom.airbeats.constants.HomeScreenStyle
+import com.darkxvenom.airbeats.constants.HomeScreenStyleKey
 import com.darkxvenom.airbeats.ui.component.NameProvider
 import com.darkxvenom.airbeats.ui.component.SwitchPreference
 import com.darkxvenom.airbeats.ui.component.TopSearch
@@ -415,16 +417,20 @@ class MainActivity : ComponentActivity() {
             var showFullscreenLyrics by remember { mutableStateOf(false) }
 
             val playerScreenStyle by rememberEnumPreference(PlayerScreenStyleKey, defaultValue = PlayerScreenStyle.CLASSIC)
+            val homeScreenStyle by rememberEnumPreference(HomeScreenStyleKey, defaultValue = HomeScreenStyle.CLASSIC)
 
             val enableDynamicTheme by rememberPreference(DynamicThemeKey, defaultValue = true)
             val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
             val enableLiquidGlass by rememberPreference(LiquidGlassKey, defaultValue = false)
 
             val pureBlack by rememberPreference(PureBlackKey, defaultValue = false)
+            val isPlayful = homeScreenStyle == HomeScreenStyle.PLAYFUL
             val isSystemInDarkTheme = isSystemInDarkTheme()
             val useDarkTheme =
-                remember(darkTheme, isSystemInDarkTheme, enableLiquidGlass) {
-                    if (enableLiquidGlass) {
+                remember(darkTheme, isSystemInDarkTheme, enableLiquidGlass, isPlayful) {
+                    if (isPlayful) {
+                        false
+                    } else if (enableLiquidGlass) {
                         true
                     } else {
                         if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
@@ -466,7 +472,7 @@ class MainActivity : ComponentActivity() {
 
             AirBeatsTheme(
                 darkTheme = useDarkTheme,
-                pureBlack = pureBlack && !enableLiquidGlass,
+                pureBlack = pureBlack && !enableLiquidGlass && !isPlayful,
                 themeColor = themeColor,
             ) {
                 val rankPrefMgr = remember { RankPreferenceManager(this@MainActivity) }
@@ -836,7 +842,8 @@ class MainActivity : ComponentActivity() {
                                             navBackStackEntry?.destination?.route?.startsWith("search/") == true
 
                                         if (active || isSearchRoute) {
-                                            TopSearch(
+                                            val topSearchContent: @Composable () -> Unit = {
+                                                TopSearch(
                                                 query = query,
                                                 onQueryChange = onQueryChange,
                                                 onSearch = onSearch,
@@ -982,6 +989,26 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 }
                                             }
+                                            }
+                                            val isPlayful = homeScreenStyle == HomeScreenStyle.PLAYFUL
+                                            if (isPlayful) {
+                                                MaterialTheme(
+                                                    colorScheme = MaterialTheme.colorScheme.copy(
+                                                        background = Color(0xFFFFD54F),
+                                                        surface = Color(0xFFFFD54F),
+                                                        surfaceContainerLow = Color.White,
+                                                        onBackground = Color.Black,
+                                                        onSurface = Color.Black,
+                                                        onSurfaceVariant = Color.DarkGray
+                                                    )
+                                                ) {
+                                                    CompositionLocalProvider(LocalContentColor provides Color.Black) {
+                                                        topSearchContent()
+                                                    }
+                                                }
+                                            } else {
+                                                topSearchContent()
+                                            }
                                         }
                                     },
                                     bottomBar = {
@@ -994,16 +1021,20 @@ class MainActivity : ComponentActivity() {
                                                         currentRoute == Screens.Explore.route ||
                                                         currentRoute == Screens.Library.route
 
-                                            BottomSheetPlayer(
-                                                state = playerBottomSheetState,
-                                                navController = navController,
-                                                onOpenFullscreenLyrics = {
-                                                    showFullscreenLyrics = true
-                                                },
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .offset(y = 0.dp)
-                                            )
+                                            val isPlayfulHome = (currentRoute == Screens.Home.route || currentRoute == Screens.Library.route || currentRoute == Screens.Explore.route) && homeScreenStyle == HomeScreenStyle.PLAYFUL
+
+                                            if (!isPlayfulHome || !playerBottomSheetState.isCollapsed) {
+                                                BottomSheetPlayer(
+                                                    state = playerBottomSheetState,
+                                                    navController = navController,
+                                                    onOpenFullscreenLyrics = {
+                                                        showFullscreenLyrics = true
+                                                    },
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .offset(y = 0.dp)
+                                                )
+                                            }
 
                                             AnimatedVisibility(
                                                 visible = showFullscreenLyrics,
@@ -1059,7 +1090,8 @@ class MainActivity : ComponentActivity() {
                                             val shouldShowBottomNav =
                                                 isTopLevel &&
                                                         !isSearchActive &&
-                                                        playerBottomSheetState.progress < 0.95f
+                                                        playerBottomSheetState.progress < 0.95f &&
+                                                        !isPlayfulHome
 
                                             if (shouldShowBottomNav) {
 
@@ -1319,9 +1351,13 @@ class MainActivity : ComponentActivity() {
                                         )
                                     ) {
                                         navigationBuilder(
-                                            navController,
-                                            topAppBarScrollBehavior,
-                                            latestVersionName
+                                            navController = navController,
+                                            scrollBehavior = if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route } ||
+                                                navBackStackEntry?.destination?.route?.startsWith("search/") == true
+                                            ) searchBarScrollBehavior else topAppBarScrollBehavior,
+                                            latestVersionName = latestVersionName,
+                                            playerBottomSheetState = playerBottomSheetState,
+                                            onSearchClick = { onActiveChange(true) }
                                         )
                                     }
                                     }

@@ -532,7 +532,7 @@ fun MiniPlayer(
 }
 
 @Composable
-private fun ModernMiniPlayer(
+fun ModernMiniPlayer(
     position: Long,
     duration: Long,
     modifier: Modifier = Modifier,
@@ -554,9 +554,17 @@ private fun ModernMiniPlayer(
     val layer = rememberGraphicsLayer()
     val luminanceAnimation = remember { Animatable(0.3f) }
 
+    val (homeScreenStyle, _) = com.darkxvenom.airbeats.utils.rememberEnumPreference(
+        com.darkxvenom.airbeats.constants.HomeScreenStyleKey,
+        defaultValue = com.darkxvenom.airbeats.constants.HomeScreenStyle.CLASSIC
+    )
+    val isPlayful = homeScreenStyle == com.darkxvenom.airbeats.constants.HomeScreenStyle.PLAYFUL
+
     val themeContrastColor by animateColorAsState(
         targetValue = if (enableLiquidGlass && backdrop != null) {
             Color.White
+        } else if (isPlayful) {
+            Color.Black
         } else {
             MaterialTheme.colorScheme.onSurface
         },
@@ -567,6 +575,8 @@ private fun ModernMiniPlayer(
     val themeContrastVariantColor by animateColorAsState(
         targetValue = if (enableLiquidGlass && backdrop != null) {
             Color.White.copy(alpha = 0.7f)
+        } else if (isPlayful) {
+            Color.Black.copy(alpha = 0.6f)
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant
         },
@@ -579,6 +589,8 @@ private fun ModernMiniPlayer(
     }
     val backgroundColor = if (enableLiquidGlass && backdrop != null) {
         Color.Transparent
+    } else if (isPlayful) {
+        Color.White
     } else if (useDarkTheme && pureBlack) {
         Color.Black.copy(alpha = 0.96f)
     } else {

@@ -15,6 +15,7 @@ import android.media.audiofx.LoudnessEnhancer
 import android.net.ConnectivityManager
 import android.os.Binder
 import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.getSystemService
@@ -73,6 +74,7 @@ import com.darkxvenom.airbeats.constants.AutoSkipNextOnErrorKey
 import com.darkxvenom.airbeats.constants.DisableLoadMoreWhenRepeatAllKey
 import com.darkxvenom.airbeats.constants.DiscordTokenKey
 import com.darkxvenom.airbeats.constants.DiscordUseDetailsKey
+import com.darkxvenom.airbeats.constants.DynamicIslandKey
 import com.darkxvenom.airbeats.constants.EnableDiscordRPCKey
 import com.darkxvenom.airbeats.constants.EqualizerEnabledKey
 import com.darkxvenom.airbeats.constants.HideExplicitKey
@@ -87,6 +89,7 @@ import com.darkxvenom.airbeats.constants.RepeatModeKey
 import com.darkxvenom.airbeats.constants.ShowLyricsKey
 import com.darkxvenom.airbeats.constants.SimilarContent
 import com.darkxvenom.airbeats.constants.SkipSilenceKey
+import com.darkxvenom.airbeats.constants.StopMusicOnTaskClearKey
 import com.darkxvenom.airbeats.db.MusicDatabase
 import com.darkxvenom.airbeats.db.entities.Event
 import com.darkxvenom.airbeats.db.entities.FormatEntity
@@ -335,6 +338,17 @@ class MusicService :
                 settings[PlayerVolumeKey] = volume
             }
         }
+
+        dataStore.data
+            .map { it[DynamicIslandKey] ?: false }
+            .distinctUntilChanged()
+            .collect(scope) { enabled ->
+                if (enabled && Settings.canDrawOverlays(this)) {
+                    startService(Intent(this, DynamicIslandService::class.java))
+                } else {
+                    stopService(Intent(this, DynamicIslandService::class.java))
+                }
+            }
 
         currentSong.debounce(1000).collect(scope) { song ->
             updateNotification()
@@ -1715,7 +1729,9 @@ class MusicService :
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        stopSelf()
+        if (dataStore.get(StopMusicOnTaskClearKey, false) || player.currentMediaItem == null) {
+            stopSelf()
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo) = mediaSession

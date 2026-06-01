@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -113,6 +114,14 @@ fun OnlineSearchResult(
             }
         }
     }
+
+    val (homeScreenStyle, _) = com.darkxvenom.airbeats.utils.rememberEnumPreference<com.darkxvenom.airbeats.constants.HomeScreenStyle>(
+        com.darkxvenom.airbeats.constants.HomeScreenStyleKey,
+        defaultValue = com.darkxvenom.airbeats.constants.HomeScreenStyle.CLASSIC
+    )
+    val isPlayful = homeScreenStyle == com.darkxvenom.airbeats.constants.HomeScreenStyle.PLAYFUL
+
+    val content: @Composable () -> Unit = {
 
     LaunchedEffect(lazyListState) {
         snapshotFlow {
@@ -341,6 +350,27 @@ fun OnlineSearchResult(
                 FILTER_FEATURED_PLAYLIST to R.drawable.playlist_play,
             ),
         )
+    }
+    }
+
+    if (isPlayful) {
+        MaterialTheme(
+            colorScheme = MaterialTheme.colorScheme.copy(
+                background = androidx.compose.ui.graphics.Color(0xFFFFD54F),
+                surface = androidx.compose.ui.graphics.Color(0xFFFFD54F),
+                onBackground = androidx.compose.ui.graphics.Color.Black,
+                onSurface = androidx.compose.ui.graphics.Color.Black,
+                onSurfaceVariant = androidx.compose.ui.graphics.Color.DarkGray
+            )
+        ) {
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides androidx.compose.ui.graphics.Color.Black) {
+                Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFFFFD54F))) {
+                    content()
+                }
+            }
+        }
+    } else {
+        content()
     }
 }
 

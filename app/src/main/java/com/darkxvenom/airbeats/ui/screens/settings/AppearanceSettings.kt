@@ -41,6 +41,8 @@ import com.darkxvenom.airbeats.LocalPlayerAwareWindowInsets
 import com.darkxvenom.airbeats.LocalPlayerConnection
 import com.darkxvenom.airbeats.R
 import com.darkxvenom.airbeats.constants.*
+import com.darkxvenom.airbeats.constants.HomeScreenStyle
+import com.darkxvenom.airbeats.constants.HomeScreenStyleKey
 import com.darkxvenom.airbeats.ui.component.*
 import com.darkxvenom.airbeats.utils.rememberEnumPreference
 import com.darkxvenom.airbeats.utils.rememberPreference
@@ -84,6 +86,13 @@ fun AppearanceSettings(
             PlayerScreenStyleKey,
             defaultValue = PlayerScreenStyle.CLASSIC,
         )
+    val (homeScreenStyle, onHomeScreenStyleChange) =
+        rememberEnumPreference(
+            HomeScreenStyleKey,
+            defaultValue = HomeScreenStyle.CLASSIC,
+        )
+    val isPlayful = homeScreenStyle == HomeScreenStyle.PLAYFUL
+
     val (pureBlack, onPureBlackChange) = rememberPreference(PureBlackKey, defaultValue = false)
     val (defaultOpenTab, onDefaultOpenTabChange) = rememberEnumPreference(
         DefaultOpenTabKey,
@@ -137,11 +146,17 @@ fun AppearanceSettings(
         LiquidGlassKey,
         defaultValue = false
     )
+    val (enableDynamicIsland, onEnableDynamicIslandChange) = rememberPreference(
+        DynamicIslandKey,
+        defaultValue = false
+    )
 
     val isSystemInDarkTheme = isSystemInDarkTheme()
     val useDarkTheme =
-        remember(darkMode, isSystemInDarkTheme, enableLiquidGlass) {
-            if (enableLiquidGlass) {
+        remember(darkMode, isSystemInDarkTheme, enableLiquidGlass, isPlayful) {
+            if (isPlayful) {
+                false
+            } else if (enableLiquidGlass) {
                 true
             } else {
                 if (darkMode == DarkMode.AUTO) isSystemInDarkTheme else darkMode == DarkMode.ON
@@ -426,6 +441,18 @@ fun AppearanceSettings(
                 SettingsGeneralCategory(
                     title = stringResource(R.string.theme),
                     items = listOf(
+                        {EnumListPreference(
+                            title = { Text("Home Screen Style") },
+                            icon = { Icon(painterResource(R.drawable.home), null) },
+                            selectedValue = homeScreenStyle,
+                            onValueSelected = onHomeScreenStyleChange,
+                            valueText = {
+                                when (it) {
+                                    HomeScreenStyle.CLASSIC -> "Classic"
+                                    HomeScreenStyle.PLAYFUL -> "Playful"
+                                }
+                            },
+                        )},
                         {SwitchPreference(
                             title = { Text(stringResource(R.string.enable_dynamic_theme)) },
                             icon = { Icon(painterResource(R.drawable.palette), null) },
@@ -435,11 +462,13 @@ fun AppearanceSettings(
                         {EnumListPreference(
                             title = { Text(stringResource(R.string.dark_theme)) },
                             icon = { Icon(painterResource(R.drawable.dark_mode), null) },
-                            selectedValue = if (enableLiquidGlass) DarkMode.ON else darkMode,
+                            selectedValue = if (enableLiquidGlass) DarkMode.ON else if (isPlayful) DarkMode.OFF else darkMode,
                             onValueSelected = onDarkModeChange,
                             valueText = {
                                 if (enableLiquidGlass) {
                                     stringResource(R.string.dark_theme_on)
+                                } else if (isPlayful) {
+                                    stringResource(R.string.dark_theme_off)
                                 } else {
                                     when (it) {
                                         DarkMode.ON -> stringResource(R.string.dark_theme_on)
@@ -448,19 +477,27 @@ fun AppearanceSettings(
                                     }
                                 }
                             },
-                            isEnabled = !enableLiquidGlass
+                            isEnabled = !enableLiquidGlass && !isPlayful
+                        )},
+                        {SwitchPreference(
+                            title = { Text(stringResource(R.string.enable_dynamic_island)) },
+                            description = stringResource(R.string.enable_dynamic_island_desc),
+                            icon = { Icon(painterResource(R.drawable.music_note), null) },
+                            checked = enableDynamicIsland,
+                            onCheckedChange = onEnableDynamicIslandChange
                         )},
                         {SwitchPreference(
                             title = { Text(stringResource(R.string.enable_liquid_glass)) },
                             description = stringResource(R.string.enable_liquid_glass_desc),
                             icon = { Icon(painterResource(R.drawable.palette), null) },
-                            checked = enableLiquidGlass,
+                            checked = enableLiquidGlass && !isPlayful,
                             onCheckedChange = { newValue ->
                                 onEnableLiquidGlassChange(newValue)
                                 if (newValue) {
                                     onDarkModeChange(DarkMode.ON)
                                 }
-                            }
+                            },
+                            isEnabled = !isPlayful
                         )},
                         {AnimatedVisibility(useDarkTheme) {
                             SwitchPreference(
@@ -519,12 +556,15 @@ fun AppearanceSettings(
                             onValueSelected = onPlayerScreenStyleChange,
                             valueText = {
                                 when (it) {
+                                    PlayerScreenStyle.PAPER -> stringResource(R.string.paper_player)
                                     PlayerScreenStyle.CLASSIC -> stringResource(R.string.classic_player)
                                     PlayerScreenStyle.MODERN -> stringResource(R.string.modern_player)
                                     PlayerScreenStyle.SPOTIFY -> stringResource(R.string.spotify_player)
                                     PlayerScreenStyle.LIQUID -> stringResource(R.string.liquid_player)
                                     PlayerScreenStyle.CLOUDGLOW -> "CloudGlow"
                                     PlayerScreenStyle.FROST -> "Frost"
+                                    PlayerScreenStyle.FOLD -> "Fold"
+                                    PlayerScreenStyle.GROOVE -> "Groove"
                                 }
                             },
                         )},
