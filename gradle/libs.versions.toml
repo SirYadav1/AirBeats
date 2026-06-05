@@ -31,6 +31,7 @@ foundation = "1.10.3"
 uiGraphics = "1.10.3"
 liquidGlass = "2.0.0-alpha03"
 liquidGlassShapes = "1.2.0"
+haze = "1.7.2"
 
 
 [libraries]
@@ -117,6 +118,8 @@ foundation = { group = "androidx.compose.foundation", name = "foundation", versi
 ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics", version.ref = "uiGraphics" }
 liquid-glass = { module = "io.github.kyant0:backdrop", version.ref = "liquidGlass" }
 liquid-glass-shape = { module = "io.github.kyant0:shapes", version.ref = "liquidGlassShapes" }
+haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
+haze-materials = { module = "dev.chrisbanes.haze:haze-materials", version.ref = "haze" }
 
 [plugins]
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

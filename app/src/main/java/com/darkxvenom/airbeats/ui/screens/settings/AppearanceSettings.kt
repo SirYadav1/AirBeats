@@ -1,6 +1,9 @@
 package com.darkxvenom.airbeats.ui.screens.settings
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -450,6 +453,8 @@ fun AppearanceSettings(
                                 when (it) {
                                     HomeScreenStyle.CLASSIC -> "Classic"
                                     HomeScreenStyle.PLAYFUL -> "Playful"
+                                    HomeScreenStyle.NEON -> "Neon"
+                                    HomeScreenStyle.SPOTIFY -> "Spotify"
                                 }
                             },
                         )},
@@ -479,13 +484,32 @@ fun AppearanceSettings(
                             },
                             isEnabled = !enableLiquidGlass && !isPlayful
                         )},
-                        {SwitchPreference(
-                            title = { Text(stringResource(R.string.enable_dynamic_island)) },
-                            description = stringResource(R.string.enable_dynamic_island_desc),
-                            icon = { Icon(painterResource(R.drawable.music_note), null) },
-                            checked = enableDynamicIsland,
-                            onCheckedChange = onEnableDynamicIslandChange
-                        )},
+                        {
+                            val context = LocalContext.current
+                            SwitchPreference(
+                                title = { Text(stringResource(R.string.enable_dynamic_island)) },
+                                description = stringResource(R.string.enable_dynamic_island_desc),
+                                icon = { Icon(painterResource(R.drawable.music_note), null) },
+                                checked = enableDynamicIsland,
+                                onCheckedChange = { newValue ->
+                                    if (newValue && !Settings.canDrawOverlays(context)) {
+                                        val intent = Intent(
+                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            Uri.parse("package:${context.packageName}")
+                                        )
+                                        context.startActivity(intent)
+                                    } else {
+                                        onEnableDynamicIslandChange(newValue)
+                                        val serviceIntent = Intent(context, com.darkxvenom.airbeats.playback.DynamicIslandService::class.java)
+                                        if (newValue) {
+                                            context.startService(serviceIntent)
+                                        } else {
+                                            context.stopService(serviceIntent)
+                                        }
+                                    }
+                                }
+                            )
+                        },
                         {SwitchPreference(
                             title = { Text(stringResource(R.string.enable_liquid_glass)) },
                             description = stringResource(R.string.enable_liquid_glass_desc),
@@ -565,6 +589,8 @@ fun AppearanceSettings(
                                     PlayerScreenStyle.FROST -> "Frost"
                                     PlayerScreenStyle.FOLD -> "Fold"
                                     PlayerScreenStyle.GROOVE -> "Groove"
+                                    PlayerScreenStyle.POPSY -> "Popsy"
+                                    PlayerScreenStyle.MINIMAL -> "Minimal"
                                 }
                             },
                         )},

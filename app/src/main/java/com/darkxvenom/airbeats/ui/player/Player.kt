@@ -295,6 +295,24 @@ fun BottomSheetPlayer(
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
 
+    val queueWindows by playerConnection.queueWindows.collectAsState()
+    val currentWindowIndex = playerConnection.player.currentMediaItemIndex
+    val nextMediaMetadata = remember(queueWindows, currentWindowIndex) {
+        if (currentWindowIndex + 1 < queueWindows.size) {
+            val nextItem = queueWindows[currentWindowIndex + 1].mediaItem
+            // Try to extract our domain MediaMetadata. If not possible, we could at least map the artwork.
+            // AirBeats maps LocalMediaItem data to its MediaMetadata using extensions or we can just fetch it.
+            // We just need the thumbnail URL. For simplicity, we can get it from the DB or assume it's attached.
+            com.darkxvenom.airbeats.models.MediaMetadata(
+                id = nextItem.mediaId,
+                title = nextItem.mediaMetadata.title?.toString() ?: "",
+                artists = emptyList(),
+                duration = 0,
+                thumbnailUrl = nextItem.mediaMetadata.artworkUri?.toString()
+            )
+        } else null
+    }
+
     val showLyrics by rememberPreference(ShowLyricsKey, defaultValue = false)
     val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.SQUIGGLY)
 
@@ -835,9 +853,19 @@ fun BottomSheetPlayer(
             else MaterialTheme.colorScheme.surfaceContainer
     }
 
+    val homeScreenStyle by rememberEnumPreference(
+        com.darkxvenom.airbeats.constants.HomeScreenStyleKey,
+        defaultValue = com.darkxvenom.airbeats.constants.HomeScreenStyle.CLASSIC
+    )
+    val isNeon = homeScreenStyle == com.darkxvenom.airbeats.constants.HomeScreenStyle.NEON
+
     BottomSheet(
         state = state,
         modifier = modifier,
+        shape = if (isNeon) androidx.compose.ui.graphics.RectangleShape else RoundedCornerShape(
+            topStart = if (!state.isExpanded) 16.dp else 0.dp,
+            topEnd = if (!state.isExpanded) 16.dp else 0.dp
+        ),
         background = {
             Box(
                 modifier = Modifier
@@ -928,6 +956,8 @@ fun BottomSheetPlayer(
                     position = position,
                     duration = duration,
                 )
+            } else if (homeScreenStyle == com.darkxvenom.airbeats.constants.HomeScreenStyle.NEON) {
+                NeonMiniPlayer()
             } else {
                 MiniPlayer(
                     position = position,
@@ -2220,6 +2250,85 @@ fun BottomSheetPlayer(
                         )
                     }
                 }
+            )
+        } else if (playerScreenStyle == PlayerScreenStyle.POPSY) {
+            PopsyPlayer(
+                mediaMetadata = mediaMetadata,
+                position = sliderPosition ?: position,
+                duration = duration,
+                isPlaying = isPlaying,
+                isLoading = playbackState != STATE_READY && playbackState != STATE_ENDED,
+                canSkipPrevious = canSkipPrevious,
+                canSkipNext = canSkipNext,
+                onSeek = { sliderPosition = it },
+                onSeekFinished = {
+                    sliderPosition?.let {
+                        playerConnection.player.seekTo(it)
+                    }
+                    sliderPosition = null
+                },
+                onPlayPause = playerConnection.player::togglePlayPause,
+                onPrevious = playerConnection.player::seekToPrevious,
+                onNext = playerConnection.player::seekToNext,
+                onCollapse = state::collapseSoft,
+                onMenuClick = {
+                    menuState.show {
+                        PlayerMenu(
+                            mediaMetadata = mediaMetadata ?: return@show,
+                            navController = navController,
+                            playerBottomSheetState = state,
+                            onShowDetailsDialog = { showDetailsDialog = true },
+                            onDismiss = menuState::dismiss,
+                        )
+                    }
+                },
+                isLiked = currentSong?.song?.liked == true,
+                onLikeClick = playerConnection::toggleLike,
+                onAddToPlaylistClick = { showChoosePlaylistDialog = true },
+                shuffleModeEnabled = shuffleModeEnabled,
+                onShuffleClick = { playerConnection.player.shuffleModeEnabled = !playerConnection.player.shuffleModeEnabled },
+                repeatMode = repeatMode,
+                onRepeatClick = playerConnection.player::toggleRepeatMode,
+                onLyricsClick = onOpenFullscreenLyrics,
+                onQueueClick = { queueSheetState.expandSoft() }
+            )
+        } else if (playerScreenStyle == PlayerScreenStyle.MINIMAL) {
+            MinimalPlayer(
+                mediaMetadata = mediaMetadata,
+                nextMediaMetadata = nextMediaMetadata,
+                position = sliderPosition ?: position,
+                duration = duration,
+                isPlaying = isPlaying,
+                isLoading = playbackState != STATE_READY && playbackState != STATE_ENDED,
+                canSkipPrevious = canSkipPrevious,
+                canSkipNext = canSkipNext,
+                onSeek = { sliderPosition = it },
+                onSeekFinished = {
+                    sliderPosition?.let {
+                        playerConnection.player.seekTo(it)
+                    }
+                    sliderPosition = null
+                },
+                onPlayPause = playerConnection.player::togglePlayPause,
+                onPrevious = playerConnection.player::seekToPrevious,
+                onNext = playerConnection.player::seekToNext,
+                onCollapse = state::collapseSoft,
+                onMenuClick = {
+                    menuState.show {
+                        PlayerMenu(
+                            mediaMetadata = mediaMetadata ?: return@show,
+                            navController = navController,
+                            playerBottomSheetState = state,
+                            onShowDetailsDialog = { showDetailsDialog = true },
+                            onDismiss = menuState::dismiss,
+                        )
+                    }
+                },
+                isLiked = currentSong?.song?.liked == true,
+                onLikeClick = playerConnection::toggleLike,
+                repeatMode = repeatMode,
+                onRepeatClick = playerConnection.player::toggleRepeatMode,
+                onQueueClick = { queueSheetState.expandSoft() }
             )
         } else if (playerScreenStyle == PlayerScreenStyle.MODERN) {
             val playbackOutputName = rememberPlaybackOutputName()

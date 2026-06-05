@@ -63,6 +63,10 @@ fun NavGraphBuilder.navigationBuilder(
 
         if (homeScreenStyle == HomeScreenStyle.PLAYFUL) {
             PlayfulHomeScreen(navController = navController, playerBottomSheetState = playerBottomSheetState, onSearchClick = onSearchClick)
+        } else if (homeScreenStyle == HomeScreenStyle.NEON) {
+            NeonHomeScreen(navController = navController)
+        } else if (homeScreenStyle == HomeScreenStyle.SPOTIFY) {
+            SpotifyHomeScreen(navController = navController)
         } else {
             HomeScreen(navController = navController)
         }
@@ -82,6 +86,10 @@ fun NavGraphBuilder.navigationBuilder(
                 playerBottomSheetState = playerBottomSheetState,
                 onSearchClick = onSearchClick
             )
+        } else if (homeScreenStyle == HomeScreenStyle.NEON) {
+            com.darkxvenom.airbeats.ui.screens.library.NeonLibraryScreen(navController = navController)
+        } else if (homeScreenStyle == HomeScreenStyle.SPOTIFY) {
+            SpotifyLibraryScreen(navController)
         } else {
             LibraryScreen(navController)
         }
@@ -98,12 +106,30 @@ fun NavGraphBuilder.navigationBuilder(
                 playerBottomSheetState = playerBottomSheetState,
                 onSearchClick = onSearchClick
             )
+        } else if (homeScreenStyle == HomeScreenStyle.NEON) {
+            NeonExploreScreen(navController = navController)
+        } else if (homeScreenStyle == HomeScreenStyle.SPOTIFY) {
+            SpotifyExploreScreen(navController = navController)
         } else {
             ExploreScreen(navController,scrollBehavior)
         }
     }
+    composable(Screens.Search.route) {
+        val (homeScreenStyle, _) = rememberEnumPreference(
+            HomeScreenStyleKey,
+            defaultValue = HomeScreenStyle.CLASSIC
+        )
+        if (homeScreenStyle == HomeScreenStyle.NEON) {
+            com.darkxvenom.airbeats.ui.screens.search.NeonSearchScreen(navController = navController)
+        } else {
+            SpotifySearchScreen(navController = navController)
+        }
+    }
     composable("history") {
         HistoryScreen(navController)
+    }
+    composable("neon_search") {
+        com.darkxvenom.airbeats.ui.screens.search.NeonSearchScreen(navController = navController)
     }
     composable("stats") {
         StatsScreen(navController)

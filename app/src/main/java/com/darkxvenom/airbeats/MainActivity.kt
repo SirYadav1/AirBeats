@@ -529,7 +529,13 @@ class MainActivity : ComponentActivity() {
                             val navBackStackEntry by navController.currentBackStackEntryAsState()
                             val (previousTab) = rememberSaveable { mutableStateOf("home") }
 
-                            val navigationItems = remember { Screens.MainScreens }
+                            val navigationItems = remember(homeScreenStyle) { 
+                                if (homeScreenStyle == HomeScreenStyle.SPOTIFY) {
+                                    Screens.MainScreens 
+                                } else {
+                                    Screens.MainScreens.filter { it.route != Screens.Search.route }
+                                }
+                            }
                             val (slimNav) = rememberPreference(SlimNavBarKey, defaultValue = false)
                             val defaultOpenTab =
                                 remember {
@@ -1098,10 +1104,18 @@ class MainActivity : ComponentActivity() {
                                                 Box(
                                                     modifier = Modifier
                                                         .align(Alignment.BottomCenter)
-                                                        .navigationBarsPadding()
-                                                        .padding(bottom = 6.dp)
-                                                        .fillMaxWidth(0.88f)
-                                                        .height(NavigationBarHeight - 16.dp),
+                                                        .then(if (homeScreenStyle != HomeScreenStyle.SPOTIFY) Modifier.navigationBarsPadding() else Modifier)
+                                                        .then(
+                                                            if (homeScreenStyle == HomeScreenStyle.SPOTIFY) {
+                                                                Modifier.fillMaxWidth()
+                                                                    .height(NavigationBarHeight)
+                                                            } else {
+                                                                Modifier
+                                                                    .padding(bottom = 6.dp)
+                                                                    .fillMaxWidth(0.88f)
+                                                                    .height(NavigationBarHeight - 16.dp)
+                                                            }
+                                                        ),
                                                     contentAlignment = Alignment.Center
                                                 ) {
 
@@ -1193,7 +1207,29 @@ class MainActivity : ComponentActivity() {
                                                          }
                                                      }
 
-                                                     if (enableLiquidGlass) {
+                                                     if (homeScreenStyle == HomeScreenStyle.NEON) {
+                                                         com.darkxvenom.airbeats.ui.component.NeonBottomNavigationBar(
+                                                             items = curvedItems,
+                                                             selectedIndex = selectedIndex,
+                                                             onItemSelected = onItemSelectedAction,
+                                                             modifier = Modifier
+                                                                 .fillMaxSize()
+                                                                 .offset(y = offsetY)
+                                                                 .scale(scale)
+                                                                 .alpha(alpha)
+                                                         )
+                                                     } else if (homeScreenStyle == HomeScreenStyle.SPOTIFY) {
+                                                         com.darkxvenom.airbeats.ui.component.SpotifyBottomNavigationBar(
+                                                             items = curvedItems,
+                                                             selectedIndex = selectedIndex,
+                                                             onItemSelected = onItemSelectedAction,
+                                                             modifier = Modifier
+                                                                 .fillMaxSize()
+                                                                 .offset(y = offsetY)
+                                                                 .scale(scale)
+                                                                 .alpha(alpha)
+                                                         )
+                                                     } else if (enableLiquidGlass) {
                                                          LiquidGlassBottomNavigationBar(
                                                              selectedIndex = selectedIndex,
                                                              onItemSelected = onItemSelectedAction,
@@ -1217,25 +1253,8 @@ class MainActivity : ComponentActivity() {
                                                      }
                                                 }
 
-                                                if (playerBottomSheetState.isDismissed) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .background(insetBg)
-                                                            .fillMaxWidth()
-                                                            .align(Alignment.BottomCenter)
-                                                            .height(bottomInsetDp)
-                                                    )
-                                                }
                                             } else {
-                                                if (playerBottomSheetState.isDismissed) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .background(insetBg)
-                                                            .fillMaxWidth()
-                                                            .align(Alignment.BottomCenter)
-                                                            .height(bottomInsetDp)
-                                                    )
-                                                }
+                                                // Removed redundant bottomInsetDp box
                                             }
                                         }
                                     },
@@ -1243,14 +1262,11 @@ class MainActivity : ComponentActivity() {
                                         .fillMaxSize()
                                         .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                                         .background(MaterialTheme.colorScheme.surface)
-
                                 ) { paddingValues ->
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .then(
-                                                if (enableLiquidGlass) Modifier.layerBackdrop(backdrop) else Modifier
-                                            )
+                                            .layerBackdrop(backdrop)
                                     ) {
                                         var transitionDirection =
                                         AnimatedContentTransitionScope.SlideDirection.Left

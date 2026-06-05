@@ -56,6 +56,10 @@ import kotlin.math.pow
 fun BottomSheet(
     state: BottomSheetState,
     modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(
+        topStart = if (!state.isExpanded) 16.dp else 0.dp,
+        topEnd = if (!state.isExpanded) 16.dp else 0.dp
+    ),
     background: @Composable (BoxScope.() -> Unit) = { },
     onDismiss: (() -> Unit)? = null,
     collapsedContent: @Composable BoxScope.() -> Unit,
@@ -98,12 +102,7 @@ fun BottomSheet(
                     }
                 )
             }
-            .clip(
-                RoundedCornerShape(
-                    topStart = if (!state.isExpanded) 16.dp else 0.dp,
-                    topEnd = if (!state.isExpanded) 16.dp else 0.dp
-                )
-            )
+            .clip(shape)
     ) {
         if (!state.isCollapsed && !state.isDismissed) {
             BackHandler(onBack = state::collapseSoft)

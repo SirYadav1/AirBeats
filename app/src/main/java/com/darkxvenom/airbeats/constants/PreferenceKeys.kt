@@ -31,8 +31,7 @@ enum class SliderStyle {
 }
 
 enum class HomeScreenStyle {
-    CLASSIC,
-    PLAYFUL,
+    CLASSIC, PLAYFUL, NEON, SPOTIFY
 }
 
 enum class PlayerScreenStyle {
@@ -45,6 +44,8 @@ enum class PlayerScreenStyle {
     FROST,
     FOLD,
     GROOVE,
+    POPSY,
+    MINIMAL
 }
 
 const val SYSTEM_DEFAULT = "SYSTEM_DEFAULT"

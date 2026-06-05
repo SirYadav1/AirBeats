@@ -31,8 +31,8 @@ android {
         applicationId = "com.darkxvenom.airbeats"
         minSdk = 24
         targetSdk = 35
-        versionCode = 138
-        versionName = "5.0.0"
+        versionCode = 140
+        versionName = "5.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GOOGLE_API_KEY", "\"$googleApiKey\"")
     }
@@ -170,6 +170,8 @@ dependencies {
     implementation(libs.ktor.client.core)
 
     coreLibraryDesugaring(libs.desugaring)
+    implementation(libs.haze)
+    implementation(libs.haze.materials)
     implementation(libs.liquid.glass)
     implementation(libs.liquid.glass.shape)
 

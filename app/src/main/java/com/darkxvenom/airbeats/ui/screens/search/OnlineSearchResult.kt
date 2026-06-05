@@ -120,7 +120,7 @@ fun OnlineSearchResult(
         defaultValue = com.darkxvenom.airbeats.constants.HomeScreenStyle.CLASSIC
     )
     val isPlayful = homeScreenStyle == com.darkxvenom.airbeats.constants.HomeScreenStyle.PLAYFUL
-
+    val isNeon = homeScreenStyle == com.darkxvenom.airbeats.constants.HomeScreenStyle.NEON
     val content: @Composable () -> Unit = {
 
     LaunchedEffect(lazyListState) {
@@ -365,6 +365,26 @@ fun OnlineSearchResult(
         ) {
             androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides androidx.compose.ui.graphics.Color.Black) {
                 Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFFFFD54F))) {
+                    content()
+                }
+            }
+        }
+    } else if (isNeon) {
+        val isDark = MaterialTheme.colorScheme.background.red < 0.5f
+        val neonBg = if (isDark) com.darkxvenom.airbeats.ui.screens.NeonDarkBg else MaterialTheme.colorScheme.background
+        val textColor = if (isDark) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.Black
+        val variantColor = if (isDark) androidx.compose.ui.graphics.Color.LightGray else androidx.compose.ui.graphics.Color.DarkGray
+        MaterialTheme(
+            colorScheme = MaterialTheme.colorScheme.copy(
+                background = neonBg,
+                surface = neonBg,
+                onBackground = textColor,
+                onSurface = textColor,
+                onSurfaceVariant = variantColor
+            )
+        ) {
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides textColor) {
+                Box(modifier = Modifier.fillMaxSize().background(neonBg)) {
                     content()
                 }
             }

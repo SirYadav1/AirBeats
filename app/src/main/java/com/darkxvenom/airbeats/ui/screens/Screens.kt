@@ -33,7 +33,14 @@ sealed class Screens(
         route = "library"
     )
 
+    data object Search : Screens(
+        titleId = R.string.search,
+        iconIdInactive = R.drawable.search, // Replace with outlined if available
+        iconIdActive = R.drawable.search, // Replace with filled if available
+        route = "search_home"
+    )
+
     companion object {
-        val MainScreens = listOf(Home, Explore, Library)
+        val MainScreens = listOf(Home, Search, Explore, Library)
     }
 }
