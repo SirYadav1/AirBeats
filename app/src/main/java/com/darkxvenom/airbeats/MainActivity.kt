@@ -544,10 +544,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             val (slimNav) = rememberPreference(SlimNavBarKey, defaultValue = false)
-                            val defaultOpenTab =
-                                remember {
-                                    dataStore[DefaultOpenTabKey].toEnum<NavigationTab>(defaultValue = NavigationTab.EXPLORE)
-                                }
+                            val defaultOpenTab by rememberEnumPreference(
+                                DefaultOpenTabKey,
+                                defaultValue = NavigationTab.HOME,
+                            )
                             val tabOpenedFromShortcut =
                                 remember {
                                     when (intent?.action) {

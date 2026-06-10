@@ -1,5 +1,7 @@
 @file:Suppress("UnstableApiUsage")
 
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     kotlin("android")
@@ -11,9 +13,6 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
-import java.util.Properties
-import java.io.FileInputStream
-
 val localProperties = Properties().apply {
     val localPropertiesFile = rootProject.file("local.properties")
     if (localPropertiesFile.exists()) {
@@ -21,6 +20,11 @@ val localProperties = Properties().apply {
     }
 }
 val googleApiKey = localProperties.getProperty("google.api.key") ?: ""
+val airbeatsDatabaseUrl = localProperties.getProperty("airbeats.database.url") ?: ""
+val airbeatsDatabaseApiKey = localProperties.getProperty("airbeats.database.api.key") ?: ""
+
+fun String.asBuildConfigString(): String =
+    "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
 android {
     namespace = "com.darkxvenom.airbeats"
@@ -34,7 +38,9 @@ android {
         versionCode = 144
         versionName = "5.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "GOOGLE_API_KEY", "\"$googleApiKey\"")
+        buildConfigField("String", "GOOGLE_API_KEY", googleApiKey.asBuildConfigString())
+        buildConfigField("String", "AIRBEATS_DATABASE_URL", airbeatsDatabaseUrl.asBuildConfigString())
+        buildConfigField("String", "AIRBEATS_DATABASE_API_KEY", airbeatsDatabaseApiKey.asBuildConfigString())
     }
 
     buildTypes {

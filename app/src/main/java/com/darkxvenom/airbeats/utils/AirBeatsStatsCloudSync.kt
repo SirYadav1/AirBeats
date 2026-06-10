@@ -19,6 +19,8 @@ object AirBeatsStatsCloudSync {
         database: MusicDatabase,
         namePreferenceManager: NamePreferenceManager,
     ): Result<GlobalStatsBoard>? {
+        if (!AirBeatsStatsCloudClient.isConfigured) return null
+
         val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
         val userId = stableUserId(preferences)
         val upload = buildUpload(context, database, namePreferenceManager, userId) ?: return null

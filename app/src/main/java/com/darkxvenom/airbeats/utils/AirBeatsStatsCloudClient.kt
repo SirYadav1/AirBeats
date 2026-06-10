@@ -1,5 +1,6 @@
 package com.darkxvenom.airbeats.utils
 
+import com.darkxvenom.airbeats.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -34,6 +35,8 @@ data class LocalStatsUpload(
 )
 
 class AirBeatsStatsCloudClient {
+    private val baseUrl = BuildConfig.AIRBEATS_DATABASE_URL.trim().trimEnd('/')
+    private val apiKey = BuildConfig.AIRBEATS_DATABASE_API_KEY.trim()
     private val client =
         OkHttpClient
             .Builder()
@@ -45,10 +48,11 @@ class AirBeatsStatsCloudClient {
     suspend fun readBoard(): Result<GlobalStatsBoard> =
         withContext(Dispatchers.IO) {
             runCatching {
+                val configuredBaseUrl = requireBaseUrl()
                 val request =
                     Request
                         .Builder()
-                        .url("$BASE_URL/read?file=$GLOBAL_STATS_FILE&_t=${System.currentTimeMillis()}")
+                        .url("$configuredBaseUrl/read?file=$GLOBAL_STATS_FILE&_t=${System.currentTimeMillis()}")
                         .header("Cache-Control", "no-cache")
                         .header("Pragma", "no-cache")
                         .get()
@@ -66,6 +70,8 @@ class AirBeatsStatsCloudClient {
     suspend fun uploadDaily(upload: LocalStatsUpload): Result<GlobalStatsBoard> =
         withContext(Dispatchers.IO) {
             runCatching {
+                val configuredBaseUrl = requireBaseUrl()
+                val configuredApiKey = requireApiKey()
                 val current = readBoard().getOrThrow()
                 val now = System.currentTimeMillis()
                 val users =
@@ -86,8 +92,8 @@ class AirBeatsStatsCloudClient {
                 val request =
                     Request
                         .Builder()
-                        .url("$BASE_URL/write?file=$GLOBAL_STATS_FILE")
-                        .addHeader("X-API-Key", API_KEY)
+                        .url("$configuredBaseUrl/write?file=$GLOBAL_STATS_FILE")
+                        .addHeader("X-API-Key", configuredApiKey)
                         .post(board.toJson().toString().toRequestBody(JSON_MEDIA_TYPE))
                         .build()
                 client.newCall(request).execute().use { response ->
@@ -146,11 +152,20 @@ class AirBeatsStatsCloudClient {
         runCatching { JSONObject(text).optString("error").ifBlank { "HTTP $code" } }
             .getOrDefault("HTTP $code")
 
-    private companion object {
-        const val BASE_URL = "https://database.ispro.in"
+    private fun requireBaseUrl(): String =
+        baseUrl.takeIf { it.isNotBlank() } ?: error("AirBeats database URL is not configured")
+
+    private fun requireApiKey(): String =
+        apiKey.takeIf { it.isNotBlank() } ?: error("AirBeats database API key is not configured")
+
+    companion object {
+        val isConfigured: Boolean
+            get() =
+                BuildConfig.AIRBEATS_DATABASE_URL.isNotBlank() &&
+                    BuildConfig.AIRBEATS_DATABASE_API_KEY.isNotBlank()
+
         const val GLOBAL_STATS_FILE = "airbeats/global_stats.json"
-        const val API_KEY = "DARK-DEEPX-STORMX"
-        const val MAX_GLOBAL_USERS = 1000
-        val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+        private const val MAX_GLOBAL_USERS = 1000
+        private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }
