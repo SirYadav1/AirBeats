@@ -21,7 +21,21 @@ import com.darkxvenom.airbeats.constants.*
 import com.darkxvenom.airbeats.ui.component.*
 import com.darkxvenom.airbeats.utils.rememberPreference
 import kotlinx.coroutines.launch
-
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import coil.compose.AsyncImage
+import com.darkxvenom.airbeats.LocalPlayerAwareWindowInsets
+import com.darkxvenom.airbeats.LocalPlayerConnection
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountSettings(
@@ -81,31 +95,126 @@ fun AccountSettings(
     var showToken by remember { mutableStateOf(false) }
     var showTokenEditor by remember { mutableStateOf(false) }
 
-    // Use a simpler structure without SettingsPage first to isolate the issue
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.account)) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow_back),
-                            contentDescription = stringResource(R.string.back)
-                        )
-                    }
-                },
-                scrollBehavior = scrollBehavior
+    val playerConnection = LocalPlayerConnection.current
+    val mediaMetadata by playerConnection?.mediaMetadata?.collectAsState()
+        ?: remember { mutableStateOf(null) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 🎵 BLUR BACKGROUND
+        val artworkUrl = mediaMetadata?.thumbnailUrl
+
+        artworkUrl?.let { imageUrl ->
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(90.dp)
+            )
+
+            val isDarkTheme =
+                MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+            val overlayBrush = if (isDarkTheme) {
+                Brush.verticalGradient(
+                    listOf(
+                        Color.Black.copy(alpha = 0.2f),
+                        Color.Black.copy(alpha = 0.5f),
+                        Color.Black.copy(alpha = 0.85f)
+                    )
+                )
+            } else {
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.25f),
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                        MaterialTheme.colorScheme.background.copy(alpha = 0.85f)
+                    )
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(overlayBrush)
             )
         }
-    ) { innerPadding ->
-        // This innerPadding provides proper constraints
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-        ) {
+
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(end = 48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = stringResource(R.string.account),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.navigateUp() }) {
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_back),
+                                contentDescription = stringResource(R.string.back)
+                            )
+                        }
+                    },
+                    modifier = Modifier
+                        .clip(
+                            RoundedCornerShape(
+                                bottomStart = 30.dp,
+                                bottomEnd = 30.dp
+                            )
+                        )
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+                                )
+                            )
+                        )
+                        .border(
+                            width = 0.6.dp,
+                            brush = Brush.horizontalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.3f),
+                                    Color.White.copy(alpha = 0.1f),
+                                    Color.White.copy(alpha = 0.3f)
+                                )
+                            ),
+                            shape = RoundedCornerShape(
+                                bottomStart = 30.dp,
+                                bottomEnd = 30.dp
+                            )
+                        ),
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Transparent
+                    ),
+                    scrollBehavior = scrollBehavior
+                )
+            }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .verticalScroll(rememberScrollState())
+                    .windowInsetsPadding(
+                        LocalPlayerAwareWindowInsets.current.only(
+                            WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom
+                        )
+                    )
+            ) {
             // Main content with horizontal padding
             Column(
                 modifier = Modifier
@@ -254,6 +363,7 @@ fun AccountSettings(
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
+    }
     }
 
     // 🔥 EDIT NAME DIALOG

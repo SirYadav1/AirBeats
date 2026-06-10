@@ -12,17 +12,23 @@ val DynamicThemeKey = booleanPreferencesKey("dynamicTheme")
 val DarkModeKey = stringPreferencesKey("darkMode")
 val LiquidGlassKey = booleanPreferencesKey("enableLiquidGlass")
 val DynamicIslandKey = booleanPreferencesKey("enableDynamicIsland")
+val DynamicIslandOffsetXKey = intPreferencesKey("dynamicIslandOffsetX")
+val DynamicIslandOffsetYKey = intPreferencesKey("dynamicIslandOffsetY")
 
 val UserNameKey = stringPreferencesKey("user_name")
 
 val PureBlackKey = booleanPreferencesKey("pureBlack")
 val DefaultOpenTabKey = stringPreferencesKey("defaultOpenTab")
 val SlimNavBarKey = booleanPreferencesKey("slimNavBar")
+val ShowGalaxySliderKey = booleanPreferencesKey("showGalaxySlider")
 val GridItemsSizeKey = stringPreferencesKey("gridItemSize")
 val SliderStyleKey = stringPreferencesKey("sliderStyle")
 val PlayerScreenStyleKey = stringPreferencesKey("playerScreenStyle")
 val HomeScreenStyleKey = stringPreferencesKey("homeScreenStyle")
+val NavBarStyleKey = stringPreferencesKey("navBarStyle")
 val HideVideoKey = booleanPreferencesKey("hideVideo")
+
+val ColourfullPlayerColorKey = intPreferencesKey("colourfullPlayerColor")
 
 enum class SliderStyle {
     DEFAULT,
@@ -31,7 +37,11 @@ enum class SliderStyle {
 }
 
 enum class HomeScreenStyle {
-    CLASSIC, PLAYFUL, NEON, SPOTIFY
+    CLASSIC, PLAYFUL, NEON, SPOTIFY, APPLE
+}
+
+enum class NavBarStyle {
+    CLASSIC, LIQUID_GLASS, SPOTIFY, APPLE, NEON
 }
 
 enum class PlayerScreenStyle {
@@ -45,7 +55,10 @@ enum class PlayerScreenStyle {
     FOLD,
     GROOVE,
     POPSY,
-    MINIMAL
+    MINIMAL,
+    COLOURFULL,
+    APPLE,
+    GALAXY
 }
 
 const val SYSTEM_DEFAULT = "SYSTEM_DEFAULT"
@@ -300,6 +313,7 @@ enum class PlayerBackgroundStyle {
     DEFAULT,
     GRADIENT,
     BLUR,
+    FLUID,
 }
 
 

@@ -7,6 +7,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -494,6 +496,7 @@ fun RankUpPopup(
 /**
  * Premium custom badge customization interface that renders inside the settings/avatar customizer screen.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RankBadgeSelector(
     modifier: Modifier = Modifier,
@@ -594,20 +597,19 @@ fun RankBadgeSelector(
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(280.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            maxItemsInEachRow = 3
         ) {
-            items(AirBeatsRank.values()) { rank ->
+            AirBeatsRank.values().forEach { rank ->
                 val isUnlocked = unlockedRanks.contains(rank)
                 val isSelected = displayedRank == rank
 
                 Box(
                     modifier = Modifier
+                        .weight(1f)
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(16.dp))
                         .background(

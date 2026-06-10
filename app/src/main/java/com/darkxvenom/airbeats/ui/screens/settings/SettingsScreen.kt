@@ -124,17 +124,12 @@ fun SettingsCategory(
         )
 
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(
-                    elevation = 4.dp,
-                    shape = RoundedCornerShape(28.dp),
-                    clip = false
-                ),
+            modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.8f)
-            )
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
                 modifier = Modifier.padding(vertical = 8.dp)
@@ -162,20 +157,17 @@ fun SettingsCategoryItemContent(
             .fillMaxWidth()
             .scale(if (isPressed) 0.98f else 1f)
             .clip(RoundedCornerShape(16.dp))
-            .background(
-                brush = Brush.horizontalGradient(
-                    colors = if (isPressed) {
-                        listOf(
-                            Color.White.copy(alpha = 0.1f),
-                            Color.White.copy(alpha = 0.05f)
+            .then(
+                if (isPressed) {
+                    Modifier.background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.1f),
+                                Color.White.copy(alpha = 0.05f)
+                            )
                         )
-                    } else {
-                        listOf(
-                            Color.Transparent,
-                            Color.Transparent
-                        )
-                    }
-                )
+                    )
+                } else Modifier
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -250,16 +242,12 @@ fun GlassCard(
     content: @Composable () -> Unit
 ) {
     Card(
-        modifier = modifier
-            .shadow(
-                elevation = 4.dp,
-                shape = RoundedCornerShape(28.dp),
-                clip = false
-            ),
+        modifier = modifier,
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.8f)
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         content()
     }

@@ -26,6 +26,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -1169,7 +1170,16 @@ fun Lyrics(
 
                             val itemModifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(
+                                    color = if (index == displayedCurrentLineIndex && isSynced) androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = 0.25f) else androidx.compose.ui.graphics.Color.Transparent,
+                                    shape = RoundedCornerShape(24.dp)
+                                )
+                                .border(
+                                    width = if (index == displayedCurrentLineIndex && isSynced) 1.dp else 0.dp,
+                                    color = if (index == displayedCurrentLineIndex && isSynced) androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f) else androidx.compose.ui.graphics.Color.Transparent,
+                                    shape = RoundedCornerShape(24.dp)
+                                )
                                 .combinedClickable(
                                     enabled = true,
                                     onClick = {

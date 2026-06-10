@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.animation.togetherWith
+import kotlinx.coroutines.launch
 import com.valentinilk.shimmer.shimmer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -91,11 +92,24 @@ import com.darkxvenom.airbeats.ui.utils.highQualityThumbnail
 import com.darkxvenom.airbeats.viewmodels.HomeViewModel
 import com.darkxvenom.airbeats.viewmodels.MoodAndGenresViewModel
 import java.net.URLEncoder
+import com.darkxvenom.airbeats.ui.screens.settings.DarkMode
+import com.darkxvenom.airbeats.constants.DarkModeKey
+import com.darkxvenom.airbeats.utils.rememberEnumPreference
+
+@Composable
+fun isAppInDarkTheme(): Boolean {
+    val isSystemInDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+    val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
+    return androidx.compose.runtime.remember(darkTheme, isSystemInDarkTheme) {
+        if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
+    }
+}
 
 private val SpotifyGreen = Color(0xFF1DB954)
-private val SpotifyBg = Color(0xFF050505)
-private val SpotifyCard = Color(0xFF181818)
-private val SpotifyPill = Color(0xFF2A2A2A)
+private val SpotifyBg @Composable get() = if (isAppInDarkTheme()) Color(0xFF050505) else Color(0xFFF9F9F9)
+private val SpotifyCard @Composable get() = if (isAppInDarkTheme()) Color(0xFF181818) else Color(0xFFFFFFFF)
+private val SpotifyPill @Composable get() = if (isAppInDarkTheme()) Color(0xFF2A2A2A) else Color(0xFFE5E5E5)
+private val SpotifyText @Composable get() = if (isAppInDarkTheme()) Color.White else Color.Black
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -110,7 +124,10 @@ fun SpotifyHomeScreen(
     val accountPlaylists by viewModel.accountPlaylists.collectAsState()
     val similarRecommendations by viewModel.similarRecommendations.collectAsState()
     val homePage by viewModel.homePage.collectAsState()
-    val accountName by viewModel.accountName.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val namePrefMgr = androidx.compose.runtime.remember { com.darkxvenom.airbeats.ui.component.NamePreferenceManager(context) }
+    val rawUserName by namePrefMgr.userName.collectAsState(initial = "")
+    val accountName = rawUserName.takeIf { it.isNotBlank() } ?: "Guest"
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val pullRefreshState = rememberPullToRefreshState()
@@ -286,20 +303,28 @@ fun SpotifyHomeScreen(
             }
         ) {
             androidx.compose.material3.IconButton(onClick = { navController.navigate("new_release") }) {
-                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.notification_on), contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.notification_on), contentDescription = null, tint = SpotifyText, modifier = Modifier.size(24.dp))
             }
             androidx.compose.material3.IconButton(onClick = { navController.navigate("history") }) {
-                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.history), contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.history), contentDescription = null, tint = SpotifyText, modifier = Modifier.size(24.dp))
             }
             androidx.compose.material3.IconButton(onClick = { navController.navigate("settings") }) {
-                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.settings), contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.settings), contentDescription = null, tint = SpotifyText, modifier = Modifier.size(24.dp))
             }
         }
     }
 }
 
 @Composable
-fun SpotifySearchScreen(navController: NavController) {
+fun SpotifySearchScreen(
+    navController: NavController,
+    viewModel: com.darkxvenom.airbeats.viewmodels.OnlineSearchSuggestionViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+) {
+    val query by viewModel.query.collectAsState()
+    val viewState by viewModel.viewState.collectAsState()
+    val database = com.darkxvenom.airbeats.LocalDatabase.current
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+
     SpotifyScaffold(
         title = "Search",
         subtitle = "Find your favorite music",
@@ -307,59 +332,100 @@ fun SpotifySearchScreen(navController: NavController) {
     ) {
         item {
             SpotifySearchInput(
-                onSearch = { query ->
-                    val encoded = URLEncoder.encode(query, "UTF-8")
+                query = query,
+                onQueryChange = { viewModel.query.value = it },
+                onSearch = { q ->
+                    val encoded = URLEncoder.encode(q, "UTF-8")
                     navController.navigate("search/$encoded")
                 }
             )
         }
-        item {
-            SpotifySectionTitle("Browse all")
-            Spacer(modifier = Modifier.height(10.dp))
-            val genres = listOf(
-                "Pop" to Color(0xFFFF4632),
-                "Hip-Hop" to Color(0xFFBC5900),
-                "Rock" to Color(0xFFE1118C),
-                "Latin" to Color(0xFFE1118C),
-                "Educational" to Color(0xFF477D95),
-                "Documentary" to Color(0xFF509BF5),
-                "Comedy" to Color(0xFFE13300),
-                "Charts" to Color(0xFF8D67AB),
-                "Dance/Electronic" to Color(0xFFD84000),
-                "Mood" to Color(0xFFE1118C),
-                "Indie" to Color(0xFFE91429),
-                "Workout" to Color(0xFF777777),
-                "K-pop" to Color(0xFF148A08),
-                "Chill" to Color(0xFFD84000),
-                "Sleep" to Color(0xFF1E3264),
-                "Party" to Color(0xFF537AA1),
-                "At Home" to Color(0xFF5179A1),
-                "Decades" to Color(0xFFBA5D07)
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
-                genres.chunked(2).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        row.forEach { (chip, color) ->
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(100.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(color)
-                                    .clickable {
-                                        navController.navigate("search/${URLEncoder.encode(chip, "UTF-8")}")
-                                    }
-                                    .padding(12.dp)
-                            ) {
-                                Text(
-                                    text = chip,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
-                                )
-                            }
+        
+        if (query.isNotBlank() && (viewState.history.isNotEmpty() || viewState.suggestions.isNotEmpty())) {
+            items(viewState.history, key = { "history_${it.query}" }) { history ->
+                com.darkxvenom.airbeats.ui.screens.search.SuggestionItem(
+                    query = history.query,
+                    online = false,
+                    onClick = {
+                        val encoded = URLEncoder.encode(history.query, "UTF-8")
+                        navController.navigate("search/$encoded")
+                        keyboardController?.hide()
+                    },
+                    onDelete = {
+                        database.query {
+                            delete(history)
                         }
-                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    },
+                    onFillTextField = {
+                        viewModel.query.value = history.query
+                    },
+                    pureBlack = false
+                )
+            }
+            items(viewState.suggestions, key = { "suggestion_$it" }) { suggestion ->
+                com.darkxvenom.airbeats.ui.screens.search.SuggestionItem(
+                    query = suggestion,
+                    online = true,
+                    onClick = {
+                        val encoded = URLEncoder.encode(suggestion, "UTF-8")
+                        navController.navigate("search/$encoded")
+                        keyboardController?.hide()
+                    },
+                    onFillTextField = {
+                        viewModel.query.value = suggestion
+                    },
+                    pureBlack = false
+                )
+            }
+        } else {
+            item {
+                SpotifySectionTitle("Browse all")
+                Spacer(modifier = Modifier.height(10.dp))
+                val genres = listOf(
+                    "Pop" to Color(0xFFFF4632),
+                    "Hip-Hop" to Color(0xFFBC5900),
+                    "Rock" to Color(0xFFE1118C),
+                    "Latin" to Color(0xFFE1118C),
+                    "Educational" to Color(0xFF477D95),
+                    "Documentary" to Color(0xFF509BF5),
+                    "Comedy" to Color(0xFFE13300),
+                    "Charts" to Color(0xFF8D67AB),
+                    "Dance/Electronic" to Color(0xFFD84000),
+                    "Mood" to Color(0xFFE1118C),
+                    "Indie" to Color(0xFFE91429),
+                    "Workout" to Color(0xFF777777),
+                    "K-pop" to Color(0xFF148A08),
+                    "Chill" to Color(0xFFD84000),
+                    "Sleep" to Color(0xFF1E3264),
+                    "Party" to Color(0xFF537AA1),
+                    "At Home" to Color(0xFF5179A1),
+                    "Decades" to Color(0xFFBA5D07)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
+                    genres.chunked(2).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            row.forEach { (chip, color) ->
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(100.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(color)
+                                        .clickable {
+                                            navController.navigate("search/${URLEncoder.encode(chip, "UTF-8")}")
+                                        }
+                                        .padding(12.dp)
+                                ) {
+                                    Text(
+                                        text = chip,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp
+                                    )
+                                }
+                            }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -385,7 +451,7 @@ fun SpotifyExploreScreen(
         subtitle = "Fresh music and moods",
         actions = {
             androidx.compose.material3.IconButton(onClick = { navController.navigate(Screens.Search.route) }) {
-                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.search), contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.search), contentDescription = null, tint = SpotifyText, modifier = Modifier.size(24.dp))
             }
         }
     ) {
@@ -433,10 +499,10 @@ fun SpotifyLibraryScreen(navController: NavController) {
         subtitle = "Saved music in AirBeats",
         actions = {
             androidx.compose.material3.IconButton(onClick = { navController.navigate(Screens.Search.route) }) {
-                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.search), contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.search), contentDescription = null, tint = SpotifyText, modifier = Modifier.size(24.dp))
             }
             androidx.compose.material3.IconButton(onClick = { navController.navigate("settings") }) {
-                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.settings), contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.settings), contentDescription = null, tint = SpotifyText, modifier = Modifier.size(24.dp))
             }
         }
     ) {
@@ -666,10 +732,45 @@ private fun SpotifyHeader(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    androidx.compose.material3.Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    androidx.compose.material3.Text(title, color = SpotifyText, fontSize = 22.sp, fontWeight = FontWeight.Black)
                     if (subtitle.isNotEmpty()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.material3.Text(subtitle, color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, maxLines = 1)
+                            var showNameDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            val namePrefMgr = androidx.compose.runtime.remember { com.darkxvenom.airbeats.ui.component.NamePreferenceManager(context) }
+                            val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+
+                            androidx.compose.material3.Text(
+                                text = subtitle, 
+                                color = SpotifyText.copy(alpha = 0.7f), 
+                                fontSize = 14.sp, 
+                                maxLines = 1,
+                                modifier = if (subtitle.startsWith("Good ")) Modifier.clickable { showNameDialog = true } else Modifier
+                            )
+                            
+                            if (showNameDialog) {
+                                com.darkxvenom.airbeats.ui.component.NameSetupDialog(
+                                    onNameConfirmed = { newName ->
+                                        if (newName.isNotBlank()) {
+                                            coroutineScope.launch {
+                                                namePrefMgr.saveUserName(newName)
+                                                try {
+                                                    com.darkxvenom.airbeats.utils.AirBeatsStatsCloudSync.syncDaily(
+                                                        context = com.darkxvenom.airbeats.App.instance,
+                                                        database = com.darkxvenom.airbeats.App.instance.database,
+                                                        namePreferenceManager = namePrefMgr,
+                                                    )?.onFailure {
+                                                        timber.log.Timber.e(it, "Failed to sync stats after name confirmation")
+                                                    }
+                                                } catch (e: Exception) {
+                                                    timber.log.Timber.e(e, "Exception syncing stats after name confirmation")
+                                                }
+                                            }
+                                        }
+                                        showNameDialog = false
+                                    }
+                                )
+                            }
                             if (subtitle.startsWith("Good ")) {
                                 val context = androidx.compose.ui.platform.LocalContext.current
                                 val statsViewModel = androidx.hilt.navigation.compose.hiltViewModel<com.darkxvenom.airbeats.viewmodels.StatsViewModel>()
@@ -681,8 +782,29 @@ private fun SpotifyHeader(
                                 val displayedRank by rankPrefMgr.displayedRank.collectAsState(initial = null)
 
                                 currentRank?.let { rank ->
+                                    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+                                    var showBadgeSelector by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    com.darkxvenom.airbeats.ui.component.RankBadge(rank = rank, displayedRank = displayedRank, size = 16.dp)
+                                    com.darkxvenom.airbeats.ui.component.RankBadge(
+                                        rank = rank, 
+                                        displayedRank = displayedRank, 
+                                        size = 16.dp,
+                                        modifier = Modifier.clickable { showBadgeSelector = true }
+                                    )
+                                    if (showBadgeSelector) {
+                                        val unlocked = com.darkxvenom.airbeats.ui.component.unlockedRanksFromHours(totalHours)
+                                        com.darkxvenom.airbeats.ui.component.BadgeSelector(
+                                            unlockedRanks = unlocked,
+                                            currentDisplayed = displayedRank,
+                                            onSelect = { selectedRank ->
+                                                coroutineScope.launch {
+                                                    rankPrefMgr.saveDisplayedRank(selectedRank)
+                                                }
+                                                showBadgeSelector = false
+                                            },
+                                            onDismiss = { showBadgeSelector = false }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -718,13 +840,16 @@ private fun SpotifySearchPill(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SpotifySearchInput(onSearch: (String) -> Unit) {
-    var query by remember { mutableStateOf("") }
+private fun SpotifySearchInput(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSearch: (String) -> Unit
+) {
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
 
     androidx.compose.material3.TextField(
         value = query,
-        onValueChange = { query = it },
+        onValueChange = onQueryChange,
         singleLine = true,
         placeholder = { 
             Text(
@@ -824,8 +949,8 @@ private fun SpotifyCoverCard(title: String, subtitle: String, thumbnail: String?
                 .clip(RoundedCornerShape(8.dp))
                 .background(SpotifyCard),
         )
-        Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-        Text(subtitle, color = Color.White.copy(alpha = 0.58f), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(title, color = SpotifyText, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        Text(subtitle, color = SpotifyText.copy(alpha = 0.58f), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -838,13 +963,13 @@ private fun SpotifyChip(
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(32.dp))
-            .background(if (isSelected) SpotifyGreen else Color.White.copy(alpha = 0.12f))
+            .background(if (isSelected) SpotifyGreen else SpotifyText.copy(alpha = 0.12f))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Text(
             text = text,
-            color = if (isSelected) Color.Black else Color.White,
+            color = if (isSelected) Color.Black else SpotifyText,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold
         )
@@ -862,7 +987,7 @@ private fun SpotifyBrowseTile(
         modifier = modifier
             .height(82.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color.White.copy(alpha = 0.12f))
+            .background(SpotifyText.copy(alpha = 0.12f))
             .clickable(onClick = onClick)
             .padding(14.dp),
     ) {
@@ -870,13 +995,13 @@ private fun SpotifyBrowseTile(
             androidx.compose.material3.Icon(
                 painter = androidx.compose.ui.res.painterResource(id = icon),
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.5f),
+                tint = SpotifyText.copy(alpha = 0.5f),
                 modifier = Modifier.align(Alignment.TopEnd).size(28.dp)
             )
         }
         Text(
             text = text, 
-            color = Color.White, 
+            color = SpotifyText, 
             fontWeight = FontWeight.ExtraBold, 
             maxLines = 2,
             modifier = Modifier.align(Alignment.BottomStart)
@@ -905,7 +1030,7 @@ private fun SpotifyQuickPicksShimmer() {
                 .height(36.dp)
                 .padding(vertical = 8.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color.White.copy(alpha = 0.08f))
+                .background(SpotifyText.copy(alpha = 0.08f))
                 .shimmer(),
         )
         Column {
@@ -927,7 +1052,7 @@ private fun SpotifyQuickPicksShimmerItem() {
             Modifier
                 .size(50.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color.White.copy(alpha = 0.08f))
+                .background(SpotifyText.copy(alpha = 0.08f))
                 .shimmer(),
         )
         Column(
@@ -941,7 +1066,7 @@ private fun SpotifyQuickPicksShimmerItem() {
                     .width(300.dp)
                     .height(21.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
+                    .background(SpotifyText.copy(alpha = 0.08f))
                     .shimmer(),
             )
             Spacer(modifier = Modifier.height(3.dp))
@@ -950,7 +1075,7 @@ private fun SpotifyQuickPicksShimmerItem() {
                     .width(260.dp)
                     .height(21.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
+                    .background(SpotifyText.copy(alpha = 0.08f))
                     .shimmer(),
             )
         }
@@ -966,7 +1091,7 @@ private fun SpotifyHomeItemShimmer() {
                 .height(36.dp)
                 .padding(vertical = 8.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color.White.copy(alpha = 0.08f))
+                .background(SpotifyText.copy(alpha = 0.08f))
                 .shimmer(),
         )
         LazyRow(userScrollEnabled = false, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -988,7 +1113,7 @@ private fun SpotifyPlaylistShimmer() {
             Modifier
                 .size(160.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color.White.copy(alpha = 0.08f))
+                .background(SpotifyText.copy(alpha = 0.08f))
                 .shimmer(),
         )
         Spacer(modifier = Modifier.size(10.dp))
@@ -997,7 +1122,7 @@ private fun SpotifyPlaylistShimmer() {
                 .width(130.dp)
                 .height(18.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color.White.copy(alpha = 0.08f))
+                .background(SpotifyText.copy(alpha = 0.08f))
                 .shimmer(),
         )
         Spacer(modifier = Modifier.size(10.dp))
@@ -1006,7 +1131,7 @@ private fun SpotifyPlaylistShimmer() {
                 .width(130.dp)
                 .height(18.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color.White.copy(alpha = 0.08f))
+                .background(SpotifyText.copy(alpha = 0.08f))
                 .shimmer(),
         )
     }
@@ -1021,5 +1146,5 @@ private fun greeting(name: String): String {
         in 17..20 -> "Good Evening"
         else -> "Good Night"
     }
-    return "$greetingText, $cleanName"
+    return "$greetingText $cleanName"
 }

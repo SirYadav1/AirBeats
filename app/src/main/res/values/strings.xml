@@ -281,6 +281,7 @@
     <string name="follow_theme">Follow theme</string>
     <string name="gradient">Gradient</string>
     <string name="player_background_blur">Blur</string>
+    <string name="player_background_fluid">Fluid</string>
     <string name="enable_squiggly_slider">Enable squiggly slider</string>
     <string name="enable_swipe_thumbnail">Enable swipe to change song</string>
     <string name="enable_liquid_glass">Enable Liquid Glass</string>
@@ -301,6 +302,8 @@
     <string name="small">Small</string>
     <string name="big">Big</string>
     <string name="player_slider_style">Player slider style</string>
+    <string name="show_galaxy_slider">Show slider in Galaxy player</string>
+    <string name="show_galaxy_slider_desc">Show the playback slider above the controls in Galaxy player</string>
     <string name="default_">Default</string>
     <string name="squiggly">Squiggly</string>
     <string name="slim">Slim</string>

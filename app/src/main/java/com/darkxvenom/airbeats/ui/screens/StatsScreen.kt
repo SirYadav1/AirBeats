@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -695,13 +696,12 @@ private fun GlobalStatsBoardCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 400.dp)
-                    .verticalScroll(rememberScrollState())
             ) {
-                users.forEach { user ->
+                items(users, key = { it.id }) { user ->
                     GlobalUserRankRow(
                         user = user,
                         isCurrentUser = user.id == state.currentUserId,
@@ -831,12 +831,11 @@ private fun WeeklyGlobalStatsSheet(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
                 )
                 Spacer(modifier = Modifier.height(18.dp))
-                Column(
+                LazyColumn(
                     modifier = Modifier
                         .weight(1f, fill = false)
-                        .verticalScroll(rememberScrollState())
                 ) {
-                    users.forEach { user ->
+                    items(users, key = { it.id }) { user ->
                         Row(
                             modifier =
                                 Modifier
@@ -1035,19 +1034,19 @@ fun InsightBottomSheetContent(
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             InsightFeatureItem(
-                icon = "🎵",
+                iconRes = R.drawable.music_note,
                 label = "Top\nSongs"
             )
             InsightFeatureItem(
-                icon = "🎤",
+                iconRes = R.drawable.person,
                 label = "Top\nArtists"
             )
             InsightFeatureItem(
-                icon = "📊",
+                iconRes = R.drawable.equalizer,
                 label = "Full\nStatistics"
             )
             InsightFeatureItem(
-                icon = "📥",
+                iconRes = R.drawable.download,
                 label = "Download\nReport"
             )
         }
@@ -1072,18 +1071,20 @@ fun InsightBottomSheetContent(
 
 @Composable
 fun InsightFeatureItem(
-    icon: String,
+    iconRes: Int,
     label: String
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(80.dp)
     ) {
-        Text(
-            text = icon,
-            fontSize = 32.sp
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(32.dp),
+            tint = Color(0xFF1DB954)
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,

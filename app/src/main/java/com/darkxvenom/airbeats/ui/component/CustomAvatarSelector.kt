@@ -310,8 +310,8 @@ fun AvatarSelector(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
     ) {
         Column(
             modifier = Modifier

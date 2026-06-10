@@ -262,14 +262,11 @@ fun MiniPlayer(
                                 shape = RoundedCornerShape(32.dp)
                             )
                     } else {
-                        Modifier.shadow(
-                            elevation = 8.dp,
-                            shape = RoundedCornerShape(32.dp),
-                            clip = false
-                        )
+                        Modifier
                     }
                 ),
             tonalElevation = 2.dp,
+            shadowElevation = 0.dp,
             shape = RoundedCornerShape(32.dp),
             color = Color.Transparent
         ) {

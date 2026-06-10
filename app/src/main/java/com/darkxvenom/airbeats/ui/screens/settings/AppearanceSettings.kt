@@ -42,10 +42,13 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.darkxvenom.airbeats.LocalPlayerAwareWindowInsets
 import com.darkxvenom.airbeats.LocalPlayerConnection
+import com.darkxvenom.airbeats.playback.AppForegroundTracker
 import com.darkxvenom.airbeats.R
 import com.darkxvenom.airbeats.constants.*
 import com.darkxvenom.airbeats.constants.HomeScreenStyle
 import com.darkxvenom.airbeats.constants.HomeScreenStyleKey
+import com.darkxvenom.airbeats.constants.NavBarStyle
+import com.darkxvenom.airbeats.constants.NavBarStyleKey
 import com.darkxvenom.airbeats.ui.component.*
 import com.darkxvenom.airbeats.utils.rememberEnumPreference
 import com.darkxvenom.airbeats.utils.rememberPreference
@@ -94,9 +97,18 @@ fun AppearanceSettings(
             HomeScreenStyleKey,
             defaultValue = HomeScreenStyle.CLASSIC,
         )
+    val (navBarStyle, onNavBarStyleChange) =
+        rememberEnumPreference(
+            NavBarStyleKey,
+            defaultValue = NavBarStyle.CLASSIC,
+        )
     val isPlayful = homeScreenStyle == HomeScreenStyle.PLAYFUL
 
     val (pureBlack, onPureBlackChange) = rememberPreference(PureBlackKey, defaultValue = false)
+    val (colourfullPlayerColor, onColourfullPlayerColorChange) = rememberPreference(
+        ColourfullPlayerColorKey,
+        defaultValue = 0xFF4CAF50.toInt()
+    )
     val (defaultOpenTab, onDefaultOpenTabChange) = rememberEnumPreference(
         DefaultOpenTabKey,
         defaultValue = NavigationTab.HOME
@@ -178,8 +190,96 @@ fun AppearanceSettings(
         defaultValue = LibraryFilter.LIBRARY
     )
 
+    var showIslandAdjustmentDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
     var showSliderOptionDialog by rememberSaveable {
         mutableStateOf(false)
+    }
+    var showColorPickerOptionDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    if (showColorPickerOptionDialog) {
+        DefaultDialog(
+            buttons = {
+                TextButton(
+                    onClick = { showColorPickerOptionDialog = false }
+                ) {
+                    Text(text = stringResource(android.R.string.cancel))
+                }
+            },
+            onDismiss = {
+                showColorPickerOptionDialog = false
+            }
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            onColourfullPlayerColorChange(0)
+                            showColorPickerOptionDialog = false
+                        }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(Color.Red, Color.Yellow, Color.Green, Color.Blue, Color.Magenta)
+                                )
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text("Auto (From Song)", fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val colors = listOf(
+                    0xFF4CAF50.toInt(), // Green
+                    0xFFF44336.toInt(), // Red
+                    0xFF2196F3.toInt(), // Blue
+                    0xFFFF9800.toInt(), // Orange
+                    0xFF9C27B0.toInt(), // Purple
+                    0xFF00BCD4.toInt(), // Cyan
+                    0xFFE91E63.toInt(), // Pink
+                    0xFFFFEB3B.toInt(), // Yellow
+                    0xFF8BC34A.toInt(), // Light Green
+                    0xFF3F51B5.toInt(), // Indigo
+                    0xFF009688.toInt(), // Teal
+                    0xFFFF5722.toInt(), // Deep Orange
+                    0xFF795548.toInt(), // Brown
+                    0xFF607D8B.toInt(), // Blue Grey
+                    0xFF673AB7.toInt()  // Deep Purple
+                )
+                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                    columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(5),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(colors.size) { index ->
+                        val colorInt = colors[index]
+                        Box(
+                            modifier = Modifier
+                                .aspectRatio(1f)
+                                .clip(CircleShape)
+                                .background(Color(colorInt))
+                                .clickable {
+                                    onColourfullPlayerColorChange(colorInt)
+                                    showColorPickerOptionDialog = false
+                                }
+                        )
+                    }
+                }
+            }
+        }
     }
 
     if (showSliderOptionDialog) {
@@ -313,6 +413,68 @@ fun AppearanceSettings(
                         text = stringResource(R.string.slim),
                         style = MaterialTheme.typography.labelLarge
                     )
+                }
+            }
+        }
+    }
+
+    if (showIslandAdjustmentDialog) {
+        val context = LocalContext.current
+        val (islandOffsetX, onIslandOffsetXChange) = rememberPreference(DynamicIslandOffsetXKey, defaultValue = 0)
+        val (islandOffsetY, onIslandOffsetYChange) = rememberPreference(DynamicIslandOffsetYKey, defaultValue = 8)
+        
+        DisposableEffect(Unit) {
+            AppForegroundTracker.isAdjustingIsland = true
+            onDispose {
+                AppForegroundTracker.isAdjustingIsland = false
+            }
+        }
+        
+        DefaultDialog(
+            buttons = {
+                TextButton(onClick = { 
+                    onIslandOffsetXChange(0)
+                    onIslandOffsetYChange(8)
+                }) {
+                    Text("Reset")
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = { showIslandAdjustmentDialog = false }) {
+                    Text("Done")
+                }
+            },
+            onDismiss = { showIslandAdjustmentDialog = false }
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text("Adjust Position", style = MaterialTheme.typography.titleLarge)
+                
+                Text(
+                    "Use the arrows to adjust the actual Dynamic Island position on your screen.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = { onIslandOffsetYChange(islandOffsetY - 4) }) {
+                        Icon(painterResource(R.drawable.arrow_upward), "Up")
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        IconButton(onClick = { onIslandOffsetXChange(islandOffsetX - 4) }) {
+                            Icon(painterResource(R.drawable.arrow_back), "Left")
+                        }
+                        IconButton(onClick = { onIslandOffsetXChange(islandOffsetX + 4) }) {
+                            Icon(painterResource(R.drawable.arrow_forward), "Right")
+                        }
+                    }
+                    IconButton(onClick = { onIslandOffsetYChange(islandOffsetY + 4) }) {
+                        Icon(painterResource(R.drawable.arrow_downward), "Down")
+                    }
                 }
             }
         }
@@ -455,6 +617,22 @@ fun AppearanceSettings(
                                     HomeScreenStyle.PLAYFUL -> "Playful"
                                     HomeScreenStyle.NEON -> "Neon"
                                     HomeScreenStyle.SPOTIFY -> "Spotify"
+                                    HomeScreenStyle.APPLE -> "Apple"
+                                }
+                            },
+                        )},
+                        {EnumListPreference(
+                            title = { Text("Navigation Bar Style") },
+                            icon = { Icon(painterResource(R.drawable.nav_bar), null) },
+                            selectedValue = navBarStyle,
+                            onValueSelected = onNavBarStyleChange,
+                            valueText = {
+                                when (it) {
+                                    NavBarStyle.CLASSIC -> "Classic"
+                                    NavBarStyle.LIQUID_GLASS -> "Liquid Glass"
+                                    NavBarStyle.SPOTIFY -> "Spotify"
+                                    NavBarStyle.APPLE -> "Apple"
+                                    NavBarStyle.NEON -> "Neon"
                                 }
                             },
                         )},
@@ -510,6 +688,16 @@ fun AppearanceSettings(
                                 }
                             )
                         },
+                        *(if (enableDynamicIsland) arrayOf(
+                            { PreferenceEntry(
+                                title = { Text("Adjust Dynamic Island") },
+                                description = "Change the position of the dynamic island on screen",
+                                icon = { Icon(painterResource(R.drawable.add), null) },
+                                onClick = {
+                                    showIslandAdjustmentDialog = true
+                                }
+                            ) }
+                        ) else emptyArray()),
                         {SwitchPreference(
                             title = { Text(stringResource(R.string.enable_liquid_glass)) },
                             description = stringResource(R.string.enable_liquid_glass_desc),
@@ -591,9 +779,23 @@ fun AppearanceSettings(
                                     PlayerScreenStyle.GROOVE -> "Groove"
                                     PlayerScreenStyle.POPSY -> "Popsy"
                                     PlayerScreenStyle.MINIMAL -> "Minimal"
+                                    PlayerScreenStyle.COLOURFULL -> "Colourfull"
+                                    PlayerScreenStyle.APPLE -> "Apple"
+                                    PlayerScreenStyle.GALAXY -> "Galaxy"
                                 }
                             },
                         )},
+
+                        *(if (playerScreenStyle == PlayerScreenStyle.COLOURFULL || playerScreenStyle == PlayerScreenStyle.APPLE || playerScreenStyle == PlayerScreenStyle.GALAXY) arrayOf(
+                            { PreferenceEntry(
+                                title = { Text("Player colour") },
+                                description = "Choose a custom background color",
+                                icon = { Icon(painterResource(R.drawable.palette), null) },
+                                onClick = {
+                                    showColorPickerOptionDialog = true
+                                }
+                            ) }
+                        ) else emptyArray()),
 
                         {EnumListPreference(
                             title = { Text(stringResource(R.string.player_background_style)) },
@@ -605,6 +807,7 @@ fun AppearanceSettings(
                                     PlayerBackgroundStyle.DEFAULT -> stringResource(R.string.follow_theme)
                                     PlayerBackgroundStyle.GRADIENT -> stringResource(R.string.gradient)
                                     PlayerBackgroundStyle.BLUR -> stringResource(R.string.player_background_blur)
+                                    PlayerBackgroundStyle.FLUID -> stringResource(R.string.player_background_fluid)
                                 }
                             },
                             values = availableBackgroundStyles
@@ -660,6 +863,22 @@ fun AppearanceSettings(
                                 showSliderOptionDialog = true
                             },
                         )},
+
+                        *(if (playerScreenStyle == PlayerScreenStyle.GALAXY) arrayOf(
+                            {
+                                val (showGalaxySlider, onShowGalaxySliderChange) = rememberPreference(
+                                    ShowGalaxySliderKey,
+                                    defaultValue = true
+                                )
+                                SwitchPreference(
+                                    title = { Text(stringResource(R.string.show_galaxy_slider)) },
+                                    description = stringResource(R.string.show_galaxy_slider_desc),
+                                    icon = { Icon(painterResource(R.drawable.sliders), null) },
+                                    checked = showGalaxySlider,
+                                    onCheckedChange = onShowGalaxySliderChange
+                                )
+                            }
+                        ) else emptyArray()),
 
                         {SwitchPreference(
                             title = { Text(stringResource(R.string.enable_swipe_thumbnail)) },

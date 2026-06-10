@@ -215,6 +215,8 @@ import com.darkxvenom.airbeats.constants.PlayerScreenStyle
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
 import com.darkxvenom.airbeats.constants.HomeScreenStyle
 import com.darkxvenom.airbeats.constants.HomeScreenStyleKey
+import com.darkxvenom.airbeats.constants.NavBarStyle
+import com.darkxvenom.airbeats.constants.NavBarStyleKey
 import com.darkxvenom.airbeats.ui.component.NameProvider
 import com.darkxvenom.airbeats.ui.component.SwitchPreference
 import com.darkxvenom.airbeats.ui.component.TopSearch
@@ -310,6 +312,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        com.darkxvenom.airbeats.playback.AppForegroundTracker.isForeground = true
         startService(Intent(this, MusicService::class.java))
         bindService(
             Intent(this, MusicService::class.java),
@@ -319,6 +322,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        com.darkxvenom.airbeats.playback.AppForegroundTracker.isForeground = false
         unbindService(serviceConnection)
         super.onStop()
     }
@@ -418,6 +422,7 @@ class MainActivity : ComponentActivity() {
 
             val playerScreenStyle by rememberEnumPreference(PlayerScreenStyleKey, defaultValue = PlayerScreenStyle.CLASSIC)
             val homeScreenStyle by rememberEnumPreference(HomeScreenStyleKey, defaultValue = HomeScreenStyle.CLASSIC)
+            val navBarStyle by rememberEnumPreference(NavBarStyleKey, defaultValue = NavBarStyle.CLASSIC)
 
             val enableDynamicTheme by rememberPreference(DynamicThemeKey, defaultValue = true)
             val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
@@ -529,17 +534,19 @@ class MainActivity : ComponentActivity() {
                             val navBackStackEntry by navController.currentBackStackEntryAsState()
                             val (previousTab) = rememberSaveable { mutableStateOf("home") }
 
-                            val navigationItems = remember(homeScreenStyle) { 
-                                if (homeScreenStyle == HomeScreenStyle.SPOTIFY) {
-                                    Screens.MainScreens 
-                                } else {
-                                    Screens.MainScreens.filter { it.route != Screens.Search.route }
+                            val navigationItems = remember(homeScreenStyle, navBarStyle, enableLiquidGlass) { 
+                                when (navBarStyle) {
+                                    NavBarStyle.CLASSIC -> listOf(Screens.Home, Screens.Explore, Screens.Library)
+                                    NavBarStyle.LIQUID_GLASS -> listOf(Screens.Home, Screens.Explore, Screens.Library)
+                                    NavBarStyle.SPOTIFY -> listOf(Screens.Home, Screens.Search, Screens.Explore, Screens.Library)
+                                    NavBarStyle.APPLE -> listOf(Screens.Home, Screens.Stats, Screens.Explore, Screens.Library, Screens.Search)
+                                    else -> listOf(Screens.Home, Screens.Explore, Screens.Library)
                                 }
                             }
                             val (slimNav) = rememberPreference(SlimNavBarKey, defaultValue = false)
                             val defaultOpenTab =
                                 remember {
-                                    dataStore[DefaultOpenTabKey].toEnum(defaultValue = NavigationTab.HOME)
+                                    dataStore[DefaultOpenTabKey].toEnum<NavigationTab>(defaultValue = NavigationTab.EXPLORE)
                                 }
                             val tabOpenedFromShortcut =
                                 remember {
@@ -1025,7 +1032,8 @@ class MainActivity : ComponentActivity() {
                                             val isTopLevel =
                                                 currentRoute == Screens.Home.route ||
                                                         currentRoute == Screens.Explore.route ||
-                                                        currentRoute == Screens.Library.route
+                                                        currentRoute == Screens.Library.route ||
+                                                        (currentRoute == "stats" && homeScreenStyle == HomeScreenStyle.APPLE)
 
                                             val isPlayfulHome = (currentRoute == Screens.Home.route || currentRoute == Screens.Library.route || currentRoute == Screens.Explore.route) && homeScreenStyle == HomeScreenStyle.PLAYFUL
 
@@ -1090,12 +1098,8 @@ class MainActivity : ComponentActivity() {
                                             val isTabletLandscape = configuration.screenWidthDp >= 600 &&
                                                     configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-                                            val isSearchActive =
-                                                active || navBackStackEntry?.destination?.route?.startsWith("search/") == true
-
                                             val shouldShowBottomNav =
-                                                isTopLevel &&
-                                                        !isSearchActive &&
+                                                shouldShowNavigationBar &&
                                                         playerBottomSheetState.progress < 0.95f &&
                                                         !isPlayfulHome
 
@@ -1104,11 +1108,11 @@ class MainActivity : ComponentActivity() {
                                                 Box(
                                                     modifier = Modifier
                                                         .align(Alignment.BottomCenter)
-                                                        .then(if (homeScreenStyle != HomeScreenStyle.SPOTIFY) Modifier.navigationBarsPadding() else Modifier)
+                                                        .then(if (navBarStyle != NavBarStyle.SPOTIFY && navBarStyle != NavBarStyle.NEON) Modifier.navigationBarsPadding() else Modifier)
                                                         .then(
-                                                            if (homeScreenStyle == HomeScreenStyle.SPOTIFY) {
+                                                            if (navBarStyle == NavBarStyle.SPOTIFY || navBarStyle == NavBarStyle.NEON) {
                                                                 Modifier.fillMaxWidth()
-                                                                    .height(NavigationBarHeight)
+                                                                    .height(NavigationBarHeight - 16.dp + bottomInset)
                                                             } else {
                                                                 Modifier
                                                                     .padding(bottom = 6.dp)
@@ -1207,7 +1211,7 @@ class MainActivity : ComponentActivity() {
                                                          }
                                                      }
 
-                                                     if (homeScreenStyle == HomeScreenStyle.NEON) {
+                                                     if (navBarStyle == NavBarStyle.NEON) {
                                                          com.darkxvenom.airbeats.ui.component.NeonBottomNavigationBar(
                                                              items = curvedItems,
                                                              selectedIndex = selectedIndex,
@@ -1218,7 +1222,7 @@ class MainActivity : ComponentActivity() {
                                                                  .scale(scale)
                                                                  .alpha(alpha)
                                                          )
-                                                     } else if (homeScreenStyle == HomeScreenStyle.SPOTIFY) {
+                                                     } else if (navBarStyle == NavBarStyle.SPOTIFY) {
                                                          com.darkxvenom.airbeats.ui.component.SpotifyBottomNavigationBar(
                                                              items = curvedItems,
                                                              selectedIndex = selectedIndex,
@@ -1229,8 +1233,21 @@ class MainActivity : ComponentActivity() {
                                                                  .scale(scale)
                                                                  .alpha(alpha)
                                                          )
-                                                     } else if (enableLiquidGlass) {
+                                                     } else if (navBarStyle == NavBarStyle.APPLE) {
+                                                         com.darkxvenom.airbeats.ui.component.AppleNavigationBar(
+                                                             items = curvedItems,
+                                                             selectedIndex = selectedIndex,
+                                                             onItemSelected = onItemSelectedAction,
+                                                             backdrop = backdrop,
+                                                             modifier = Modifier
+                                                                 .fillMaxSize()
+                                                                 .offset(y = offsetY)
+                                                                 .scale(scale)
+                                                                 .alpha(alpha)
+                                                         )
+                                                     } else if (navBarStyle == NavBarStyle.LIQUID_GLASS || enableLiquidGlass) {
                                                          LiquidGlassBottomNavigationBar(
+                                                             items = curvedItems,
                                                              selectedIndex = selectedIndex,
                                                              onItemSelected = onItemSelectedAction,
                                                              backdrop = backdrop,

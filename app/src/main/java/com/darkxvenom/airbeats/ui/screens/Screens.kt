@@ -40,7 +40,14 @@ sealed class Screens(
         route = "search_home"
     )
 
+    data object Stats : Screens(
+        titleId = R.string.stats,
+        iconIdInactive = R.drawable.trending_up,
+        iconIdActive = R.drawable.trending_up,
+        route = "stats"
+    )
+
     companion object {
-        val MainScreens = listOf(Home, Search, Explore, Library)
+        val MainScreens = listOf(Home, Search, Explore, Library, Stats)
     }
 }

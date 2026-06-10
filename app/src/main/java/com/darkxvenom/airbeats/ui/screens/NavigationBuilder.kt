@@ -67,6 +67,8 @@ fun NavGraphBuilder.navigationBuilder(
             NeonHomeScreen(navController = navController)
         } else if (homeScreenStyle == HomeScreenStyle.SPOTIFY) {
             SpotifyHomeScreen(navController = navController)
+        } else if (homeScreenStyle == HomeScreenStyle.APPLE) {
+            com.darkxvenom.airbeats.ui.screens.apple.AppleHomeScreen(navController = navController)
         } else {
             HomeScreen(navController = navController)
         }
@@ -90,6 +92,8 @@ fun NavGraphBuilder.navigationBuilder(
             com.darkxvenom.airbeats.ui.screens.library.NeonLibraryScreen(navController = navController)
         } else if (homeScreenStyle == HomeScreenStyle.SPOTIFY) {
             SpotifyLibraryScreen(navController)
+        } else if (homeScreenStyle == HomeScreenStyle.APPLE) {
+            com.darkxvenom.airbeats.ui.screens.apple.AppleLibraryScreen(navController = navController)
         } else {
             LibraryScreen(navController)
         }
@@ -110,6 +114,8 @@ fun NavGraphBuilder.navigationBuilder(
             NeonExploreScreen(navController = navController)
         } else if (homeScreenStyle == HomeScreenStyle.SPOTIFY) {
             SpotifyExploreScreen(navController = navController)
+        } else if (homeScreenStyle == HomeScreenStyle.APPLE) {
+            com.darkxvenom.airbeats.ui.screens.apple.AppleExploreScreen(navController = navController)
         } else {
             ExploreScreen(navController,scrollBehavior)
         }
@@ -121,6 +127,8 @@ fun NavGraphBuilder.navigationBuilder(
         )
         if (homeScreenStyle == HomeScreenStyle.NEON) {
             com.darkxvenom.airbeats.ui.screens.search.NeonSearchScreen(navController = navController)
+        } else if (homeScreenStyle == HomeScreenStyle.APPLE) {
+            com.darkxvenom.airbeats.ui.screens.apple.AppleSearchScreen(navController = navController)
         } else {
             SpotifySearchScreen(navController = navController)
         }
@@ -132,7 +140,15 @@ fun NavGraphBuilder.navigationBuilder(
         com.darkxvenom.airbeats.ui.screens.search.NeonSearchScreen(navController = navController)
     }
     composable("stats") {
-        StatsScreen(navController)
+        val (homeScreenStyle, _) = rememberEnumPreference(
+            HomeScreenStyleKey,
+            defaultValue = HomeScreenStyle.CLASSIC
+        )
+        if (homeScreenStyle == HomeScreenStyle.APPLE) {
+            com.darkxvenom.airbeats.ui.screens.apple.AppleStatsScreen(navController = navController)
+        } else {
+            StatsScreen(navController)
+        }
     }
     composable("account") {
         AccountScreen(navController, scrollBehavior)

@@ -182,6 +182,7 @@ object PlayerSliderColors {
             PlayerBackgroundStyle.DEFAULT -> textButtonColor
             PlayerBackgroundStyle.BLUR -> Color.White
             PlayerBackgroundStyle.GRADIENT -> Color.White
+            PlayerBackgroundStyle.FLUID -> Color.White
         },
         inactiveTrackColor = when {
             useDarkTheme -> Color.Gray.copy(alpha = 0.5f)
@@ -191,12 +192,14 @@ object PlayerSliderColors {
             PlayerBackgroundStyle.DEFAULT -> textButtonColor
             PlayerBackgroundStyle.BLUR -> Color.White
             PlayerBackgroundStyle.GRADIENT -> Color.White
+            PlayerBackgroundStyle.FLUID -> Color.White
         },
         inactiveTickColor = Color.Gray,
         thumbColor = when (playerBackground) {
             PlayerBackgroundStyle.DEFAULT -> textButtonColor
             PlayerBackgroundStyle.BLUR -> Color.White
             PlayerBackgroundStyle.GRADIENT -> Color.White
+            PlayerBackgroundStyle.FLUID -> Color.White
         }
     )
 }

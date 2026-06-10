@@ -1,6 +1,9 @@
 package com.darkxvenom.airbeats.playback
-
 import android.animation.ValueAnimator
+import com.darkxvenom.airbeats.constants.DynamicIslandOffsetXKey
+import com.darkxvenom.airbeats.constants.DynamicIslandOffsetYKey
+import com.darkxvenom.airbeats.utils.dataStore
+import kotlinx.coroutines.flow.collect
 import android.app.Service
 import android.content.ComponentName
 import android.content.Context
@@ -38,12 +41,47 @@ import kotlinx.coroutines.plus
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
+object AppForegroundTracker {
+    var isForeground = false
+        set(value) {
+            field = value
+            notifyListeners()
+        }
+    var isAdjustingIsland = false
+        set(value) {
+            field = value
+            notifyListeners()
+        }
+    private val listeners = mutableListOf<(Boolean, Boolean) -> Unit>()
+    fun addListener(listener: (Boolean, Boolean) -> Unit) {
+        listeners.add(listener)
+    }
+    fun removeListener(listener: (Boolean, Boolean) -> Unit) {
+        listeners.remove(listener)
+    }
+    private fun notifyListeners() {
+        listeners.forEach { it(isForeground, isAdjustingIsland) }
+    }
+}
+
 class DynamicIslandService : Service(), Player.Listener {
     private val scope = CoroutineScope(Dispatchers.Main) + Job()
     private lateinit var windowManager: WindowManager
     private lateinit var islandView: DynamicIslandView
     private var musicService: MusicService? = null
     private var isAdded = false
+    private var isAppInForeground = false
+    private var offsetX = 0
+    private var offsetY = 8
+
+    private val foregroundListener: (Boolean, Boolean) -> Unit = { isForeground, isAdjusting ->
+        isAppInForeground = isForeground
+        if (isForeground && !isAdjusting) {
+            hideIsland()
+        } else {
+            updateIsland()
+        }
+    }
 
     private val connection =
         object : ServiceConnection {
@@ -86,6 +124,20 @@ class DynamicIslandService : Service(), Player.Listener {
                 },
             )
         bindService(Intent(this, MusicService::class.java), connection, Context.BIND_AUTO_CREATE)
+        AppForegroundTracker.addListener(foregroundListener)
+        isAppInForeground = AppForegroundTracker.isForeground
+
+        scope.launch {
+            dataStore.data.collect { prefs ->
+                val newX = prefs[DynamicIslandOffsetXKey] ?: 0
+                val newY = prefs[DynamicIslandOffsetYKey] ?: 8
+                if (newX != offsetX || newY != offsetY) {
+                    offsetX = newX
+                    offsetY = newY
+                    updateLayout()
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -102,6 +154,27 @@ class DynamicIslandService : Service(), Player.Listener {
             stopSelf()
             return
         }
+
+        if (AppForegroundTracker.isAdjustingIsland) {
+            islandView.update(
+                metadata = MediaMetadata(
+                    id = "preview",
+                    title = "Adjusting position...",
+                    artists = emptyList(),
+                    duration = 100,
+                    thumbnailUrl = null,
+                ),
+                isPlaying = true,
+                positionMs = 50000,
+                durationMs = 100000,
+                isShuffleEnabled = false,
+                repeatMode = Player.REPEAT_MODE_OFF,
+            )
+            showIsland()
+            loadArtwork(null)
+            return
+        }
+
         val player = musicService?.player ?: return
         val metadata = player.currentMediaItem?.mediaMetadata
         val appMetadata = player.currentMetadata
@@ -111,6 +184,11 @@ class DynamicIslandService : Service(), Player.Listener {
                 player.playbackState != Player.STATE_ENDED
 
         if (!hasSong) {
+            hideIsland()
+            return
+        }
+
+        if (isAppInForeground) {
             hideIsland()
             return
         }
@@ -210,11 +288,13 @@ class DynamicIslandService : Service(), Player.Listener {
             android.graphics.PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = 8.dp
+            x = offsetX.dp
+            y = offsetY.dp
         }
     }
 
     override fun onDestroy() {
+        AppForegroundTracker.removeListener(foregroundListener)
         hideIsland()
         musicService?.player?.removeListener(this)
         runCatching { unbindService(connection) }

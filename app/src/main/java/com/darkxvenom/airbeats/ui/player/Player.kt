@@ -1,6 +1,7 @@
 package com.darkxvenom.airbeats.ui.player
 
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.drawable.BitmapDrawable
 import android.media.AudioDeviceInfo
@@ -370,7 +371,7 @@ fun BottomSheetPlayer(
 
     LaunchedEffect(playerScreenStyle, mediaMetadata?.id, currentLyrics) {
         val metadata = mediaMetadata
-        if (playerScreenStyle != PlayerScreenStyle.SPOTIFY || metadata == null) {
+        if ((playerScreenStyle != PlayerScreenStyle.SPOTIFY && playerScreenStyle != PlayerScreenStyle.GALAXY) || metadata == null) {
             spotifyLyricsEntity = null
             return@LaunchedEffect
         }
@@ -853,11 +854,11 @@ fun BottomSheetPlayer(
             else MaterialTheme.colorScheme.surfaceContainer
     }
 
-    val homeScreenStyle by rememberEnumPreference(
-        com.darkxvenom.airbeats.constants.HomeScreenStyleKey,
-        defaultValue = com.darkxvenom.airbeats.constants.HomeScreenStyle.CLASSIC
+    val navBarStyle by rememberEnumPreference(
+        com.darkxvenom.airbeats.constants.NavBarStyleKey,
+        defaultValue = com.darkxvenom.airbeats.constants.NavBarStyle.CLASSIC
     )
-    val isNeon = homeScreenStyle == com.darkxvenom.airbeats.constants.HomeScreenStyle.NEON
+    val isNeon = navBarStyle == com.darkxvenom.airbeats.constants.NavBarStyle.NEON
 
     BottomSheet(
         state = state,
@@ -947,17 +948,17 @@ fun BottomSheetPlayer(
             playerConnection.player.clearMediaItems()
         },
         collapsedContent = {
-            val (homeScreenStyle, _) = com.darkxvenom.airbeats.utils.rememberEnumPreference<com.darkxvenom.airbeats.constants.HomeScreenStyle>(
-                com.darkxvenom.airbeats.constants.HomeScreenStyleKey,
-                defaultValue = com.darkxvenom.airbeats.constants.HomeScreenStyle.CLASSIC
+            val (navBarStyle, _) = com.darkxvenom.airbeats.utils.rememberEnumPreference<com.darkxvenom.airbeats.constants.NavBarStyle>(
+                com.darkxvenom.airbeats.constants.NavBarStyleKey,
+                defaultValue = com.darkxvenom.airbeats.constants.NavBarStyle.CLASSIC
             )
-            if (homeScreenStyle == com.darkxvenom.airbeats.constants.HomeScreenStyle.PLAYFUL) {
-                ModernMiniPlayer(
+            if (navBarStyle == com.darkxvenom.airbeats.constants.NavBarStyle.NEON) {
+                NeonMiniPlayer()
+            } else if (navBarStyle == com.darkxvenom.airbeats.constants.NavBarStyle.APPLE) {
+                AppleMiniPlayer(
                     position = position,
                     duration = duration,
                 )
-            } else if (homeScreenStyle == com.darkxvenom.airbeats.constants.HomeScreenStyle.NEON) {
-                NeonMiniPlayer()
             } else {
                 MiniPlayer(
                     position = position,
@@ -1399,34 +1400,14 @@ fun BottomSheetPlayer(
                 )
             }
 
-            Spacer(Modifier.height(12.dp))
-
-            Row(
+            Spacer(Modifier.height(12.dp))            Row(
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
                 modifier =
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = PlayerHorizontalPadding),
             ) {
-                Box(modifier = Modifier.weight(1f)) {
-                    ResizableIconButton(
-                        icon = when (repeatMode) {
-                            Player.REPEAT_MODE_OFF, Player.REPEAT_MODE_ALL -> R.drawable.repeat
-                            Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
-                            else -> throw IllegalStateException()
-                        },
-                        color = TextBackgroundColor,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .padding(4.dp)
-                            .align(Alignment.Center)
-                            .alpha(if (repeatMode == Player.REPEAT_MODE_OFF) 0.5f else 1f),
-                        onClick = {
-                            playerConnection.player.toggleRepeatMode()
-                        },
-                    )
-                }
-
                 Box(modifier = Modifier.weight(1f)) {
                     ResizableIconButton(
                         icon = R.drawable.skip_previous,
@@ -1469,7 +1450,7 @@ fun BottomSheetPlayer(
                                     R.drawable.pause
                                 } else {
                                     R.drawable.play
-                                },
+                                }
                             ),
                         contentDescription = null,
                         colorFilter = ColorFilter.tint(iconButtonColor),
@@ -1495,22 +1476,51 @@ fun BottomSheetPlayer(
                         onClick = playerConnection::seekToNext,
                     )
                 }
+            }
 
-                Box(modifier = Modifier.weight(1f)) {
-                    ResizableIconButton(
-                        icon = if (currentSong?.song?.liked == true) R.drawable.favorite else R.drawable.favorite_border,
-                        color = if (currentSong?.song?.liked == true) MaterialTheme.colorScheme.error else TextBackgroundColor,
-                        modifier =
-                            Modifier
-                                .size(32.dp)
-                                .padding(4.dp)
-                                .align(Alignment.Center),
-                        onClick = playerConnection::toggleLike,
-                    )
-                }
+            Spacer(Modifier.height(16.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = PlayerHorizontalPadding),
+            ) {
+                ResizableIconButton(
+                    icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle,
+                    color = if (shuffleModeEnabled) MaterialTheme.colorScheme.primary else TextBackgroundColor,
+                    modifier = Modifier.size(32.dp).padding(4.dp),
+                    onClick = {
+                        playerConnection.player.shuffleModeEnabled = !playerConnection.player.shuffleModeEnabled
+                    }
+                )
+
+                ResizableIconButton(
+                    icon = if (currentSong?.song?.liked == true) R.drawable.favorite else R.drawable.favorite_border,
+                    color = if (currentSong?.song?.liked == true) MaterialTheme.colorScheme.error else TextBackgroundColor,
+                    modifier = Modifier.size(32.dp).padding(4.dp),
+                    onClick = playerConnection::toggleLike,
+                )
+
+                ResizableIconButton(
+                    icon = when (repeatMode) {
+                        Player.REPEAT_MODE_OFF, Player.REPEAT_MODE_ALL -> R.drawable.repeat
+                        Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
+                        else -> throw IllegalStateException()
+                    },
+                    color = TextBackgroundColor,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .padding(4.dp)
+                        .alpha(if (repeatMode == Player.REPEAT_MODE_OFF) 0.5f else 1f),
+                    onClick = {
+                        playerConnection.player.toggleRepeatMode()
+                    },
+                )
             }
         }
-
         val immersiveControlsContent: @Composable ColumnScope.(MediaMetadata) -> Unit = { mediaMetadata ->
             val isLoading = playbackState != STATE_READY && playbackState != STATE_ENDED
             val codecLabel = remember(currentFormat) {
@@ -1861,6 +1871,17 @@ fun BottomSheetPlayer(
                                 colors = if (animatedGradientColors.isNotEmpty()) animatedGradientColors else gradientColors
                             )
                         )
+                )
+            }
+
+            // Animated fluid background
+            AnimatedVisibility(
+                visible = playerBackground == PlayerBackgroundStyle.FLUID,
+                enter = fadeIn(tween(800)),
+                exit = fadeOut(tween(600))
+            ) {
+                FluidBackground(
+                    modifier = Modifier.alpha(backgroundAlpha)
                 )
             }
 
@@ -2330,6 +2351,157 @@ fun BottomSheetPlayer(
                 onRepeatClick = playerConnection.player::toggleRepeatMode,
                 onQueueClick = { queueSheetState.expandSoft() }
             )
+        } else if (playerScreenStyle == PlayerScreenStyle.COLOURFULL) {
+            ColourfullPlayer(
+                mediaMetadata = mediaMetadata,
+                position = sliderPosition ?: position,
+                duration = duration,
+                sliderStyle = sliderStyle,
+                isPlaying = isPlaying,
+                isLoading = playbackState != STATE_READY && playbackState != STATE_ENDED,
+                canSkipPrevious = canSkipPrevious,
+                canSkipNext = canSkipNext,
+                onSeek = { sliderPosition = it },
+                onSeekFinished = {
+                    sliderPosition?.let {
+                        playerConnection.player.seekTo(it)
+                    }
+                    sliderPosition = null
+                },
+                onOpenFullscreenLyrics = onOpenFullscreenLyrics,
+                onPlayPause = playerConnection.player::togglePlayPause,
+                onPrevious = playerConnection.player::seekToPrevious,
+                onNext = playerConnection.player::seekToNext,
+                onCollapse = state::collapseSoft,
+                onMenuClick = {
+                    menuState.show {
+                        PlayerMenu(
+                            mediaMetadata = mediaMetadata ?: return@show,
+                            navController = navController,
+                            playerBottomSheetState = state,
+                            onShowDetailsDialog = { showDetailsDialog = true },
+                            onDismiss = menuState::dismiss,
+                        )
+                    }
+                },
+                isLiked = currentSong?.song?.liked == true,
+                onLikeClick = playerConnection::toggleLike,
+                repeatMode = repeatMode,
+                onRepeatClick = playerConnection.player::toggleRepeatMode,
+                onQueueClick = { queueSheetState.expandSoft() }
+            )
+        } else if (playerScreenStyle == PlayerScreenStyle.APPLE) {
+            ApplePlayer(
+                mediaMetadata = mediaMetadata,
+                position = sliderPosition ?: position,
+                duration = duration,
+                isPlaying = isPlaying,
+                isLoading = playbackState != STATE_READY && playbackState != STATE_ENDED,
+                canSkipPrevious = canSkipPrevious,
+                canSkipNext = canSkipNext,
+                onSeek = { sliderPosition = it },
+                onSeekFinished = {
+                    sliderPosition?.let { playerConnection.player.seekTo(it) }
+                    sliderPosition = null
+                },
+                onPlayPause = playerConnection.player::togglePlayPause,
+                onPrevious = playerConnection.player::seekToPrevious,
+                onNext = playerConnection.player::seekToNext,
+                onCollapse = state::collapseSoft,
+                onMenuClick = {
+                    menuState.show {
+                        PlayerMenu(
+                            mediaMetadata = mediaMetadata ?: return@show,
+                            navController = navController,
+                            playerBottomSheetState = state,
+                            onShowDetailsDialog = { showDetailsDialog = true },
+                            onDismiss = menuState::dismiss,
+                        )
+                    }
+                },
+                isLiked = currentSong?.song?.liked == true,
+                onLikeClick = playerConnection::toggleLike,
+                onQueueClick = { queueSheetState.expandSoft() },
+                onShareClick = {
+                    mediaMetadata?.let { metadata ->
+                        val intent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            type = "text/plain"
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                "https://music.youtube.com/watch?v=${metadata.id}"
+                            )
+                        }
+                        context.startActivity(Intent.createChooser(intent, null))
+                    }
+                },
+                shuffleModeEnabled = shuffleModeEnabled,
+                onShuffleClick = {
+                    playerConnection.player.shuffleModeEnabled = !playerConnection.player.shuffleModeEnabled
+                },
+                repeatMode = repeatMode,
+                onRepeatClick = playerConnection.player::toggleRepeatMode,
+                onOpenFullscreenLyrics = onOpenFullscreenLyrics,
+            )
+        } else if (playerScreenStyle == PlayerScreenStyle.GALAXY) {
+            GalaxyPlayer(
+                mediaMetadata = mediaMetadata,
+                position = sliderPosition ?: position,
+                duration = duration,
+                isPlaying = isPlaying,
+                isLoading = playbackState != STATE_READY && playbackState != STATE_ENDED,
+                canSkipPrevious = canSkipPrevious,
+                canSkipNext = canSkipNext,
+                onSeek = { sliderPosition = it },
+                onSeekFinished = {
+                    sliderPosition?.let { playerConnection.player.seekTo(it) }
+                    sliderPosition = null
+                },
+                onPlayPause = playerConnection.player::togglePlayPause,
+                onPrevious = playerConnection.player::seekToPrevious,
+                onNext = playerConnection.player::seekToNext,
+                onCollapse = state::collapseSoft,
+                onMenuClick = {
+                    menuState.show {
+                        PlayerMenu(
+                            mediaMetadata = mediaMetadata ?: return@show,
+                            navController = navController,
+                            playerBottomSheetState = state,
+                            onShowDetailsDialog = { showDetailsDialog = true },
+                            onDismiss = menuState::dismiss,
+                        )
+                    }
+                },
+                isLiked = currentSong?.song?.liked == true,
+                onLikeClick = playerConnection::toggleLike,
+                onQueueClick = { queueSheetState.expandSoft() },
+                onPlayQueueIndex = { index ->
+                    playerConnection.player.seekTo(index, 0)
+                },
+                onShareClick = {
+                    mediaMetadata?.let { metadata ->
+                        val intent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            type = "text/plain"
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                "https://music.youtube.com/watch?v=${metadata.id}"
+                            )
+                        }
+                        context.startActivity(Intent.createChooser(intent, null))
+                    }
+                },
+                shuffleModeEnabled = shuffleModeEnabled,
+                onShuffleClick = {
+                    playerConnection.player.shuffleModeEnabled = !playerConnection.player.shuffleModeEnabled
+                },
+                repeatMode = repeatMode,
+                onRepeatClick = playerConnection.player::toggleRepeatMode,
+                onOpenFullscreenLyrics = onOpenFullscreenLyrics,
+                queueWindows = queueWindows.map { it.mediaItem },
+                currentWindowIndex = currentWindowIndex,
+                lyrics = (spotifyLyricsEntity ?: currentLyrics)?.lyrics
+            )
         } else if (playerScreenStyle == PlayerScreenStyle.MODERN) {
             val playbackOutputName = rememberPlaybackOutputName()
 
@@ -2438,7 +2610,11 @@ fun BottomSheetPlayer(
             }
         }
 
-        if (playerScreenStyle == PlayerScreenStyle.CLASSIC || !queueSheetState.isCollapsed) {
+        if (playerScreenStyle == PlayerScreenStyle.APPLE) {
+            AppleQueue(
+                state = queueSheetState
+            )
+        } else if (playerScreenStyle == PlayerScreenStyle.CLASSIC || !queueSheetState.isCollapsed) {
             Queue(
                 state = queueSheetState,
                 playerBottomSheetState = state,
@@ -3437,7 +3613,7 @@ fun ConcentricWaveEffect(
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = 8000,   // ← slower speed
+                durationMillis = 2000,   // ← fast speed
                 easing = LinearEasing
             ),
             repeatMode = RepeatMode.Restart

@@ -85,7 +85,9 @@ fun Thumbnail(
     onOpenFullscreenLyrics: () -> Unit,
     modifier: Modifier = Modifier,
     isPlayerExpanded: Boolean = true,
-
+    shape: androidx.compose.ui.graphics.Shape = CircleShape,
+    showPlayingFrom: Boolean = true,
+    artworkScale: Float = 0.85f,
 ) {
 
 
@@ -111,6 +113,7 @@ fun Thumbnail(
         PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.onBackground
         PlayerBackgroundStyle.BLUR -> Color.White
         PlayerBackgroundStyle.GRADIENT -> Color.White
+        PlayerBackgroundStyle.FLUID -> Color.White
     }
 
     val thumbnailLazyGridState = rememberLazyGridState()
@@ -226,25 +229,27 @@ fun Thumbnail(
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(horizontal = 32.dp, vertical = 16.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.playing_from),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = textBackgroundColor
-                    )
-                    val playingFrom = queueTitle ?: mediaMetadata?.album?.title
-                    if (!playingFrom.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                if (showPlayingFrom) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 32.dp, vertical = 16.dp)
+                    ) {
                         Text(
-                            text = playingFrom,
+                            text = stringResource(R.string.playing_from),
                             style = MaterialTheme.typography.titleMedium,
-                            color = textBackgroundColor.copy(alpha = 0.8f),
-                            maxLines = 1,
-                            modifier = Modifier.basicMarquee()
+                            color = textBackgroundColor
                         )
+                        val playingFrom = queueTitle ?: mediaMetadata?.album?.title
+                        if (!playingFrom.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = playingFrom,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = textBackgroundColor.copy(alpha = 0.8f),
+                                maxLines = 1,
+                                modifier = Modifier.basicMarquee()
+                            )
+                        }
                     }
                 }
 
@@ -318,8 +323,8 @@ fun Thumbnail(
                                         contentDescription = null,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier
-                                            .fillMaxSize(0.85f)
-                                            .clip(CircleShape)
+                                            .fillMaxSize(artworkScale)
+                                            .clip(shape)
                                     )
                                 }
                             }

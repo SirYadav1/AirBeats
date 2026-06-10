@@ -94,3 +94,12 @@ output-metadata.json
 *.db
 *.db-journal
 *.sqlite
+
+# Scratch / debug files created during development
+*.diff
+diff_*.txt
+*_5.0.0.kt
+*_commits.json
+github_*.kt
+github_*.txt
+fix_*.js
