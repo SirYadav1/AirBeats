@@ -20,11 +20,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import com.darkxvenom.airbeats.R
 import com.darkxvenom.airbeats.models.MediaMetadata
 import com.darkxvenom.airbeats.ui.utils.highQualityThumbnail
 import com.darkxvenom.airbeats.utils.makeTimeString
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -58,7 +61,8 @@ fun MinimalPlayer(
     onLikeClick: () -> Unit,
     repeatMode: Int,
     onRepeatClick: () -> Unit,
-    onQueueClick: () -> Unit
+    onQueueClick: () -> Unit,
+    state: BottomSheetState
 ) {
     val bgColor = Color(0xFFFCFCFE)
     val textPrimary = Color.Black
@@ -68,6 +72,7 @@ fun MinimalPlayer(
         modifier = Modifier
             .fillMaxSize()
             .background(bgColor)
+            .bottomSheetDraggable(state)
             .statusBarsPadding()
     ) {
         Column(

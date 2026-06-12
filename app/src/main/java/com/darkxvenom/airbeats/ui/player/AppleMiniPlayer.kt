@@ -1,6 +1,7 @@
 package com.darkxvenom.airbeats.ui.player
 
 import android.content.res.Configuration
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -89,12 +90,15 @@ import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 import kotlin.math.exp
 import kotlin.math.roundToInt
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
 
 @Composable
 fun AppleMiniPlayer(
     position: Long,
     duration: Long,
     modifier: Modifier = Modifier,
+    state: BottomSheetState
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isPlaying.collectAsState()
@@ -137,6 +141,7 @@ fun AppleMiniPlayer(
             .height(80.dp)
             .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
             .padding(horizontal = 12.dp, vertical = 8.dp)
+            .bottomSheetDraggable(state)
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
                     onDragStart = {
@@ -333,3 +338,4 @@ fun AppleMiniPlayer(
         }
     }
 }
+

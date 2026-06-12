@@ -115,6 +115,9 @@ import java.nio.IntBuffer
 import kotlin.math.absoluteValue
 import kotlin.math.exp
 import kotlin.math.roundToInt
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
+
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -122,6 +125,7 @@ fun MiniPlayer(
     position: Long,
     duration: Long,
     modifier: Modifier = Modifier,
+    state: BottomSheetState
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isPlaying.collectAsState()
@@ -277,6 +281,7 @@ fun MiniPlayer(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(miniPlayerBackgroundColor)
+                    .bottomSheetDraggable(state)
                     .pointerInput(Unit) {
                         detectHorizontalDragGestures(
                             onDragStart = {

@@ -1,5 +1,7 @@
 package com.darkxvenom.airbeats.ui.player
 
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -53,6 +55,7 @@ import com.darkxvenom.airbeats.playback.PlayerConnection
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroovePlayer(
+    state: BottomSheetState,
     playerConnection: PlayerConnection,
     mediaMetadata: com.darkxvenom.airbeats.models.MediaMetadata?,
     playbackState: Int,
@@ -88,14 +91,11 @@ fun GroovePlayer(
     
     var flyingCardIndex by remember { mutableStateOf<Int?>(null) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
+    Box(modifier = Modifier.fillMaxSize().bottomSheetDraggable(state)
             .background(backgroundColor)
             .padding(top = WindowInsets.systemBars.asPaddingValues().calculateTopPadding())
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
+        Column(modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Top Bar
@@ -380,9 +380,7 @@ fun GroovePlayer(
                         contentAlignment = Alignment.Center
                     ) {
                         // Glow effect for button
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
+                        Box(modifier = Modifier.fillMaxSize()
                                 .blur(16.dp)
                                 .background(accentColor, CircleShape)
                         )
@@ -567,3 +565,9 @@ private fun formatTime(ms: Long): String {
     val seconds = totalSeconds % 60
     return String.format("%d:%02d", minutes, seconds)
 }
+
+
+
+
+
+

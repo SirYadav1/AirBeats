@@ -28,10 +28,13 @@ import com.darkxvenom.airbeats.ui.utils.highQualityThumbnail
 
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
 
 @Composable
 fun NeonMiniPlayer(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    state: BottomSheetState
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isPlaying.collectAsState()
@@ -50,6 +53,7 @@ fun NeonMiniPlayer(
             .fillMaxWidth()
             .height(com.darkxvenom.airbeats.constants.MiniPlayerHeight)
             .background(bgColor) // Use adaptive background
+            .bottomSheetDraggable(state)
             .pointerInput(Unit) {
                 var totalDrag = 0f
                 detectHorizontalDragGestures(

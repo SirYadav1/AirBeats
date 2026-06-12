@@ -600,6 +600,16 @@ fun PlayerMenu(
                     }
                     item {
                         PlayerMenuActionTile(
+                            icon = R.drawable.dark_mode,
+                            title = R.string.always_on_display,
+                        ) {
+                            navController.navigate("always_on_display")
+                            playerBottomSheetState.collapseSoft()
+                            onDismiss()
+                        }
+                    }
+                    item {
+                        PlayerMenuActionTile(
                             icon = R.drawable.equalizer,
                             title = R.string.equalizer,
                         ) {

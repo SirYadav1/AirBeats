@@ -1,5 +1,7 @@
 package com.darkxvenom.airbeats.ui.player
 
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,6 +33,7 @@ import com.darkxvenom.airbeats.utils.makeTimeString
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PopsyPlayer(
+    state: BottomSheetState,
     mediaMetadata: MediaMetadata?,
     position: Long,
     duration: Long,
@@ -61,7 +64,7 @@ fun PopsyPlayer(
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val topSectionHeight = screenHeight * 0.65f
 
-    Box(modifier = Modifier.fillMaxSize().background(bottomBg)) {
+    Box(modifier = Modifier.fillMaxSize().bottomSheetDraggable(state).background(bottomBg)) {
         // Purple Top Background
         Surface(
             color = popsyPurple,
@@ -70,9 +73,7 @@ fun PopsyPlayer(
                 .fillMaxWidth()
                 .height(topSectionHeight)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
+            Column(modifier = Modifier.fillMaxSize()
                     .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
                     .padding(top = 16.dp, start = 24.dp, end = 24.dp, bottom = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -391,3 +392,9 @@ fun PopsyPlayer(
         }
     }
 }
+
+
+
+
+
+

@@ -1,5 +1,7 @@
 package com.darkxvenom.airbeats.ui.player
 
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
 import android.annotation.SuppressLint
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
@@ -62,6 +64,7 @@ private val ActiveBlue  = Color(0xFF007AFF)
 @SuppressLint("UnrememberedMutableState")
 @Composable
 fun FuturisticPlayer(
+    state: BottomSheetState,
     mediaMetadata: MediaMetadata?,
     position: Long,
     duration: Long,
@@ -113,16 +116,13 @@ fun FuturisticPlayer(
     val progressTrackColor = if (isDark) Color(0xFF2C2C2E) else Color(0xFFE5E5EA)
     val progressActiveColor = if (isDark) Color(0xFFFFFFFF) else Color(0xFF111111)
 
-    Box(
-        modifier = modifier.fillMaxSize()
+    Box(modifier = Modifier.fillMaxSize().bottomSheetDraggable(state)
     ) {
         // ── BACKGROUND LAYER (DEFAULT / GRADIENT / BLUR) ─────────────────────
         if (!isDark) {
             when (playerBackground) {
                 PlayerBackgroundStyle.BLUR -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
+                    Box(modifier = Modifier.fillMaxSize()
                             .background(Color(0xFFF5F5F7))
                     ) {
                         if (artworkUrl != null) {
@@ -136,26 +136,20 @@ fun FuturisticPlayer(
                                     .alpha(0.6f)
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
+                        Box(modifier = Modifier.fillMaxSize()
                                 .background(Color.White.copy(alpha = 0.55f))
                         )
                     }
                 }
                 PlayerBackgroundStyle.GRADIENT -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
+                    Box(modifier = Modifier.fillMaxSize()
                             .background(Color(0xFFF5F5F7))
                     ) {
                         if (gradientColors.size >= 2) {
                             val animatedGradientColors = gradientColors.map { color ->
                                 animateColorAsState(color, label = "gradient_color").value
                             }
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
+                            Box(modifier = Modifier.fillMaxSize()
                                     .background(
                                         Brush.verticalGradient(
                                             colors = animatedGradientColors
@@ -163,9 +157,7 @@ fun FuturisticPlayer(
                                     )
                                     .alpha(0.8f)
                             )
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
+                            Box(modifier = Modifier.fillMaxSize()
                                     .background(Color.White.copy(alpha = 0.35f))
                             )
                         } else {
@@ -179,9 +171,7 @@ fun FuturisticPlayer(
             }
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
+        Column(modifier = Modifier.fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -395,16 +385,12 @@ fun FuturisticPlayer(
 @Composable
 private fun DefaultBackground(isDark: Boolean) {
     if (isDark) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
+        Box(modifier = Modifier.fillMaxSize()
                 .background(Color.Black)
         )
     } else {
         // CloudGlow purple effect background for light theme
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
+        Box(modifier = Modifier.fillMaxSize()
                 .background(Color(0xFFF5F5F7))
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
@@ -463,9 +449,7 @@ fun UShapedArtworkCard(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
+            Box(modifier = Modifier.fillMaxSize()
                     .background(
                         Brush.verticalGradient(
                             listOf(Color(0xFF1A1A2E), Color(0xFF0F3460))
@@ -718,3 +702,8 @@ private fun MenuSortIcon(tint: Color, modifier: Modifier = Modifier) {
         )
     }
 }
+
+
+
+
+

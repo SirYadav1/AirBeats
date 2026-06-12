@@ -922,48 +922,86 @@ fun HomeScreen(
                 }
             }
 
-            HideOnScrollFAB(
-                visible = allLocalItems.isNotEmpty() || allYtItems.isNotEmpty(),
-                lazyListState = lazylistState,
-                icon = R.drawable.shuffle,
-                onClick = {
-                    val local = when {
-                        allLocalItems.isNotEmpty() && allYtItems.isNotEmpty() -> Random.nextFloat() < 0.5
-                        allLocalItems.isNotEmpty() -> true
-                        else -> false
+            var fabMenuExpanded by remember { mutableStateOf(false) }
+
+            Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                HideOnScrollFAB(
+                    visible = true,
+                    lazyListState = lazylistState,
+                    icon = R.drawable.more_vert,
+                    onClick = {
+                        fabMenuExpanded = true
                     }
-                    scope.launch(Dispatchers.Main) {
-                        if (local) {
-                            when (val luckyItem = allLocalItems.random()) {
-                                is Song -> playerConnection.playQueue(YouTubeQueue.radio(luckyItem.toMediaMetadata()))
-                                is Album -> {
-                                    val albumWithSongs = withContext(Dispatchers.IO) {
-                                        database.albumWithSongs(luckyItem.id).first()
-                                    }
-                                    albumWithSongs?.let {
-                                        playerConnection.playQueue(LocalAlbumRadio(it))
-                                    }
-                                }
+                )
 
-                                is Artist -> {}
-                                is Playlist -> {}
+                androidx.compose.material3.DropdownMenu(
+                    expanded = fabMenuExpanded,
+                    onDismissRequest = { fabMenuExpanded = false },
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
+                ) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { androidx.compose.material3.Text(stringResource(R.string.shuffle)) },
+                        leadingIcon = {
+                            Icon(
+                                painter = painterResource(R.drawable.shuffle),
+                                contentDescription = null
+                            )
+                        },
+                        onClick = {
+                            fabMenuExpanded = false
+                            val local = when {
+                                allLocalItems.isNotEmpty() && allYtItems.isNotEmpty() -> Random.nextFloat() < 0.5
+                                allLocalItems.isNotEmpty() -> true
+                                else -> false
                             }
-                        } else {
-                            when (val luckyItem = allYtItems.random()) {
-                                is SongItem -> playerConnection.playQueue(YouTubeQueue.radio(luckyItem.toMediaMetadata()))
-                                is AlbumItem -> playerConnection.playQueue(YouTubeAlbumRadio(luckyItem.playlistId))
-                                is ArtistItem -> luckyItem.radioEndpoint?.let {
-                                    playerConnection.playQueue(YouTubeQueue(it))
-                                }
+                            scope.launch(Dispatchers.Main) {
+                                if (local) {
+                                    when (val luckyItem = allLocalItems.random()) {
+                                        is Song -> playerConnection.playQueue(YouTubeQueue.radio(luckyItem.toMediaMetadata()))
+                                        is Album -> {
+                                            val albumWithSongs = withContext(Dispatchers.IO) {
+                                                database.albumWithSongs(luckyItem.id).first()
+                                            }
+                                            albumWithSongs?.let {
+                                                playerConnection.playQueue(LocalAlbumRadio(it))
+                                            }
+                                        }
 
-                                is PlaylistItem -> luckyItem.playEndpoint?.let {
-                                    playerConnection.playQueue(YouTubeQueue(it))
+                                        is Artist -> {}
+                                        is Playlist -> {}
+                                    }
+                                } else {
+                                    when (val luckyItem = allYtItems.random()) {
+                                        is SongItem -> playerConnection.playQueue(YouTubeQueue.radio(luckyItem.toMediaMetadata()))
+                                        is AlbumItem -> playerConnection.playQueue(YouTubeAlbumRadio(luckyItem.playlistId))
+                                        is ArtistItem -> luckyItem.radioEndpoint?.let {
+                                            playerConnection.playQueue(YouTubeQueue(it))
+                                        }
+
+                                        is PlaylistItem -> luckyItem.playEndpoint?.let {
+                                            playerConnection.playQueue(YouTubeQueue(it))
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
+                    )
+                    
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { androidx.compose.material3.Text(stringResource(R.string.music_recognition)) },
+                        leadingIcon = {
+                            Icon(
+                                painter = painterResource(R.drawable.mic),
+                                contentDescription = null
+                            )
+                        },
+                        onClick = {
+                            fabMenuExpanded = false
+                            navController.navigate(com.darkxvenom.airbeats.ui.screens.musicrecognition.MusicRecognitionRoute)
+                        }
+                    )
                 }
-            )
+            }
 
             Indicator(
                 isRefreshing = isRefreshing,

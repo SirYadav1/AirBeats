@@ -59,9 +59,12 @@ import com.darkxvenom.airbeats.ui.screens.settings.DarkMode
 import com.darkxvenom.airbeats.ui.utils.highQualityThumbnail
 import com.darkxvenom.airbeats.utils.makeTimeString
 import com.darkxvenom.airbeats.utils.rememberEnumPreference
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
 
 @Composable
 fun PaperPlayer(
+    state: BottomSheetState,
     mediaMetadata: MediaMetadata?,
     position: Long,
     duration: Long,
@@ -120,6 +123,7 @@ fun PaperPlayer(
         modifier = Modifier
             .fillMaxSize()
             .background(paper)
+            .bottomSheetDraggable(state)
             .drawWithContent {
                 drawContent()
                 for (x in 0 until size.width.toInt() step noiseBitmap.width) {

@@ -947,6 +947,16 @@ fun SettingsScreen(
                                 onClick = { navController.navigate("settings/appearance") }
                             ),
                             SettingsCategoryItem(
+                                icon = painterResource(R.drawable.schedule),
+                                title = {
+                                    Text(
+                                        stringResource(R.string.always_on_display),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                onClick = { navController.navigate("settings/always_on_display") }
+                            ),
+                            SettingsCategoryItem(
                                 icon = painterResource(R.drawable.person),
                                 title = {
                                     Text(

@@ -1,4 +1,7 @@
 package com.darkxvenom.airbeats.ui.player
+
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.ui.platform.LocalContext
 import coil.ImageLoader
@@ -35,6 +38,7 @@ import com.darkxvenom.airbeats.utils.rememberPreference
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ColourfullPlayer(
+    state: BottomSheetState,
     mediaMetadata: MediaMetadata?,
     position: Long,
     duration: Long,
@@ -80,14 +84,11 @@ fun ColourfullPlayer(
     val textPrimary = Color.Black
     val textSecondary = Color.Black.copy(alpha = 0.6f)
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
+    Box(modifier = Modifier.fillMaxSize().bottomSheetDraggable(state)
             .background(bgColor)
             .statusBarsPadding()
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
+        Column(modifier = Modifier.fillMaxSize()
         ) {
             // Top Bar
             Row(
@@ -351,3 +352,9 @@ fun ColourfullPlayer(
         }
     }
 }
+
+
+
+
+
+

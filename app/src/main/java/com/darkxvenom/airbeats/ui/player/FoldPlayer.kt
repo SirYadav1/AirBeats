@@ -1,5 +1,7 @@
 package com.darkxvenom.airbeats.ui.player
 
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.background
@@ -47,6 +49,7 @@ import kotlin.random.Random
 
 @Composable
 fun FoldPlayer(
+    state: BottomSheetState,
     mediaMetadata: MediaMetadata?,
     position: Long,
     duration: Long,
@@ -76,9 +79,7 @@ fun FoldPlayer(
     val textPrimary = Color(0xFF333333)
     val textSecondary = Color(0xFFA0A0A0)
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
+    Column(modifier = Modifier.fillMaxSize().bottomSheetDraggable(state)
             .background(bg)
             .padding(horizontal = 24.dp)
             .padding(top = 80.dp), // Push things down much more
@@ -376,3 +377,9 @@ fun WaveformSlider(
         }
     }
 }
+
+
+
+
+
+

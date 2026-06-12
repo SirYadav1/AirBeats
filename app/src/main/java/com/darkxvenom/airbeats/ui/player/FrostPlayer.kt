@@ -1,5 +1,7 @@
 package com.darkxvenom.airbeats.ui.player
 
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
 import android.annotation.SuppressLint
 import androidx.media3.common.Player
 import android.content.Intent
@@ -72,6 +74,7 @@ private val HeartOrange = Color(0xFFFF7A00)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FrostPlayer(
+    state: com.darkxvenom.airbeats.ui.component.BottomSheetState,
     mediaMetadata: MediaMetadata?,
     position: Long,
     duration: Long,
@@ -99,6 +102,7 @@ fun FrostPlayer(
     gradientColors: List<Color> = emptyList(),
 ) {
     FrostPlayerScreen(
+        state = state,
         mediaMetadata = mediaMetadata,
         position = position,
         duration = duration,
@@ -128,6 +132,7 @@ fun FrostPlayer(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FrostPlayerScreen(
+    state: com.darkxvenom.airbeats.ui.component.BottomSheetState,
     mediaMetadata: MediaMetadata?,
     position: Long,
     duration: Long,
@@ -166,16 +171,13 @@ fun FrostPlayerScreen(
 
     val iconColor = if (isDark) Color(0xFFFFFFFF) else Color(0xFF5D6B82)
 
-    Box(
-        modifier = modifier.fillMaxSize()
+    Box(modifier = Modifier.fillMaxSize().bottomSheetDraggable(state)
     ) {
         // ── BACKGROUND LAYER (DEFAULT / GRADIENT / BLUR) ──
         if (!isDark) {
             when (playerBackground) {
                 PlayerBackgroundStyle.BLUR -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
+                    Box(modifier = Modifier.fillMaxSize()
                             .background(Color(0xFFE6EEF8))
                     ) {
                         if (artworkUrl != null) {
@@ -189,58 +191,44 @@ fun FrostPlayerScreen(
                                     .alpha(0.6f)
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
+                        Box(modifier = Modifier.fillMaxSize()
                                 .background(Color.White.copy(alpha = 0.55f))
                         )
                     }
                 }
                 PlayerBackgroundStyle.GRADIENT -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
+                    Box(modifier = Modifier.fillMaxSize()
                             .background(Color(0xFFE6EEF8))
                     ) {
                         if (gradientColors.size >= 2) {
                             val animatedGradientColors = gradientColors.map { color ->
                                 animateColorAsState(color, label = "gradient_color").value
                             }
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
+                            Box(modifier = Modifier.fillMaxSize()
                                     .background(
                                         Brush.verticalGradient(colors = animatedGradientColors)
                                     )
                                     .alpha(0.8f)
                             )
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
+                            Box(modifier = Modifier.fillMaxSize()
                                     .background(Color.White.copy(alpha = 0.35f))
                             )
                         } else {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
+                            Box(modifier = Modifier.fillMaxSize()
                                     .background(Color(0xFFE6EEF8))
                             )
                         }
                     }
                 }
                 else -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
+                    Box(modifier = Modifier.fillMaxSize()
                             .background(Color(0xFFE6EEF8))
                     )
                 }
             }
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
+        Column(modifier = Modifier.fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp),
@@ -306,9 +294,7 @@ fun FrostPlayerScreen(
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
+                        Box(modifier = Modifier.fillMaxSize()
                                 .background(
                                     Brush.verticalGradient(
                                         listOf(Color(0xFF1A1A2E), Color(0xFF0F3460))
@@ -812,3 +798,11 @@ private fun FrostChevronLeftIcon(tint: Color, modifier: Modifier = Modifier) {
         )
     }
 }
+
+
+
+
+
+
+
+

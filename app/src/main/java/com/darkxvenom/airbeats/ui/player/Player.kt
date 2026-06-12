@@ -169,6 +169,7 @@ import com.darkxvenom.airbeats.constants.PlayerTextAlignmentKey
 import com.darkxvenom.airbeats.constants.PureBlackKey
 import com.darkxvenom.airbeats.constants.QueuePeekHeight
 import com.darkxvenom.airbeats.constants.ShowLyricsKey
+import com.darkxvenom.airbeats.constants.EnableNewQueueScreenKey
 import com.darkxvenom.airbeats.constants.SliderStyle
 import com.darkxvenom.airbeats.constants.SliderStyleKey
 import com.darkxvenom.airbeats.constants.SmallButtonsShapeKey
@@ -183,6 +184,7 @@ import com.darkxvenom.airbeats.models.MediaMetadata
 import com.darkxvenom.airbeats.playback.ExoDownloadService
 import com.darkxvenom.airbeats.ui.component.BottomSheet
 import com.darkxvenom.airbeats.ui.component.BottomSheetState
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
 import com.darkxvenom.airbeats.ui.component.LocalMenuState
 import com.darkxvenom.airbeats.ui.component.PlayerSliderTrack
 import com.darkxvenom.airbeats.ui.component.ResizableIconButton
@@ -254,6 +256,7 @@ fun BottomSheetPlayer(
     val isSystemInDarkTheme = isSystemInDarkTheme()
     val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
     val pureBlack by rememberPreference(PureBlackKey, defaultValue = false)
+    val enableNewQueueScreen by rememberPreference(EnableNewQueueScreenKey, defaultValue = false)
     val useDarkTheme = remember(darkTheme, isSystemInDarkTheme) {
         if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
     }
@@ -953,16 +956,18 @@ fun BottomSheetPlayer(
                 defaultValue = com.darkxvenom.airbeats.constants.NavBarStyle.CLASSIC
             )
             if (navBarStyle == com.darkxvenom.airbeats.constants.NavBarStyle.NEON) {
-                NeonMiniPlayer()
+                NeonMiniPlayer(state = state)
             } else if (navBarStyle == com.darkxvenom.airbeats.constants.NavBarStyle.APPLE) {
                 AppleMiniPlayer(
                     position = position,
                     duration = duration,
+                    state = state,
                 )
             } else {
                 MiniPlayer(
                     position = position,
                     duration = duration,
+                    state = state,
                 )
             }
         },
@@ -1920,6 +1925,7 @@ fun BottomSheetPlayer(
             var volume by remember { mutableFloatStateOf(playerConnection.player.volume) }
 
             PaperPlayer(
+                state = state,
                 mediaMetadata = mediaMetadata,
                 position = sliderPosition ?: position,
                 duration = duration,
@@ -1961,6 +1967,7 @@ fun BottomSheetPlayer(
             )
         } else if (playerScreenStyle == PlayerScreenStyle.LIQUID) {
             LiquidPlayer(
+                state = state,
                 mediaMetadata = mediaMetadata,
                 position = sliderPosition ?: position,
                 duration = duration,
@@ -2004,6 +2011,7 @@ fun BottomSheetPlayer(
             )
         } else if (playerScreenStyle == PlayerScreenStyle.CLOUDGLOW) {
             CloudGlowPlayer(
+                state = state,
                 mediaMetadata = mediaMetadata,
                 position = sliderPosition ?: position,
                 duration = duration,
@@ -2047,6 +2055,7 @@ fun BottomSheetPlayer(
             )
         } else if (playerScreenStyle == PlayerScreenStyle.FROST) {
             FrostPlayer(
+                state = state,
                 mediaMetadata = mediaMetadata,
                 position = sliderPosition ?: position,
                 duration = duration,
@@ -2090,6 +2099,7 @@ fun BottomSheetPlayer(
             )
         } else if (playerScreenStyle == PlayerScreenStyle.FOLD) {
             FoldPlayer(
+                state = state,
                 mediaMetadata = mediaMetadata,
                 position = sliderPosition ?: position,
                 duration = duration,
@@ -2236,6 +2246,7 @@ fun BottomSheetPlayer(
             }
         } else if (playerScreenStyle == PlayerScreenStyle.GROOVE) {
             GroovePlayer(
+                state = state,
                 playerConnection = playerConnection,
                 mediaMetadata = mediaMetadata,
                 playbackState = playbackState,
@@ -2274,6 +2285,7 @@ fun BottomSheetPlayer(
             )
         } else if (playerScreenStyle == PlayerScreenStyle.POPSY) {
             PopsyPlayer(
+                state = state,
                 mediaMetadata = mediaMetadata,
                 position = sliderPosition ?: position,
                 duration = duration,
@@ -2315,6 +2327,7 @@ fun BottomSheetPlayer(
             )
         } else if (playerScreenStyle == PlayerScreenStyle.MINIMAL) {
             MinimalPlayer(
+                state = state,
                 mediaMetadata = mediaMetadata,
                 nextMediaMetadata = nextMediaMetadata,
                 position = sliderPosition ?: position,
@@ -2353,6 +2366,7 @@ fun BottomSheetPlayer(
             )
         } else if (playerScreenStyle == PlayerScreenStyle.COLOURFULL) {
             ColourfullPlayer(
+                state = state,
                 mediaMetadata = mediaMetadata,
                 position = sliderPosition ?: position,
                 duration = duration,
@@ -2392,6 +2406,7 @@ fun BottomSheetPlayer(
             )
         } else if (playerScreenStyle == PlayerScreenStyle.APPLE) {
             ApplePlayer(
+                state = state,
                 mediaMetadata = mediaMetadata,
                 position = sliderPosition ?: position,
                 duration = duration,
@@ -2445,6 +2460,7 @@ fun BottomSheetPlayer(
             )
         } else if (playerScreenStyle == PlayerScreenStyle.GALAXY) {
             GalaxyPlayer(
+                state = state,
                 mediaMetadata = mediaMetadata,
                 position = sliderPosition ?: position,
                 duration = duration,
@@ -2584,7 +2600,8 @@ fun BottomSheetPlayer(
                     modifier =
                         Modifier
                             .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
-                            .padding(bottom = queueSheetState.collapsedBound),
+                            .padding(bottom = queueSheetState.collapsedBound)
+                            .bottomSheetDraggable(state),
                 ) {
                     Box(
                         contentAlignment = Alignment.Center,
@@ -2615,19 +2632,30 @@ fun BottomSheetPlayer(
                 state = queueSheetState
             )
         } else if (playerScreenStyle == PlayerScreenStyle.CLASSIC || !queueSheetState.isCollapsed) {
-            Queue(
-                state = queueSheetState,
-                playerBottomSheetState = state,
-                navController = navController,
-                backgroundColor =
-                    if (useBlackBackground) {
-                        Color.Black
-                    } else {
-                        MaterialTheme.colorScheme.surfaceContainer
-                    },
-                onBackgroundColor = onBackgroundColor,
-                textBackgroundColor = TextBackgroundColor,
-            )
+            val bgCol = if (useBlackBackground) Color.Black else MaterialTheme.colorScheme.surfaceContainer
+            
+            if (enableNewQueueScreen) {
+                AlternateQueue(
+                    state = queueSheetState,
+                    playerBottomSheetState = state,
+                    navController = navController,
+                    backgroundColor = bgCol,
+                    onBackgroundColor = onBackgroundColor,
+                    TextBackgroundColor = TextBackgroundColor,
+                    textButtonColor = textButtonColor,
+                    iconButtonColor = iconButtonColor,
+                    pureBlack = pureBlack,
+                )
+            } else {
+                Queue(
+                    state = queueSheetState,
+                    playerBottomSheetState = state,
+                    navController = navController,
+                    backgroundColor = bgCol,
+                    onBackgroundColor = onBackgroundColor,
+                    textBackgroundColor = TextBackgroundColor,
+                )
+            }
         }
     }
 }
@@ -3613,7 +3641,7 @@ fun ConcentricWaveEffect(
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = 2000,   // ← fast speed
+                durationMillis = 8000,   // ← slow speed
                 easing = LinearEasing
             ),
             repeatMode = RepeatMode.Restart
@@ -3650,6 +3678,7 @@ fun ConcentricWaveEffect(
 
 @Composable
 fun LiquidPlayer(
+    state: BottomSheetState,
     mediaMetadata: MediaMetadata?,
     position: Long,
     duration: Long,
@@ -3677,7 +3706,8 @@ fun LiquidPlayer(
     gradientColors: List<Color> = emptyList(),
 ) {
     FuturisticPlayer(
-        mediaMetadata = mediaMetadata,
+                state = state,
+                mediaMetadata = mediaMetadata,
         position = position,
         duration = duration,
         isPlaying = isPlaying,
@@ -3705,6 +3735,7 @@ fun LiquidPlayer(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CloudGlowPlayer(
+    state: BottomSheetState,
     mediaMetadata: MediaMetadata?,
     position: Long,
     duration: Long,
@@ -3732,6 +3763,7 @@ fun CloudGlowPlayer(
     gradientColors: List<Color> = emptyList(),
 ) {
     CloudGlowPlayerScreen(
+                state = state,
         mediaMetadata = mediaMetadata,
         position = position,
         duration = duration,
@@ -4063,6 +4095,13 @@ fun LiquidControlBarBackground(
         )
     }
 }
+
+
+
+
+
+
+
 
 
 

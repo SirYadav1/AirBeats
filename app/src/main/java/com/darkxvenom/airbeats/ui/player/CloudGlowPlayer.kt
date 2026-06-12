@@ -1,5 +1,7 @@
 package com.darkxvenom.airbeats.ui.player
 
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -64,6 +66,7 @@ private val ActiveBlue  = Color(0xFF007AFF)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CloudGlowPlayerScreen(
+    state: com.darkxvenom.airbeats.ui.component.BottomSheetState,
     mediaMetadata: MediaMetadata?,
     position: Long,
     duration: Long,
@@ -105,16 +108,13 @@ fun CloudGlowPlayerScreen(
 
     val iconColor = if (isDark) Color(0xFFFFFFFF) else Color(0xFF5D6B82)
 
-    Box(
-        modifier = modifier.fillMaxSize()
+    Box(modifier = Modifier.fillMaxSize().bottomSheetDraggable(state)
     ) {
         // ── BACKGROUND LAYER (DEFAULT / GRADIENT / BLUR) ─────────────────────
         if (!isDark) {
             when (playerBackground) {
                 PlayerBackgroundStyle.BLUR -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
+                    Box(modifier = Modifier.fillMaxSize()
                             .background(Color(0xFFE6EEF8))
                     ) {
                         if (artworkUrl != null) {
@@ -128,34 +128,26 @@ fun CloudGlowPlayerScreen(
                                     .alpha(0.6f)
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
+                        Box(modifier = Modifier.fillMaxSize()
                                 .background(Color.White.copy(alpha = 0.55f))
                         )
                     }
                 }
                 PlayerBackgroundStyle.GRADIENT -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
+                    Box(modifier = Modifier.fillMaxSize()
                             .background(Color(0xFFE6EEF8))
                     ) {
                         if (gradientColors.size >= 2) {
                             val animatedGradientColors = gradientColors.map { color ->
                                 animateColorAsState(color, label = "gradient_color").value
                             }
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
+                            Box(modifier = Modifier.fillMaxSize()
                                     .background(
                                         Brush.verticalGradient(colors = animatedGradientColors)
                                     )
                                     .alpha(0.8f)
                             )
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
+                            Box(modifier = Modifier.fillMaxSize()
                                     .background(Color.White.copy(alpha = 0.35f))
                             )
                         } else {
@@ -169,9 +161,7 @@ fun CloudGlowPlayerScreen(
             }
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
+        Column(modifier = Modifier.fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp),
@@ -222,9 +212,7 @@ fun CloudGlowPlayerScreen(
                             .clip(CircleShape)
                     )
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
+                    Box(modifier = Modifier.fillMaxSize()
                             .clip(CircleShape)
                             .background(
                                 Brush.verticalGradient(
@@ -439,9 +427,7 @@ fun CloudGlowPlayerScreen(
 @Composable
 private fun DefaultBackground(isDark: Boolean, artworkUrl: String?) {
     if (isDark) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
+        Box(modifier = Modifier.fillMaxSize()
                 .background(Color.Black)
         ) {
             if (artworkUrl != null) {
@@ -455,16 +441,12 @@ private fun DefaultBackground(isDark: Boolean, artworkUrl: String?) {
                         .alpha(0.4f)
                 )
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
+            Box(modifier = Modifier.fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.55f))
             )
         }
     } else {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
+        Box(modifier = Modifier.fillMaxSize()
                 .background(Color(0xFFE6EEF8))
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
@@ -706,3 +688,10 @@ private fun ChevronLeftIcon(tint: Color, modifier: Modifier = Modifier) {
         )
     }
 }
+
+
+
+
+
+
+

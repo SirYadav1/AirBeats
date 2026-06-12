@@ -24,6 +24,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,6 +72,7 @@ val AppleRed = Color(0xFFFA233B)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ApplePlayer(
+    state: BottomSheetState,
     mediaMetadata: MediaMetadata?,
     position: Long,
     duration: Long,
@@ -96,8 +99,7 @@ fun ApplePlayer(
 ) {
     val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.SQUIGGLY)
 
-    Box(
-        modifier = Modifier.fillMaxSize()
+    Box(modifier = Modifier.fillMaxSize().bottomSheetDraggable(state)
     ) {
         // Thumbnail Background with Liquid Glass effect
         val artworkUrl = mediaMetadata?.thumbnailUrl
@@ -128,23 +130,17 @@ fun ApplePlayer(
                 )
 
                 // Subtle dark scrim to ensure text/icons are readable
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
+                Box(modifier = Modifier.fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.25f))
                 )
             }
         } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
+            Box(modifier = Modifier.fillMaxSize()
                     .background(ApplePlayerBackgroundGradient)
             )
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
+        Column(modifier = Modifier.fillMaxSize()
                 .statusBarsPadding()
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -192,9 +188,7 @@ fun ApplePlayer(
                     .clip(RoundedCornerShape(40.dp))
                     .background(AppleCardBackground)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
+                Column(modifier = Modifier.fillMaxSize()
                         .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -213,9 +207,7 @@ fun ApplePlayer(
                             modifier = Modifier.fillMaxSize()
                         )
                         // Gloss reflection overlay
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
+                        Box(modifier = Modifier.fillMaxSize()
                                 .background(
                                     Brush.linearGradient(
                                         colors = listOf(
@@ -516,3 +508,8 @@ fun SortMenuIcon(modifier: Modifier = Modifier, color: Color = Color.White) {
         )
     }
 }
+
+
+
+
+

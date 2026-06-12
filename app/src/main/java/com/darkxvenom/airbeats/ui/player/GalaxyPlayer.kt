@@ -1,5 +1,10 @@
 package com.darkxvenom.airbeats.ui.player
 
+import com.darkxvenom.airbeats.utils.rememberEnumPreference
+import com.darkxvenom.airbeats.ui.component.PlayerSliderTrack
+import com.darkxvenom.airbeats.constants.SliderStyle
+import com.darkxvenom.airbeats.constants.SliderStyleKey
+import me.saket.squiggles.SquigglySlider
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
@@ -79,13 +84,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import com.darkxvenom.airbeats.constants.ShowGalaxySliderKey
-import com.darkxvenom.airbeats.constants.SliderStyle
-import com.darkxvenom.airbeats.constants.SliderStyleKey
-import com.darkxvenom.airbeats.ui.component.PlayerSliderTrack
-import com.darkxvenom.airbeats.utils.rememberEnumPreference
+import com.darkxvenom.airbeats.ui.utils.highQualityThumbnail
 import com.darkxvenom.airbeats.utils.rememberPreference
+import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
+import com.darkxvenom.airbeats.ui.component.BottomSheetState
 import com.darkxvenom.airbeats.utils.makeTimeString
-import me.saket.squiggles.SquigglySlider
 
 @Composable
 fun LiquidGlassPill(
@@ -107,6 +110,7 @@ fun LiquidGlassPill(
         content()
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,7 +141,8 @@ fun GalaxyPlayer(
     onOpenFullscreenLyrics: () -> Unit = {},
     queueWindows: List<MediaItem> = emptyList(),
     currentWindowIndex: Int = 0,
-    lyrics: String? = null
+    lyrics: String? = null,
+    state: BottomSheetState
 ) {
     val scope = rememberCoroutineScope()
     val showGalaxySlider by rememberPreference(ShowGalaxySliderKey, defaultValue = true)
@@ -229,7 +234,7 @@ fun GalaxyPlayer(
         )
     )
 
-    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush).bottomSheetDraggable(state)) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -838,3 +843,5 @@ fun TopPillButton(icon: Int, text: String, isSelected: Boolean, onClick: () -> U
         )
     }
 }
+
+

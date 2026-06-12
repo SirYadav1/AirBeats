@@ -9,6 +9,7 @@ import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.DraggableState
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -60,7 +61,7 @@ fun BottomSheet(
         topStart = if (!state.isExpanded) 16.dp else 0.dp,
         topEnd = if (!state.isExpanded) 16.dp else 0.dp
     ),
-    background: @Composable (BoxScope.() -> Unit) = { },
+    background: @Composable BoxScope.() -> Unit = { },
     onDismiss: (() -> Unit)? = null,
     collapsedContent: @Composable BoxScope.() -> Unit,
     content: @Composable BoxScope.() -> Unit,
@@ -125,11 +126,9 @@ fun BottomSheet(
                     .graphicsLayer {
                         alpha = 1f - (state.progress * 4).coerceAtMost(1f)
                     }
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = state::expandSoft
-                    )
+                    .pointerInput(state) {
+                        detectTapGestures(onTap = { state.expandSoft() })
+                    }
                     .fillMaxWidth()
                     .height(state.collapsedBound),
                 content = collapsedContent
@@ -348,6 +347,32 @@ fun rememberBottomSheetState(
             coroutineScope = coroutineScope,
             animatable = animatable,
             collapsedBound = collapsedBound
+        )
+    }
+}
+
+@Composable
+fun Modifier.bottomSheetDraggable(
+    state: BottomSheetState,
+    onDismiss: (() -> Unit)? = null
+): Modifier {
+    return this.pointerInput(state) {
+        val velocityTracker = VelocityTracker()
+
+        detectVerticalDragGestures(
+            onVerticalDrag = { change, dragAmount ->
+                velocityTracker.addPointerInputChange(change)
+                state.dispatchRawDelta(dragAmount)
+            },
+            onDragCancel = {
+                velocityTracker.resetTracking()
+                state.snapTo(state.collapsedBound)
+            },
+            onDragEnd = {
+                val velocity = -velocityTracker.calculateVelocity().y
+                velocityTracker.resetTracking()
+                state.performFling(velocity, onDismiss)
+            }
         )
     }
 }

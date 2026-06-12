@@ -197,6 +197,7 @@ import com.darkxvenom.airbeats.playback.PlayerConnection
 import com.darkxvenom.airbeats.playback.queues.YouTubeQueue
 import com.darkxvenom.airbeats.ui.component.AvatarPreferenceManager
 import com.darkxvenom.airbeats.ui.component.AvatarSelection
+import com.darkxvenom.airbeats.ui.component.BottomSheet
 import com.darkxvenom.airbeats.ui.component.BottomSheetMenu
 import com.darkxvenom.airbeats.ui.component.IconButton
 import com.darkxvenom.airbeats.ui.component.CurvedBottomNavigationBar
@@ -273,6 +274,10 @@ import com.darkxvenom.airbeats.ui.component.AirBeatsRank
 import com.darkxvenom.airbeats.ui.component.RankBadge
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.darkxvenom.airbeats.viewmodels.StatsViewModel
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.input.pointer.pointerInput
+import com.darkxvenom.airbeats.constants.AodAutoActivationKey
+import kotlinx.coroutines.isActive
 
 @Suppress("DEPRECATION", "ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
 @AndroidEntryPoint
@@ -423,6 +428,7 @@ class MainActivity : ComponentActivity() {
             val playerScreenStyle by rememberEnumPreference(PlayerScreenStyleKey, defaultValue = PlayerScreenStyle.CLASSIC)
             val homeScreenStyle by rememberEnumPreference(HomeScreenStyleKey, defaultValue = HomeScreenStyle.CLASSIC)
             val navBarStyle by rememberEnumPreference(NavBarStyleKey, defaultValue = NavBarStyle.CLASSIC)
+            val enableNewLyricsScreen by rememberPreference(com.darkxvenom.airbeats.constants.EnableNewLyricsScreenKey, defaultValue = false)
 
             val enableDynamicTheme by rememberPreference(DynamicThemeKey, defaultValue = true)
             val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
@@ -841,14 +847,52 @@ class MainActivity : ComponentActivity() {
                                 var showRealNavBar by remember { mutableStateOf(false) }
                                 var playIntroAnimation by remember { mutableStateOf(true) }
 
+                                val aodAutoTimeoutSeconds by rememberPreference(AodAutoActivationKey, 0)
+                                var isAodActive by remember { mutableStateOf(false) }
+                                var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+                                val resetAodTimer = {
+                                    lastInteractionTime = System.currentTimeMillis()
+                                    if (isAodActive) {
+                                        isAodActive = false
+                                    }
+                                }
+
+                                LaunchedEffect(aodAutoTimeoutSeconds, playerBottomSheetState.isExpanded, lastInteractionTime, isAodActive) {
+                                    if (aodAutoTimeoutSeconds > 0 && playerBottomSheetState.isExpanded && !isAodActive) {
+                                        kotlinx.coroutines.delay(100L)
+                                        while (isActive) {
+                                            kotlinx.coroutines.delay(100L)
+                                            val elapsedSeconds = (System.currentTimeMillis() - lastInteractionTime) / 1000f
+                                            if (elapsedSeconds >= aodAutoTimeoutSeconds) {
+                                                isAodActive = true
+                                                navController.navigate("always_on_display") {
+                                                    launchSingleTop = true
+                                                }
+                                                break
+                                            }
+                                        }
+                                    }
+                                }
+
                                 LaunchedEffect(Unit) {
-                                    delay(200)
+                                    kotlinx.coroutines.delay(200)
                                     showRealNavBar = true
-                                    delay(600)
+                                    kotlinx.coroutines.delay(600)
                                     playIntroAnimation = false
                                 }
 
                                 Scaffold(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .pointerInput(Unit) {
+                                            awaitEachGesture {
+                                                awaitPointerEvent()
+                                                resetAodTimer()
+                                            }
+                                        },
                                     containerColor = Color.Transparent,
                                     topBar = {
                                         val isSearchRoute =
@@ -1056,27 +1100,56 @@ class MainActivity : ComponentActivity() {
                                                         .offset(y = 0.dp)
                                                 )
                                             }
+                                            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                                val lyricsBottomSheetState = rememberBottomSheetState(
+                                                    dismissedBound = 0.dp,
+                                                    expandedBound = with(androidx.compose.ui.platform.LocalDensity.current) { constraints.maxHeight.toDp() },
+                                                )
 
-                                            AnimatedVisibility(
-                                                visible = showFullscreenLyrics,
-                                                enter = slideInVertically(
-                                                    initialOffsetY = { it },
-                                                    animationSpec = tween(300)
-                                                ) + fadeIn(animationSpec = tween(300)),
-                                                exit = slideOutVertically(
-                                                    targetOffsetY = { it },
-                                                    animationSpec = tween(300)
-                                                ) + fadeOut(animationSpec = tween(300))
+                                            LaunchedEffect(showFullscreenLyrics) {
+                                                if (showFullscreenLyrics) {
+                                                    lyricsBottomSheetState.expandSoft()
+                                                } else {
+                                                    lyricsBottomSheetState.collapseSoft()
+                                                }
+                                            }
+
+                                            LaunchedEffect(lyricsBottomSheetState.isCollapsed) {
+                                                if (lyricsBottomSheetState.isCollapsed && showFullscreenLyrics) {
+                                                    showFullscreenLyrics = false
+                                                }
+                                            }
+
+                                            BottomSheet(
+                                                state = lyricsBottomSheetState,
+                                                modifier = Modifier.fillMaxSize(),
+                                                background = {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .background(MaterialTheme.colorScheme.background.copy(alpha = lyricsBottomSheetState.progress.coerceIn(0f, 1f)))
+                                                    )
+                                                },
+                                                collapsedContent = {},
                                             ) {
                                                 val playerConnection = LocalPlayerConnection.current
                                                 val mediaMetadata by playerConnection?.mediaMetadata?.collectAsState()
-                                                    ?: return@AnimatedVisibility
+                                                    ?: return@BottomSheet
 
                                                 if (mediaMetadata != null) {
                                                     if (playerScreenStyle == PlayerScreenStyle.SPOTIFY) {
                                                         SpotifyLyrics(
                                                             onNavigateBack = {
-                                                                showFullscreenLyrics = false
+                                                                lyricsBottomSheetState.collapseSoft()
+                                                            },
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    } else if (enableNewLyricsScreen && playerScreenStyle != PlayerScreenStyle.GALAXY) {
+                                                        com.darkxvenom.airbeats.ui.player.OpenTuneLyricsScreen(
+                                                            mediaMetadata = mediaMetadata!!,
+                                                            navController = navController,
+                                                            onBackClick = {
+                                                                lyricsBottomSheetState.collapseSoft()
                                                             },
                                                             modifier = Modifier.fillMaxSize()
                                                         )
@@ -1084,7 +1157,7 @@ class MainActivity : ComponentActivity() {
                                                         Lyrics(
                                                             sliderPositionProvider = { null },
                                                             onNavigateBack = {
-                                                                showFullscreenLyrics = false
+                                                                lyricsBottomSheetState.collapseSoft()
                                                             },
                                                             modifier = Modifier.fillMaxSize()
                                                         )
@@ -1095,9 +1168,8 @@ class MainActivity : ComponentActivity() {
                                                             .fillMaxSize()
                                                             .background(MaterialTheme.colorScheme.background),
                                                         contentAlignment = Alignment.Center
-                                                    ) {
-                                                        Text("No hay canción reproduciéndose")
-                                                    }
+                                                    ) {}
+                                                }
                                                 }
                                             }
 
@@ -1282,10 +1354,6 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     },
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
-                                        .background(MaterialTheme.colorScheme.surface)
                                 ) { paddingValues ->
                                     Box(
                                         modifier = Modifier
@@ -2008,3 +2076,6 @@ fun AnimatedBar(
             )
     )
 }
+
+
+

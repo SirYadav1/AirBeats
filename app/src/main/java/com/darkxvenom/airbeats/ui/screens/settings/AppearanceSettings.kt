@@ -118,6 +118,8 @@ fun AppearanceSettings(
         defaultValue = LyricsPosition.CENTER
     )
     val (lyricsClick, onLyricsClickChange) = rememberPreference(LyricsClickKey, defaultValue = true)
+    val (enableNewLyricsScreen, onEnableNewLyricsScreenChange) = rememberPreference(EnableNewLyricsScreenKey, defaultValue = false)
+    val (enableNewQueueScreen, onEnableNewQueueScreenChange) = rememberPreference(EnableNewQueueScreenKey, defaultValue = false)
     val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(
         SliderStyleKey,
         defaultValue = SliderStyle.SQUIGGLY
@@ -134,6 +136,7 @@ fun AppearanceSettings(
         AnimateLyricsKey,
         defaultValue = true
     )
+
 
     val (rotateBackground, onRotateBackgroundChange) = rememberPreference(
         key = RotateBackgroundKey,
@@ -946,6 +949,22 @@ fun AppearanceSettings(
                             description = stringResource(R.string.animate_lyrics_desc),
                             checked = animateLyrics,
                             onCheckedChange = onAnimateLyricsChange
+                        )},
+
+                        {SwitchPreference(
+                            title = { Text(stringResource(R.string.enable_new_lyrics_screen)) },
+                            icon = { Icon(painterResource(R.drawable.lyrics), null) },
+                            description = stringResource(R.string.enable_new_lyrics_screen_desc),
+                            checked = enableNewLyricsScreen,
+                            onCheckedChange = onEnableNewLyricsScreenChange
+                        )},
+
+                        {SwitchPreference(
+                            title = { Text("New Queue Screen") },
+                            icon = { Icon(painterResource(R.drawable.music_note), null) },
+                            description = "Use OpenTune's queue screen",
+                            checked = enableNewQueueScreen,
+                            onCheckedChange = onEnableNewQueueScreenChange
                         )}
                     )
                 )
@@ -1045,3 +1064,4 @@ enum class PlayerTextAlignment {
     SIDED,
     CENTER,
 }
+

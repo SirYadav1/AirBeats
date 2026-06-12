@@ -898,11 +898,15 @@ private fun ProfileBubble(
     profileUrl: String?,
     name: String,
 ) {
-    if (profileUrl != null) {
+    val validProfileUrl = profileUrl?.trim()?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
+    var imageLoadFailed by remember(validProfileUrl) { mutableStateOf(false) }
+
+    if (validProfileUrl != null && !imageLoadFailed) {
         AsyncImage(
-            model = profileUrl,
+            model = validProfileUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
+            onError = { imageLoadFailed = true },
             modifier =
                 Modifier
                     .size(34.dp)
@@ -918,7 +922,7 @@ private fun ProfileBubble(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
+                text = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "A",
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                 fontWeight = FontWeight.Black,
             )

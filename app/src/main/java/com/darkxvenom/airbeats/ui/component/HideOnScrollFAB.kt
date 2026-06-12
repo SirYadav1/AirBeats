@@ -27,6 +27,7 @@ fun BoxScope.HideOnScrollFAB(
     visible: Boolean = true,
     lazyListState: LazyListState,
     @DrawableRes icon: Int,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     AnimatedVisibility(
@@ -39,7 +40,8 @@ fun BoxScope.HideOnScrollFAB(
                 .windowInsetsPadding(
                     LocalPlayerAwareWindowInsets.current
                         .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
-                ),
+                )
+                .then(modifier),
     ) {
         FloatingActionButton(
             modifier = Modifier.padding(16.dp),
@@ -58,6 +60,7 @@ fun BoxScope.HideOnScrollFAB(
     visible: Boolean = true,
     lazyListState: LazyGridState,
     @DrawableRes icon: Int,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     AnimatedVisibility(
@@ -70,7 +73,8 @@ fun BoxScope.HideOnScrollFAB(
                 .windowInsetsPadding(
                     LocalPlayerAwareWindowInsets.current
                         .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
-                ),
+                )
+                .then(modifier),
     ) {
         FloatingActionButton(
             modifier = Modifier.padding(16.dp),
@@ -89,6 +93,7 @@ fun BoxScope.HideOnScrollFAB(
     visible: Boolean = true,
     scrollState: ScrollState,
     @DrawableRes icon: Int,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     AnimatedVisibility(
@@ -101,7 +106,8 @@ fun BoxScope.HideOnScrollFAB(
                 .windowInsetsPadding(
                     LocalPlayerAwareWindowInsets.current
                         .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
-                ),
+                )
+                .then(modifier),
     ) {
         FloatingActionButton(
             modifier = Modifier.padding(16.dp),

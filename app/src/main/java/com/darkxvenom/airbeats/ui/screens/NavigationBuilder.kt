@@ -13,10 +13,14 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import com.darkxvenom.airbeats.ui.component.BottomSheetState
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.window.DialogProperties
+import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.dialog
 import androidx.navigation.navArgument
 import com.darkxvenom.airbeats.BuildConfig
 import com.darkxvenom.airbeats.constants.HomeScreenStyle
@@ -35,6 +39,7 @@ import com.darkxvenom.airbeats.ui.screens.playlist.TopPlaylistScreen
 import com.darkxvenom.airbeats.ui.screens.search.OnlineSearchResult
 import com.darkxvenom.airbeats.ui.screens.settings.AboutScreen
 import com.darkxvenom.airbeats.ui.screens.settings.AccountSettings
+import com.darkxvenom.airbeats.ui.screens.settings.AODSettings
 import com.darkxvenom.airbeats.ui.screens.settings.AppearanceSettings
 import com.darkxvenom.airbeats.ui.screens.settings.BackupAndRestore
 import com.darkxvenom.airbeats.ui.screens.settings.ContentSettings
@@ -44,6 +49,7 @@ import com.darkxvenom.airbeats.ui.screens.settings.PlayerSettings
 import com.darkxvenom.airbeats.ui.screens.settings.PrivacySettings
 import com.darkxvenom.airbeats.ui.screens.settings.SettingsScreen
 import com.darkxvenom.airbeats.ui.screens.settings.StorageSettings
+import com.darkxvenom.airbeats.ui.screens.AlwaysOnDisplayScreen
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @SuppressLint("UnrememberedMutableState")
@@ -342,6 +348,9 @@ fun NavGraphBuilder.navigationBuilder(
     composable("settings/appearance") {
         AppearanceSettings(navController, scrollBehavior)
     }
+    composable("settings/always_on_display") {
+        AODSettings(navController, scrollBehavior)
+    }
     composable("settings/account") {
         AccountSettings(navController, scrollBehavior)
     }
@@ -371,6 +380,15 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("login") {
         LoginScreen(navController)
+    }
+    dialog(
+        route = "always_on_display",
+        dialogProperties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        AlwaysOnDisplayScreen(navController)
     }
 }
 
