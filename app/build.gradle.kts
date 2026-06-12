@@ -20,8 +20,6 @@ val localProperties = Properties().apply {
     }
 }
 val googleApiKey = localProperties.getProperty("google.api.key") ?: ""
-val airbeatsDatabaseUrl = localProperties.getProperty("airbeats.database.url") ?: ""
-val airbeatsDatabaseApiKey = localProperties.getProperty("airbeats.database.api.key") ?: ""
 
 fun String.asBuildConfigString(): String =
     "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
@@ -35,12 +33,10 @@ android {
         applicationId = "com.darkxvenom.airbeats"
         minSdk = 24
         targetSdk = 35
-        versionCode = 144
-        versionName = "5.2.0"
+        versionCode = 151
+        versionName = "5.3.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GOOGLE_API_KEY", googleApiKey.asBuildConfigString())
-        buildConfigField("String", "AIRBEATS_DATABASE_URL", airbeatsDatabaseUrl.asBuildConfigString())
-        buildConfigField("String", "AIRBEATS_DATABASE_API_KEY", airbeatsDatabaseApiKey.asBuildConfigString())
     }
 
     buildTypes {
@@ -172,6 +168,7 @@ dependencies {
     implementation(projects.lrclib)
     implementation(projects.kizzy)
     implementation(project(":jossredconnect"))
+    implementation(project(":shazamkit"))
 
     implementation(libs.ktor.client.core)
 

@@ -1,7 +1,13 @@
 package com.darkxvenom.airbeats.ui.menu
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,11 +39,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import androidx.core.content.ContextCompat
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.navigation.NavController
@@ -98,6 +106,36 @@ fun YouTubeSongMenu(
 
     val notAddedList by remember {
         mutableStateOf(mutableListOf<MediaMetadata>())
+    }
+
+    val permReqMsg = stringResource(R.string.storage_permission_required)
+    val savingToastMsg = stringResource(R.string.saving_song)
+    val savedToastMsg = stringResource(R.string.song_saved_successfully)
+    val failedToastMsg = stringResource(R.string.song_save_failed)
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            Toast.makeText(context, savingToastMsg, Toast.LENGTH_SHORT).show()
+            coroutineScope.launch(Dispatchers.IO) {
+                com.darkxvenom.airbeats.utils.SaveToStorageUtil
+                    .saveToMusicFolder(context, song.toMediaMetadata())
+                    .onSuccess {
+                        launch(Dispatchers.Main) {
+                            Toast.makeText(context, savedToastMsg, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    .onFailure { e ->
+                        launch(Dispatchers.Main) {
+                            Toast.makeText(context, "$failedToastMsg: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+            }
+            onDismiss()
+        } else {
+            Toast.makeText(context, permReqMsg, Toast.LENGTH_LONG).show()
+        }
     }
 
     AddToPlaylistDialog(
@@ -281,6 +319,40 @@ fun YouTubeSongMenu(
                 )
             },
         )
+        GridMenuItem(
+            icon = R.drawable.save_to_storage,
+            title = R.string.save_to_local,
+        ) {
+            val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                true
+            } else {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                ) == PackageManager.PERMISSION_GRANTED
+            }
+
+            if (hasPermission) {
+                Toast.makeText(context, savingToastMsg, Toast.LENGTH_SHORT).show()
+                coroutineScope.launch(Dispatchers.IO) {
+                    com.darkxvenom.airbeats.utils.SaveToStorageUtil
+                        .saveToMusicFolder(context, song.toMediaMetadata())
+                        .onSuccess {
+                            launch(Dispatchers.Main) {
+                                Toast.makeText(context, savedToastMsg, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        .onFailure { e ->
+                            launch(Dispatchers.Main) {
+                                Toast.makeText(context, "$failedToastMsg: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                }
+                onDismiss()
+            } else {
+                permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+        }
         if (artists.isNotEmpty()) {
             GridMenuItem(
                 icon = R.drawable.artist,

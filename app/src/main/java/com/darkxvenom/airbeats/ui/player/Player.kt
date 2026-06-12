@@ -3613,7 +3613,7 @@ fun ConcentricWaveEffect(
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = 2000,   // ← fast speed
+                durationMillis = 8000,   // ← slow speed
                 easing = LinearEasing
             ),
             repeatMode = RepeatMode.Restart
