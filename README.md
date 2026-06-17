@@ -1,99 +1,133 @@
-# AirBeats 亗
+# 🎵 AirBeats 亗
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/drkvenom786/Airbeats/refs/heads/main/sc.png" alt="AirBeats Preview" width="100%"/>
   
-  ### Advanced YouTube Music Client with Material Design 3 for Android
+  ### 🚀 Advanced YouTube Music Client with Material Design 3
+  **Experience Music Like Never Before on Android**
   
-  [![Latest Release](https://img.shields.io/github/v/release/d0x-dev/airbeats?style=flat-square&logo=github&color=0D1117&labelColor=161B22)](https://github.com/d0x-dev/AirBeats/releases)
-  [![License](https://img.shields.io/github/license/d0x-dev/airbeats?style=flat-square&logo=gnu&color=2B3137&labelColor=161B22)](https://github.com/d0x-dev/AirBeats/blob/main/LICENSE)
-  [![Android](https://img.shields.io/badge/Platform-Android%206.0+-3DDC84.svg?style=flat-square&logo=android&logoColor=white&labelColor=161B22)](https://www.android.com)
+  [![Latest Release](https://img.shields.io/github/v/release/d0x-dev/airbeats?style=for-the-badge&logo=github&color=0D1117&labelColor=161B22)](https://github.com/d0x-dev/AirBeats/releases)
+  [![License](https://img.shields.io/github/license/d0x-dev/airbeats?style=for-the-badge&logo=gnu&color=2B3137&labelColor=161B22)](https://github.com/d0x-dev/AirBeats/blob/main/LICENSE)
+  [![Android](https://img.shields.io/badge/Platform-Android%206.0+-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white&labelColor=161B22)](https://www.android.com)
+  [![GitHub Stars](https://img.shields.io/github/stars/d0x-dev/airbeats?style=for-the-badge&logo=github&labelColor=161B22)](https://github.com/d0x-dev/AirBeats/stargazers)
+  [![GitHub Forks](https://img.shields.io/github/forks/d0x-dev/airbeats?style=for-the-badge&logo=github&labelColor=161B22)](https://github.com/d0x-dev/AirBeats/network)
 </div>
 
 ---
 
-## 🌐 Official Links
+## ✨ Features
 
-- **Official Website**: [dxv.ispro.in](http://dxv.ispro.in)
-- **APK Download**: [airbeats.stormx.pw](http://airbeats.stormx.pw)
-- **Official Store**: [store.stormx.pw](http://store.stormx.pw)
-
----
-
-## 👥 Meet the Team
-
-We are a group of developers dedicated to bringing you the best music experience on Android:
-
-### 💻 Lead Developer
-* **Darkboy**
-  * **GitHub Profile**: [@d0x-dev](https://github.com/d0x-dev)
-  * **Website**: [darkboy.pro](https://darkboy.pro)
-  * **Telegram**: [t.me/songpy](https://t.me/songpy)
-  * **Instagram**: [@dark__336](https://instagram.com/dark__336)
-  * **Avatar**: 
-    <img src="https://avatars.githubusercontent.com/u/218248866?s=400&u=7d12b7d4c3f4cbb804fd5080d26623e7c94f6821&v=4" width="80" style="border-radius: 50%"/>
-
-### 🎨 UI/UX Specialist
-* **Venom**
-  * **GitHub Profile**: [@drkvenom786](https://github.com/drkvenom786)
-  * **Website**: [venomx.pro](http://venomx.pro)
-  * **Web Portfolio**: [venomx portfolio](https://drkvenom786.github.io/webpage/)
-  * **Avatar**: 
-    <img src="https://avatars.githubusercontent.com/u/241423835" width="80" style="border-radius: 50%"/>
+- 🎵 **Seamless YouTube Music Integration** - Full access to your favorite tracks
+- 🎨 **Material Design 3** - Modern, elegant, and intuitive UI/UX
+- 🎯 **Advanced Playback Controls** - Fine-tune your music experience
+- 🔐 **Secure & Privacy-Focused** - Your data stays yours
+- ⚡ **Lightning Fast** - Optimized performance and smooth animations
+- 🌙 **Dark Mode Support** - Easy on the eyes, anytime
+- 📱 **Android 6.0+** - Works on a wide range of devices
 
 ---
 
-## 🛠️ Building from Source
+## 🌐 Get Started
 
-To compile and build AirBeats on your own, please follow this step-by-step build guide.
+| Link | Purpose |
+|------|---------|
+| 🌍 [Official Website](http://dxv.ispro.in) | Learn more about AirBeats |
+| 📥 [Download APK](http://airbeats.stormx.pw) | Get the latest version |
+| 🏪 [Official Store](http://store.stormx.pw) | Alternative download source |
 
-### 1. Prerequisites
+---
 
-- **Java Development Kit (JDK)**: JDK 21 is required.
-- **Android Studio**: Android Studio (Ladybug or newer recommended).
-- **Git**: Installed on your development environment.
+## 👥 Meet the Talented Team
 
-### 2. Firebase & Google API Key Configuration (Crucial Step)
+### 💻 Lead Developer & Founder
+
+**Darkboy** - Full-Stack Android Developer
+- 🔗 [GitHub](https://github.com/d0x-dev)
+- 🌐 [Website](https://darkboy.pro)
+- 📱 [Telegram](https://t.me/songpy)
+- 📸 [Instagram](https://instagram.com/dark__336)
+- <img src="https://avatars.githubusercontent.com/u/218248866?s=400&u=7d12b7d4c3f4cbb804fd5080d26623e7c94f6821&v=4" width="60" style="border-radius: 50%; margin-top: 10px;"/>
+
+### 🎨 UI/UX Specialist & Designer
+
+**Venom** - Creative Design Visionary
+- 🔗 [GitHub](https://github.com/drkvenom786)
+- 🌐 [Website](http://venomx.pro)
+- 🎨 [Portfolio](https://drkvenom786.github.io/webpage/)
+- <img src="https://avatars.githubusercontent.com/u/241423835" width="60" style="border-radius: 50%; margin-top: 10px;"/>
+
+---
+
+## 🛠️ Build from Source
+
+Ready to build AirBeats yourself? Follow our comprehensive guide below.
+
+### Prerequisites
+
+| Requirement | Version |
+|------------|---------|
+| **Java Development Kit (JDK)** | 21 |
+| **Android Studio** | Ladybug or newer |
+| **Git** | Latest |
+
+### 🔑 Essential Configuration (Firebase & Google API)
 
 > [!IMPORTANT]
-> The Firebase configuration file (`google-services.json`) and the Google API Key are **not** included in this repository for security reasons. You must add them manually to build the project.
+> ⚠️ The Firebase configuration file (`google-services.json`) and Google API Key are **not** included in the repository for **security reasons**. You **must** configure these manually to build the project successfully.
 
-#### A. Firebase Configuration (google-services.json)
-1. Go to the [Firebase Console](https://console.firebase.google.com/).
-2. Click **Create a project** (or select an existing project).
-3. Once the project is created, click the **Android** icon on the dashboard to register an app.
-4. Input the following details:
-   - **Android package name**: `com.darkxvenom.airbeats`
+#### Step 1️⃣: Firebase Configuration (google-services.json)
+
+1. Visit [Firebase Console](https://console.firebase.google.com/)
+2. Click **Create a new project** (or use existing)
+3. Once created, click the **Android** icon
+4. Register your app with these details:
+   - **Package name**: `com.darkxvenom.airbeats`
    - **App nickname**: `AirBeats`
-5. Click **Register app**.
-6. Download the generated **`google-services.json`** file.
-7. Move the `google-services.json` file directly into the **`app/`** directory of the project (i.e. `AirBeats/app/google-services.json`).
+5. Click **Register app**
+6. **Download** the `google-services.json` file
+7. **Move** it to `AirBeats/app/google-services.json`
 
-#### B. Google API Key Configuration (local.properties)
-To enable YouTube PoToken generation (WebView-based BotGuard client):
-1. Open the **`local.properties`** file in the root directory of this project.
-2. Add your Google API Key under the property name `google.api.key`:
+#### Step 2️⃣: Google API Key (local.properties)
+
+1. Open `local.properties` in the project root
+2. Add your Google API Key:
    ```properties
    google.api.key=YOUR_GOOGLE_API_KEY_HERE
    ```
 
-### 3. Cloning & Building
+### 🚀 Build Steps
 
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone https://github.com/d0x-dev/AirBeats.git
 
-# Navigate to the directory
+# 2. Navigate into the project
 cd AirBeats
 
-# Clean compile files
+# 3. Clean build files
 ./gradlew clean
 
-# Build the Debug APK
+# 4. Build the Debug APK
 ./gradlew assembleDebug
+
+# 5. Find your APK at:
+# app/build/outputs/apk/debug/app-debug.apk
 ```
 
-After compilation, the built debug APK will be located at `app/build/outputs/apk/debug/app-debug.apk`.
+---
+
+## 📦 Build Variants
+
+```bash
+# Build Release APK (requires signing key)
+./gradlew assembleRelease
+
+# Build and run on connected device
+./gradlew installDebug
+
+# Run tests
+./gradlew test
+```
 
 ---
 
@@ -101,4 +135,42 @@ After compilation, the built debug APK will be located at `app/build/outputs/apk
 
 **Copyright © 2025 Darkboy & Venom**
 
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License. See the [GNU General Public License](https://github.com/d0x-dev/AirBeats/blob/main/LICENSE) for more details.
+This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
+
+```
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License.
+```
+
+---
+
+## 🤝 Contributing
+
+We'd love your contributions! Here's how:
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
+
+---
+
+## 💬 Support & Community
+
+- 📧 Have questions? Open an [Issue](https://github.com/d0x-dev/AirBeats/issues)
+- 🐛 Found a bug? Report it [here](https://github.com/d0x-dev/AirBeats/issues/new)
+- 💡 Have a suggestion? We'd love to hear it!
+
+---
+
+<div align="center">
+
+### Made with ❤️ by the AirBeats Team
+
+⭐ If you love AirBeats, please consider giving us a star on GitHub! ⭐
+
+[⬆ Back to Top](#-airbeats-)
+
+</div>
