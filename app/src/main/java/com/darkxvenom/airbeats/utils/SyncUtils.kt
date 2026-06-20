@@ -122,35 +122,39 @@ class SyncUtils @Inject constructor(
     }
 
     suspend fun syncSavedPlaylists() {
-        YouTube.library("FEmusic_liked_playlists").completedLibraryPage().onSuccess { page ->
-            val playlistList = page.items.filterIsInstance<PlaylistItem>()
-                .filterNot { it.id == "LM" ||  it.id == "SE" }
-                .reversed()
-            val dbPlaylists = database.playlistsByNameAsc().first()
+        YouTube.library("FEmusic_liked_playlists").completedLibraryPage()
+            .onSuccess { page ->
+                val playlistList = page.items.filterIsInstance<PlaylistItem>()
+                    .filterNot { it.id == "LM" ||  it.id == "SE" }
+                    .reversed()
+                val dbPlaylists = database.playlistsByNameAsc().first()
 
-            dbPlaylists.filterNot { it.playlist.browseId in playlistList.map(PlaylistItem::id) }
-                .filterNot { it.playlist.browseId == null }
-                .forEach { database.update(it.playlist.localToggleLike()) }
+                dbPlaylists.filterNot { it.playlist.browseId in playlistList.map(PlaylistItem::id) }
+                    .filterNot { it.playlist.browseId == null }
+                    .forEach { database.update(it.playlist.localToggleLike()) }
 
-            playlistList.onEach { playlist ->
-                var playlistEntity = dbPlaylists.find { playlist.id == it.playlist.browseId }?.playlist
-                if (playlistEntity == null) {
-                    playlistEntity = PlaylistEntity(
-                        name = playlist.title,
-                        browseId = playlist.id,
-                        isEditable = playlist.isEditable,
-                        bookmarkedAt = LocalDateTime.now(),
-                        remoteSongCount = playlist.songCountText?.let {
-                            Regex("""\d+""").find(it)?.value?.toIntOrNull()
-                        }
-                    )
+                playlistList.onEach { playlist ->
+                    var playlistEntity = dbPlaylists.find { playlist.id == it.playlist.browseId }?.playlist
+                    if (playlistEntity == null) {
+                        playlistEntity = PlaylistEntity(
+                            name = playlist.title,
+                            browseId = playlist.id,
+                            isEditable = playlist.isEditable,
+                            bookmarkedAt = LocalDateTime.now(),
+                            remoteSongCount = playlist.songCountText?.let {
+                                Regex("""\d+""").find(it)?.value?.toIntOrNull()
+                            }
+                        )
 
-                    database.insert(playlistEntity)
-                } else database.update(playlistEntity, playlist)
+                        database.insert(playlistEntity)
+                    } else database.update(playlistEntity, playlist)
 
-                syncPlaylist(playlist.id, playlistEntity.id)
+                    syncPlaylist(playlist.id, playlistEntity.id)
+                }
             }
-        }
+            .onFailure { exception ->
+                reportException(exception)
+            }
     }
 
     suspend fun syncPlaylist(browseId: String, playlistId: String) {

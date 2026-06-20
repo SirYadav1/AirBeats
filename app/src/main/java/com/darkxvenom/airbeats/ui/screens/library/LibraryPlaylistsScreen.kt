@@ -175,13 +175,13 @@ fun LibraryPlaylistsScreen(
         backStackEntry?.savedStateHandle?.getStateFlow("scrollToTop", false)?.collectAsState()
 
     val (innerTubeCookie) = rememberPreference(InnerTubeCookieKey, "")
-    remember(innerTubeCookie) {
+    val isLoggedIn = remember(innerTubeCookie) {
         "SAPISID" in parseCookieString(innerTubeCookie)
     }
 
     val (ytmSync) = rememberPreference(YtmSyncKey, true)
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(isLoggedIn, ytmSync) {
         if (ytmSync) {
             withContext(Dispatchers.IO) {
                 viewModel.sync()

@@ -29,10 +29,15 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.darkxvenom.airbeats.LocalPlayerAwareWindowInsets
 import com.darkxvenom.airbeats.R
+import com.darkxvenom.airbeats.constants.InnerTubeCookieKey
+import com.darkxvenom.airbeats.innertube.utils.parseCookieString
 import com.darkxvenom.airbeats.ui.component.CreatePlaylistDialog
 import com.darkxvenom.airbeats.ui.screens.NeonDarkBg
 import com.darkxvenom.airbeats.ui.screens.NeonPurple
+import com.darkxvenom.airbeats.utils.rememberPreference
 import com.darkxvenom.airbeats.viewmodels.LibraryPlaylistsViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,6 +55,17 @@ fun NeonLibraryScreen(
     
     val playlists by viewModel.allPlaylists.collectAsState()
     val topSize by viewModel.topValue.collectAsState(initial = 50)
+
+    val (innerTubeCookie) = rememberPreference(InnerTubeCookieKey, "")
+    val isLoggedIn = remember(innerTubeCookie) {
+        "SAPISID" in parseCookieString(innerTubeCookie)
+    }
+
+    LaunchedEffect(isLoggedIn) {
+        withContext(Dispatchers.IO) {
+            viewModel.sync()
+        }
+    }
     
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showSpotifyImportDialog by remember { mutableStateOf(false) }
