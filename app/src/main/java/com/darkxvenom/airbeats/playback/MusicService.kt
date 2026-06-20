@@ -1423,6 +1423,31 @@ class MusicService :
                 return@Factory dataSpec.withUri(it.first.toUri())
             }
 
+            if (mediaId.startsWith("JS:")) {
+                try {
+                    val streamUrl = kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                        com.darkxvenom.airbeats.jiosaavn.JioSaavnApi.getStreamUrl(mediaId)
+                    }
+                    if (streamUrl != null) {
+                        songUrlCache[mediaId] = streamUrl to (System.currentTimeMillis() + 3600000L)
+                        scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+                        return@Factory dataSpec.withUri(streamUrl.toUri())
+                    } else {
+                        throw androidx.media3.common.PlaybackException(
+                            "JioSaavn Stream URL not found",
+                            null,
+                            androidx.media3.common.PlaybackException.ERROR_CODE_REMOTE_ERROR
+                        )
+                    }
+                } catch (e: Exception) {
+                    throw androidx.media3.common.PlaybackException(
+                        "JioSaavn API error: ${e.message}",
+                        e,
+                        androidx.media3.common.PlaybackException.ERROR_CODE_REMOTE_ERROR
+                    )
+                }
+            }
+
             // Intentar YouTube primero (fuente principal)
             val ytLogTag = "YouTube"
             try {

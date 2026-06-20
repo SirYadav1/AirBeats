@@ -46,37 +46,67 @@ constructor(
 
     init {
         viewModelScope.launch {
+            val musicProvider = context.dataStore.get(com.darkxvenom.airbeats.constants.MusicProviderKey, "YT")
             filter.collect { filter ->
                 if (filter == null) {
                     if (summaryPage == null) {
-                        YouTube
-                            .searchSummary(query)
-                            .onSuccess {
-                                summaryPage = it.filterExplicit(context.dataStore.get(HideExplicitKey, false)).filterVideo(context.dataStore.get(HideVideoKey, false))
-                            }.onFailure {
-                                reportException(it)
-                            }
+                        if (musicProvider == "JIOSAAVN") {
+                            com.darkxvenom.airbeats.jiosaavn.JioSaavnApi.searchSongs(query)
+                                .onSuccess { songs ->
+                                    summaryPage = SearchSummaryPage(
+                                        summaries = listOf(
+                                            com.darkxvenom.airbeats.innertube.pages.SearchSummary(
+                                                title = "Songs",
+                                                items = songs
+                                            )
+                                        )
+                                    )
+                                }.onFailure {
+                                    reportException(it)
+                                }
+                        } else {
+                            YouTube
+                                .searchSummary(query)
+                                .onSuccess {
+                                    summaryPage = it.filterExplicit(context.dataStore.get(HideExplicitKey, false)).filterVideo(context.dataStore.get(HideVideoKey, false))
+                                }.onFailure {
+                                    reportException(it)
+                                }
+                        }
                     }
                 } else {
                     if (viewStateMap[filter.value] == null) {
-                        YouTube
-                            .search(query, filter)
-                            .onSuccess { result ->
-                                viewStateMap[filter.value] =
-                                    ItemsPage(
-                                        result.items
-                                            .distinctBy { it.id }
-                                            .filterExplicit(
-                                                context.dataStore.get(
-                                                    HideExplicitKey,
-                                                    false
-                                                )
-                                            ).filterVideo(context.dataStore.get(HideVideoKey, false)),
-                                        result.continuation,
-                                    )
-                            }.onFailure {
-                                reportException(it)
+                        if (musicProvider == "JIOSAAVN") {
+                            if (filter == YouTube.SearchFilter.FILTER_SONG) {
+                                com.darkxvenom.airbeats.jiosaavn.JioSaavnApi.searchSongs(query)
+                                    .onSuccess { songs ->
+                                        viewStateMap[filter.value] = ItemsPage(songs, null)
+                                    }.onFailure {
+                                        reportException(it)
+                                    }
+                            } else {
+                                viewStateMap[filter.value] = ItemsPage(emptyList(), null)
                             }
+                        } else {
+                            YouTube
+                                .search(query, filter)
+                                .onSuccess { result ->
+                                    viewStateMap[filter.value] =
+                                        ItemsPage(
+                                            result.items
+                                                .distinctBy { it.id }
+                                                .filterExplicit(
+                                                    context.dataStore.get(
+                                                        HideExplicitKey,
+                                                        false
+                                                    )
+                                                ).filterVideo(context.dataStore.get(HideVideoKey, false)),
+                                            result.continuation,
+                                        )
+                                }.onFailure {
+                                    reportException(it)
+                                }
+                        }
                     }
                 }
             }

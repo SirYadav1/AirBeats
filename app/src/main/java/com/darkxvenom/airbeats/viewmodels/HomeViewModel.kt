@@ -17,6 +17,8 @@ import com.darkxvenom.airbeats.db.entities.LocalItem
 import com.darkxvenom.airbeats.db.entities.Playlist
 import com.darkxvenom.airbeats.db.entities.Song
 import com.darkxvenom.airbeats.models.SimilarRecommendation
+import com.darkxvenom.airbeats.utils.dataStore
+import com.darkxvenom.airbeats.utils.get
 import com.darkxvenom.airbeats.utils.reportException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -28,7 +30,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
     val database: MusicDatabase,
 ) : ViewModel() {
     val isRefreshing = MutableStateFlow(false)
@@ -123,32 +125,56 @@ class HomeViewModel @Inject constructor(
                 }
         similarRecommendations.value = (artistRecommendations + songRecommendations).shuffled()
 
-        YouTube.home().onSuccess { page ->
-            homePage.value = page
-        }.onFailure {
-            reportException(it)
+        val musicProvider = context.dataStore.get(com.darkxvenom.airbeats.constants.MusicProviderKey, "YT")
+
+        if (musicProvider == "JIOSAAVN") {
+            com.darkxvenom.airbeats.jiosaavn.JioSaavnApi.getTrendingSongs().onSuccess { songs ->
+                homePage.value = HomePage(
+                    sections = listOf(
+                        HomePage.Section(
+                            title = "Trending Songs",
+                            label = "JioSaavn",
+                            thumbnail = null,
+                            endpoint = null,
+                            items = songs
+                        )
+                    )
+                )
+            }.onFailure {
+                reportException(it)
+            }
+        } else {
+            YouTube.home().onSuccess { page ->
+                homePage.value = page
+            }.onFailure {
+                reportException(it)
+            }
         }
 
-        YouTube.explore().onSuccess { page ->
-            val artists: Set<String>
-            val favouriteArtists: Set<String>
-            database.artistsBookmarkedByCreateDateAsc().first().let { list ->
-                artists = list.map(Artist::id).toHashSet()
-                favouriteArtists = list
-                    .filter { it.artist.bookmarkedAt != null }
-                    .map { it.id }
-                    .toHashSet()
+        if (musicProvider == "YT") {
+            YouTube.explore().onSuccess { page ->
+                val artists: Set<String>
+                val favouriteArtists: Set<String>
+                database.artistsBookmarkedByCreateDateAsc().first().let { list ->
+                    artists = list.map(Artist::id).toHashSet()
+                    favouriteArtists = list
+                        .filter { it.artist.bookmarkedAt != null }
+                        .map { it.id }
+                        .toHashSet()
+                }
+                explorePage.value = page.copy(
+                    newReleaseAlbums = page.newReleaseAlbums
+                        .sortedBy { album ->
+                            if (album.artists.orEmpty().any { it.id in favouriteArtists }) 0
+                            else if (album.artists.orEmpty().any { it.id in artists }) 1
+                            else 2
+                        }
+                )
+            }.onFailure {
+                reportException(it)
             }
-            explorePage.value = page.copy(
-                newReleaseAlbums = page.newReleaseAlbums
-                    .sortedBy { album ->
-                        if (album.artists.orEmpty().any { it.id in favouriteArtists }) 0
-                        else if (album.artists.orEmpty().any { it.id in artists }) 1
-                        else 2
-                    }
-            )
-        }.onFailure {
-            reportException(it)
+        } else {
+            explorePage.value = ExplorePage(emptyList(), emptyList())
         }
 
         allYtItems.value = similarRecommendations.value?.flatMap { it.items }.orEmpty() +

@@ -42,3 +42,9 @@ include(":shazamkit")
 //    }
 //}
 include(":shazamkit")
+
+includeBuild("tmp_extractor") {
+    dependencySubstitution {
+        substitute(module("com.github.MetrolistGroup.MetrolistExtractor:extractor")).using(project(":extractor"))
+    }
+}
