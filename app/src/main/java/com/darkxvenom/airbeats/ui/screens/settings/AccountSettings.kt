@@ -416,4 +416,27 @@ fun AccountSettings(
             }
         )
     }
+
+    if (showTokenEditor) {
+        TextFieldDialog(
+            icon = { Icon(painterResource(R.drawable.token), null) },
+            title = { Text(stringResource(R.string.advanced_login)) },
+            onDismiss = { showTokenEditor = false },
+            initialTextFields = listOf(
+                TextFieldState(
+                    label = "InnerTube Cookie",
+                    text = innerTubeCookie
+                ),
+                TextFieldState(
+                    label = "VisitorData",
+                    text = visitorData
+                )
+            ),
+            onSave = {
+                onInnerTubeCookieChange(it[0].text)
+                onVisitorDataChange(it[1].text)
+                showTokenEditor = false
+            }
+        )
+    }
 }
