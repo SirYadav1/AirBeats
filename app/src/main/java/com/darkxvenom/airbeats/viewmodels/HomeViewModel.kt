@@ -55,6 +55,37 @@ class HomeViewModel @Inject constructor(
     private suspend fun load() {
         isLoading.value = true
 
+        val musicProvider = context.dataStore.get(com.darkxvenom.airbeats.constants.MusicProviderKey, "YT")
+
+        if (musicProvider == "JIOSAAVN") {
+            quickPicks.value = emptyList()
+            forgottenFavorites.value = emptyList()
+            keepListening.value = emptyList()
+            similarRecommendations.value = emptyList()
+            allLocalItems.value = emptyList()
+            explorePage.value = ExplorePage(emptyList(), emptyList())
+
+            com.darkxvenom.airbeats.jiosaavn.JioSaavnApi.getTrendingSongs().onSuccess { songs ->
+                homePage.value = HomePage(
+                    sections = listOf(
+                        HomePage.Section(
+                            title = "Trending Songs",
+                            label = "JioSaavn",
+                            thumbnail = null,
+                            endpoint = null,
+                            items = songs
+                        )
+                    )
+                )
+            }.onFailure {
+                reportException(it)
+            }
+            
+            allYtItems.value = homePage.value?.sections?.flatMap { it.items }.orEmpty()
+            isLoading.value = false
+            return
+        }
+
         quickPicks.value = database.quickPicks()
             .first().shuffled().take(20)
 
@@ -125,56 +156,32 @@ class HomeViewModel @Inject constructor(
                 }
         similarRecommendations.value = (artistRecommendations + songRecommendations).shuffled()
 
-        val musicProvider = context.dataStore.get(com.darkxvenom.airbeats.constants.MusicProviderKey, "YT")
-
-        if (musicProvider == "JIOSAAVN") {
-            com.darkxvenom.airbeats.jiosaavn.JioSaavnApi.getTrendingSongs().onSuccess { songs ->
-                homePage.value = HomePage(
-                    sections = listOf(
-                        HomePage.Section(
-                            title = "Trending Songs",
-                            label = "JioSaavn",
-                            thumbnail = null,
-                            endpoint = null,
-                            items = songs
-                        )
-                    )
-                )
-            }.onFailure {
-                reportException(it)
-            }
-        } else {
-            YouTube.home().onSuccess { page ->
-                homePage.value = page
-            }.onFailure {
-                reportException(it)
-            }
+        YouTube.home().onSuccess { page ->
+            homePage.value = page
+        }.onFailure {
+            reportException(it)
         }
 
-        if (musicProvider == "YT") {
-            YouTube.explore().onSuccess { page ->
-                val artists: Set<String>
-                val favouriteArtists: Set<String>
-                database.artistsBookmarkedByCreateDateAsc().first().let { list ->
-                    artists = list.map(Artist::id).toHashSet()
-                    favouriteArtists = list
-                        .filter { it.artist.bookmarkedAt != null }
-                        .map { it.id }
-                        .toHashSet()
-                }
-                explorePage.value = page.copy(
-                    newReleaseAlbums = page.newReleaseAlbums
-                        .sortedBy { album ->
-                            if (album.artists.orEmpty().any { it.id in favouriteArtists }) 0
-                            else if (album.artists.orEmpty().any { it.id in artists }) 1
-                            else 2
-                        }
-                )
-            }.onFailure {
-                reportException(it)
+        YouTube.explore().onSuccess { page ->
+            val artists: Set<String>
+            val favouriteArtists: Set<String>
+            database.artistsBookmarkedByCreateDateAsc().first().let { list ->
+                artists = list.map(Artist::id).toHashSet()
+                favouriteArtists = list
+                    .filter { it.artist.bookmarkedAt != null }
+                    .map { it.id }
+                    .toHashSet()
             }
-        } else {
-            explorePage.value = ExplorePage(emptyList(), emptyList())
+            explorePage.value = page.copy(
+                newReleaseAlbums = page.newReleaseAlbums
+                    .sortedBy { album ->
+                        if (album.artists.orEmpty().any { it.id in favouriteArtists }) 0
+                        else if (album.artists.orEmpty().any { it.id in artists }) 1
+                        else 2
+                    }
+            )
+        }.onFailure {
+            reportException(it)
         }
 
         allYtItems.value = similarRecommendations.value?.flatMap { it.items }.orEmpty() +
