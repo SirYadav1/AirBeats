@@ -34,7 +34,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 155
-        versionName = "5.4.0 CLOSED"
+        versionName = "5.5.0 OPENED"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GOOGLE_API_KEY", googleApiKey.asBuildConfigString())
     }
