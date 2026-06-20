@@ -41,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -299,7 +300,7 @@ fun AppleScaffold(
                 .background(AppleBg)
                 .let { modifier ->
                     if (isRefreshing != null && onRefresh != null) {
-                        modifier.androidx.compose.material3.pulltorefresh.pullToRefresh(
+                        modifier.pullToRefresh(
                             state = pullRefreshState,
                             isRefreshing = isRefreshing,
                             onRefresh = onRefresh
