@@ -418,24 +418,47 @@ fun AccountSettings(
     }
 
     if (showTokenEditor) {
-        TextFieldDialog(
+        var cookieValue by remember { mutableStateOf(TextFieldValue(innerTubeCookie)) }
+        var visitorDataValue by remember { mutableStateOf(TextFieldValue(visitorData)) }
+
+        AlertDialog(
+            onDismissRequest = { showTokenEditor = false },
             icon = { Icon(painterResource(R.drawable.token), null) },
             title = { Text(stringResource(R.string.advanced_login)) },
-            onDismiss = { showTokenEditor = false },
-            initialTextFields = listOf(
-                TextFieldState(
-                    label = "InnerTube Cookie",
-                    text = innerTubeCookie
-                ),
-                TextFieldState(
-                    label = "VisitorData",
-                    text = visitorData
-                )
-            ),
-            onSave = {
-                onInnerTubeCookieChange(it[0].text)
-                onVisitorDataChange(it[1].text)
-                showTokenEditor = false
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = cookieValue,
+                        onValueChange = { cookieValue = it },
+                        label = { Text("InnerTube Cookie") },
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = visitorDataValue,
+                        onValueChange = { visitorDataValue = it },
+                        label = { Text("VisitorData") },
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onInnerTubeCookieChange(cookieValue.text)
+                        onVisitorDataChange(visitorDataValue.text)
+                        showTokenEditor = false
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showTokenEditor = false }
+                ) {
+                    Text("Cancel")
+                }
             }
         )
     }
