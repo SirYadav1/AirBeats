@@ -12,6 +12,7 @@ import androidx.navigation.NavController
 import com.darkxvenom.airbeats.NotificationPermissionPreference
 import com.darkxvenom.airbeats.R
 import com.darkxvenom.airbeats.constants.ContentCountryKey
+import com.darkxvenom.airbeats.constants.MusicProviderKey
 import com.darkxvenom.airbeats.constants.ContentLanguageKey
 import com.darkxvenom.airbeats.constants.CountryCodeToName
 import com.darkxvenom.airbeats.constants.EnableKugouKey
@@ -48,6 +49,10 @@ fun ContentSettings(
     val (contentLanguage, onContentLanguageChange) = rememberPreference(
         key = ContentLanguageKey,
         defaultValue = "system"
+    )
+    val (musicProvider, onMusicProviderChange) = rememberPreference(
+        key = MusicProviderKey,
+        defaultValue = "YT"
     )
     val (contentCountry, onContentCountryChange) = rememberPreference(
         key = ContentCountryKey,
@@ -104,6 +109,16 @@ fun ContentSettings(
         SettingsGeneralCategory(
             title = stringResource(R.string.general),
             items = listOf(
+                {ListPreference(
+                    title = { Text("Module") },
+                    icon = { Icon(painterResource(R.drawable.music_note), null) },
+                    selectedValue = musicProvider,
+                    values = listOf("YT", "JIOSAAVN"),
+                    valueText = {
+                        if (it == "YT") "YT (Compatible)" else "Jio Saavn (Incompatible Supported VPN)"
+                    },
+                    onValueSelected = onMusicProviderChange,
+                )},
                 {ListPreference(
                     title = { Text(stringResource(R.string.content_language)) },
                     icon = { Icon(painterResource(R.drawable.language), null) },
