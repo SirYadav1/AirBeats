@@ -1,7 +1,6 @@
 package com.darkxvenom.airbeats.ui.screens.settings
 
 import android.annotation.SuppressLint
-import android.util.Log
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
@@ -55,8 +54,6 @@ fun DiscordLoginScreen(navController: NavController) {
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
 
-                WebView.setWebContentsDebuggingEnabled(true)
-
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.setSupportZoom(true)
@@ -72,7 +69,6 @@ fun DiscordLoginScreen(navController: NavController) {
                 addJavascriptInterface(object {
                     @JavascriptInterface
                     fun onRetrieveToken(token: String) {
-                        Log.d("DiscordWebView", "Token: $token")
                         if (token != "null" && token != "error") {
                             discordToken = token
                             scope.launch(Dispatchers.Main) {
