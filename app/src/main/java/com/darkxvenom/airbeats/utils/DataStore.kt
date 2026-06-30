@@ -22,7 +22,7 @@ import kotlin.properties.ReadOnlyProperty
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 // Cache for DataStore values to avoid blocking calls
-private val dataStoreCache = mutableMapOf<String, Any?>()
+@PublishedApi internal val dataStoreCache = mutableMapOf<String, Any?>()
 
 operator fun <T> DataStore<Preferences>.get(key: Preferences.Key<T>): T? {
     val cacheKey = key.name
