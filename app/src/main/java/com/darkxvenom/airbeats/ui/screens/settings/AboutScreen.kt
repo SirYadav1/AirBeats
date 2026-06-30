@@ -149,7 +149,7 @@ fun UserCard(
             },
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.8f),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
         )
     ) {
         Column(
