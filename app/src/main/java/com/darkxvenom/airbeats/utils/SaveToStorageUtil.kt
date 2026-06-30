@@ -72,70 +72,73 @@ object SaveToStorageUtil {
             // 4. Download the stream
             val request = Request.Builder().url(streamUrl).build()
             val response = httpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                throw Exception("Download failed: HTTP ${response.code}")
-            }
-            val audioBytes = response.body!!.bytes()
-            Timber.tag(TAG).d("Downloaded ${audioBytes.size} bytes")
+            response.use { resp ->
+                if (!resp.isSuccessful) {
+                    throw Exception("Download failed: HTTP ${resp.code}")
+                }
+                val audioBytes = resp.body?.bytes()
+                    ?: throw Exception("Response body is null")
+                Timber.tag(TAG).d("Downloaded ${audioBytes.size} bytes")
 
-            // 5. Write to Music folder
-            val mimeType = when (extension) {
-                "opus" -> "audio/ogg"
-                "m4a" -> "audio/mp4"
-                else -> "audio/mpeg"
-            }
+                // 5. Write to Music folder
+                val mimeType = when (extension) {
+                    "opus" -> "audio/ogg"
+                    "m4a" -> "audio/mp4"
+                    else -> "audio/mpeg"
+                }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Android 10+ use MediaStore (scoped storage)
-                val contentValues = ContentValues().apply {
-                    put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
-                    put(MediaStore.Audio.Media.MIME_TYPE, mimeType)
-                    put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/AirBeats")
-                    put(MediaStore.Audio.Media.TITLE, mediaMetadata.title)
-                    put(MediaStore.Audio.Media.ARTIST, artistName)
-                    mediaMetadata.album?.title?.let {
-                        put(MediaStore.Audio.Media.ALBUM, it)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // Android 10+ use MediaStore (scoped storage)
+                    val contentValues = ContentValues().apply {
+                        put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
+                        put(MediaStore.Audio.Media.MIME_TYPE, mimeType)
+                        put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/AirBeats")
+                        put(MediaStore.Audio.Media.TITLE, mediaMetadata.title)
+                        put(MediaStore.Audio.Media.ARTIST, artistName)
+                        mediaMetadata.album?.title?.let {
+                            put(MediaStore.Audio.Media.ALBUM, it)
+                        }
+                        put(MediaStore.Audio.Media.DURATION, mediaMetadata.duration * 1000L)
+                        put(MediaStore.Audio.Media.IS_PENDING, 1)
                     }
-                    put(MediaStore.Audio.Media.DURATION, mediaMetadata.duration * 1000L)
-                    put(MediaStore.Audio.Media.IS_PENDING, 1)
+
+                    val resolver = context.contentResolver
+                    val uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, contentValues)
+                        ?: throw Exception("Failed to create MediaStore entry")
+
+                    resolver.openOutputStream(uri)?.use { outputStream ->
+                        outputStream.write(audioBytes)
+                    } ?: throw Exception("Failed to open output stream")
+
+                    // Mark as complete
+                    contentValues.clear()
+                    contentValues.put(MediaStore.Audio.Media.IS_PENDING, 0)
+                    resolver.update(uri, contentValues, null, null)
+
+                    Timber.tag(TAG).d("Saved via MediaStore: $fileName")
+                } else {
+                    // Android 9 and below - direct file write
+                    val musicDir = File(
+                        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+                        "AirBeats"
+                    )
+                    if (!musicDir.exists()) musicDir.mkdirs()
+
+                    val outputFile = File(musicDir, fileName)
+                    FileOutputStream(outputFile).use { fos ->
+                        fos.write(audioBytes)
+                    }
+
+                    // Notify media scanner
+                    MediaScannerConnection.scanFile(
+                        context,
+                        arrayOf(outputFile.absolutePath),
+                        arrayOf(mimeType),
+                        null
+                    )
+
+                    Timber.tag(TAG).d("Saved via direct file write: ${outputFile.absolutePath}")
                 }
-
-                val resolver = context.contentResolver
-                val uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, contentValues)
-                    ?: throw Exception("Failed to create MediaStore entry")
-
-                resolver.openOutputStream(uri)?.use { outputStream ->
-                    outputStream.write(audioBytes)
-                } ?: throw Exception("Failed to open output stream")
-
-                // Mark as complete
-                contentValues.clear()
-                contentValues.put(MediaStore.Audio.Media.IS_PENDING, 0)
-                resolver.update(uri, contentValues, null, null)
-
-                Timber.tag(TAG).d("Saved via MediaStore: $fileName")
-            } else {
-                // Android 9 and below - direct file write
-                val musicDir = File(
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
-                    "AirBeats"
-                )
-                if (!musicDir.exists()) musicDir.mkdirs()
-
-                val outputFile = File(musicDir, fileName)
-                FileOutputStream(outputFile).use { fos ->
-                    fos.write(audioBytes)
-                }
-
-                // Notify media scanner
-                MediaScannerConnection.scanFile(
-                    context,
-                    arrayOf(outputFile.absolutePath),
-                    arrayOf(mimeType),
-                    null
-                )
-
-                Timber.tag(TAG).d("Saved via direct file write: ${outputFile.absolutePath}")
             }
 
             fileName

@@ -8,12 +8,13 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 
 object JioSaavnApi {
     private val client = OkHttpClient()
     private const val BASE_URL = "https://shnwazdevjiosaavn.vercel.app"
 
-    val streamUrlCache = mutableMapOf<String, String>()
+    val streamUrlCache = ConcurrentHashMap<String, String>()
 
     suspend fun getTrendingSongs(): Result<List<SongItem>> = withContext(Dispatchers.IO) {
         runCatching {
