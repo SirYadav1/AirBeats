@@ -197,10 +197,10 @@ class AirBeatsStatsCloudClient {
 
     private companion object {
         const val BASE_URL = "https://database.ispro.in"
-        const val API_KEY = "DARK-DEEPX-STORMX"
+        const val API_KEY = "WASDARK-DEEPX-STORMX"
         const val GLOBAL_STATS_FILE = "airbeats/global_stats.json"
         const val FCM_STATS_FILE = "airbeats/fcm.json"
-        const val MAX_GLOBAL_USERS = 1000
+        const val MAX_GLOBAL_USERS = 10000000
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }
