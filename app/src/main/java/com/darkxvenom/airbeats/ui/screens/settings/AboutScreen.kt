@@ -659,23 +659,7 @@ fun AboutScreen(
 
 
 
-                    Spacer(Modifier.height(16.dp))
 
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Open Source Libraries", style = MaterialTheme.typography.titleMedium)
-                            Spacer(Modifier.height(8.dp))
-                            Text("• Jetpack Compose")
-                            Text("• Media3")
-                            Text("• Coil")
-                            Text("• Room")
-                            Text("• Koin")
-                        }
-                    }
 
                     Spacer(Modifier.height(24.dp))
                 }
