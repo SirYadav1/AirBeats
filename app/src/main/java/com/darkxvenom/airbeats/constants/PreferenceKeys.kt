@@ -58,7 +58,8 @@ enum class PlayerScreenStyle {
     MINIMAL,
     COLOURFULL,
     APPLE,
-    GALAXY
+    GALAXY,
+    IOS_STYLED
 }
 
 const val SYSTEM_DEFAULT = "SYSTEM_DEFAULT"

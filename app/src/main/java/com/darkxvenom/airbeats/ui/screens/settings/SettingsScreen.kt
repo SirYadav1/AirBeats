@@ -1025,6 +1025,16 @@ fun SettingsScreen(
                                     )
                                 },
                                 onClick = { navController.navigate("settings/backup_restore") }
+                            ),
+                            SettingsCategoryItem(
+                                icon = painterResource(R.drawable.bug_report),
+                                title = {
+                                    Text(
+                                        "Experimental Settings",
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                onClick = { navController.navigate("settings/experimental") }
                             )
                         )
                     )

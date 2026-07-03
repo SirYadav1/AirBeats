@@ -372,6 +372,9 @@ fun NavGraphBuilder.navigationBuilder(
     composable("settings/discord") {
         DiscordSettings(navController, scrollBehavior)
     }
+    composable("settings/experimental") {
+        com.darkxvenom.airbeats.ui.screens.settings.DebugSettings(navController)
+    }
     composable("settings/discord/login") {
         DiscordLoginScreen(navController)
     }

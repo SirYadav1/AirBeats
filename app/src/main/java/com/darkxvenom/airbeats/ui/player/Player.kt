@@ -187,6 +187,7 @@ import com.darkxvenom.airbeats.ui.component.BottomSheet
 import com.darkxvenom.airbeats.ui.component.BottomSheetState
 import com.darkxvenom.airbeats.ui.component.bottomSheetDraggable
 import com.darkxvenom.airbeats.ui.component.LocalMenuState
+import com.darkxvenom.airbeats.ui.component.LocalBottomSheetPageState
 import com.darkxvenom.airbeats.ui.component.PlayerSliderTrack
 import com.darkxvenom.airbeats.ui.component.ResizableIconButton
 import com.darkxvenom.airbeats.ui.component.rememberBottomSheetState
@@ -232,6 +233,7 @@ fun BottomSheetPlayer(
     val context = LocalContext.current
     val database = LocalDatabase.current
     val menuState = LocalMenuState.current
+    val bottomSheetPageState = LocalBottomSheetPageState.current
     val coroutineScope = rememberCoroutineScope()
 
     val clipboardManager = LocalClipboardManager.current
@@ -299,6 +301,7 @@ fun BottomSheetPlayer(
 
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
+    val playerVolume = playerConnection.service.playerVolume.collectAsState()
 
     val queueWindows by playerConnection.queueWindows.collectAsState()
     val currentWindowIndex = playerConnection.player.currentMediaItemIndex
@@ -2480,6 +2483,68 @@ fun BottomSheetPlayer(
                 repeatMode = repeatMode,
                 onRepeatClick = playerConnection.player::toggleRepeatMode,
                 onOpenFullscreenLyrics = onOpenFullscreenLyrics,
+            )
+        } else if (playerScreenStyle == PlayerScreenStyle.IOS_STYLED) {
+            IosStyledPlayer(
+                state = state,
+                mediaMetadata = mediaMetadata,
+                position = sliderPosition ?: position,
+                duration = duration,
+                isPlaying = isPlaying,
+                isLoading = playbackState != STATE_READY && playbackState != STATE_ENDED,
+                canSkipPrevious = canSkipPrevious,
+                canSkipNext = canSkipNext,
+                onSeek = { sliderPosition = it },
+                onSeekFinished = {
+                    sliderPosition?.let { playerConnection.player.seekTo(it) }
+                    sliderPosition = null
+                },
+                onPlayPause = playerConnection.player::togglePlayPause,
+                onPrevious = playerConnection.player::seekToPrevious,
+                onNext = playerConnection.player::seekToNext,
+                onCollapse = state::collapseSoft,
+                onMenuClick = {
+                    menuState.show {
+                        PlayerMenu(
+                            mediaMetadata = mediaMetadata ?: return@show,
+                            navController = navController,
+                            playerBottomSheetState = state,
+                            onShowDetailsDialog = { showDetailsDialog = true },
+                            onDismiss = menuState::dismiss,
+                        )
+                    }
+                },
+                isLiked = currentSong?.song?.liked == true,
+                onLikeClick = playerConnection::toggleLike,
+                onQueueClick = { queueSheetState.expandSoft() },
+                onShareClick = {
+                    mediaMetadata?.let { metadata ->
+                        val intent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            type = "text/plain"
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                "https://music.youtube.com/watch?v=${metadata.id}"
+                            )
+                        }
+                        context.startActivity(Intent.createChooser(intent, null))
+                    }
+                },
+                shuffleModeEnabled = shuffleModeEnabled,
+                onShuffleClick = {
+                    playerConnection.player.shuffleModeEnabled = !playerConnection.player.shuffleModeEnabled
+                },
+                repeatMode = repeatMode,
+                onRepeatClick = playerConnection.player::toggleRepeatMode,
+                onOpenFullscreenLyrics = onOpenFullscreenLyrics,
+                playerConnection = playerConnection,
+                navController = navController,
+                menuState = menuState,
+                bottomSheetPageState = bottomSheetPageState,
+                nextUpMetadata = nextMediaMetadata,
+                currentFormat = currentFormat,
+                playerVolume = playerVolume.value,
+                onVolumeChange = { playerConnection.service.playerVolume.value = it },
             )
         } else if (playerScreenStyle == PlayerScreenStyle.GALAXY) {
             GalaxyPlayer(

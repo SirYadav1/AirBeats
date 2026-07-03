@@ -655,12 +655,6 @@ fun AboutScreen(
                             onClick = { uriHandler.openUri("https://drkvenom786.github.io/webpage/") }
                         )
                     }
-
-
-
-
-
-
                     Spacer(Modifier.height(24.dp))
                 }
             }

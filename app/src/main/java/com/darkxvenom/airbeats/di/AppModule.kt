@@ -1,6 +1,7 @@
 package com.darkxvenom.airbeats.di
 
 import android.content.Context
+import androidx.annotation.Keep
 import androidx.media3.database.DatabaseProvider
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
@@ -29,6 +30,7 @@ annotation class DownloadCache
 
 @Module
 @InstallIn(SingletonComponent::class)
+@Keep
 object AppModule {
     @Singleton
     @Provides

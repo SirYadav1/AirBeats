@@ -63,7 +63,32 @@ class App : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         instance = this;
-        Timber.plant(Timber.DebugTree())
+        Timber.plant(com.darkxvenom.airbeats.utils.GlobalLogTree())
+
+        try {
+            Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+                try {
+                    val sw = java.io.StringWriter()
+                    val pw = java.io.PrintWriter(sw)
+                    throwable.printStackTrace(pw)
+                    val stack = sw.toString()
+
+                    val intent = android.content.Intent(this@App, com.darkxvenom.airbeats.ui.activities.DebugActivity::class.java).apply {
+                        putExtra(com.darkxvenom.airbeats.ui.activities.DebugActivity.EXTRA_STACK_TRACE, stack)
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    }
+                    startActivity(intent)
+                    try { Thread.sleep(100) } catch (_: InterruptedException) {}
+                } catch (e: Exception) {
+                    reportException(e)
+                } finally {
+                    android.os.Process.killProcess(android.os.Process.myPid())
+                    kotlin.system.exitProcess(2)
+                }
+            }
+        } catch (e: Exception) {
+            reportException(e)
+        }
 
         val locale = Locale.getDefault()
         val languageTag = locale.toLanguageTag().replace("-Hant", "") // replace zh-Hant-* to zh-*

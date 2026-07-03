@@ -242,6 +242,7 @@ class MusicService :
     private var discordRpc: DiscordRPC? = null
     private var lastPlaybackSpeed = 1.0f
     private var discordUpdateJob: Job? = null
+    private var mediaController: MediaController? = null
 
     val automixItems = MutableStateFlow<List<MediaItem>>(emptyList())
 
@@ -309,7 +310,13 @@ class MusicService :
         // Keep a connected controller so that notification works
         val sessionToken = SessionToken(this, ComponentName(this, MusicService::class.java))
         val controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
-        controllerFuture.addListener({ controllerFuture.get() }, MoreExecutors.directExecutor())
+        controllerFuture.addListener(
+            {
+                runCatching { mediaController = controllerFuture.get() }
+                    .onFailure(::reportException)
+            },
+            MoreExecutors.directExecutor()
+        )
 
         connectivityManager = getSystemService()!!
         connectivityObserver = NetworkConnectivityObserver(this)
@@ -435,6 +442,7 @@ class MusicService :
             }
 
         if (dataStore.get(PersistentQueueKey, true)) {
+            scope.launch(SilentHandler) {
             runCatching {
                 filesDir.resolve(PERSISTENT_QUEUE_FILE).inputStream().use { fis ->
                     ObjectInputStream(fis).use { oos ->
@@ -483,6 +491,8 @@ class MusicService :
         }
 
         // Guardar cola periódicamente para prevenir pérdida por crash o force kill
+        }
+
         scope.launch {
             while (isActive) {
                 delay(30.seconds)
@@ -1745,6 +1755,8 @@ class MusicService :
         abandonAudioFocus()
         releaseLoudnessEnhancer()
         releaseEqualizer()
+        mediaController?.release()
+        mediaController = null
         mediaSession.release()
         player.removeListener(this)
         player.removeListener(sleepTimer)
