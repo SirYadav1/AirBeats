@@ -135,6 +135,108 @@ class BackupRestoreViewModel @Inject constructor(
         }
     }
 
+    suspend fun backupToDrive(context: Context, account: com.google.android.gms.auth.api.signin.GoogleSignInAccount): Boolean {
+        return try {
+            val tempFile = java.io.File(context.cacheDir, "temp_backup.zip")
+            tempFile.outputStream().use { fileOut ->
+                fileOut.buffered().zipOutputStream().use { outputStream ->
+                    (context.filesDir / "datastore" / SETTINGS_FILENAME).takeIf { it.exists() }?.inputStream()?.buffered()?.use { inputStream ->
+                        outputStream.putNextEntry(java.util.zip.ZipEntry(SETTINGS_FILENAME))
+                        inputStream.copyTo(outputStream)
+                    }
+
+                    val namePrefsFile = context.filesDir / "datastore" / "user_name_preferences.preferences_pb"
+                    if (namePrefsFile.exists()) {
+                        namePrefsFile.inputStream().buffered().use { inputStream ->
+                            outputStream.putNextEntry(java.util.zip.ZipEntry("user_name_preferences.preferences_pb"))
+                            inputStream.copyTo(outputStream)
+                        }
+                    }
+
+                    val parentFile = context.filesDir.parentFile
+                    if (parentFile != null) {
+                        val statsPrefsFile = parentFile / "shared_prefs" / "airbeats_global_stats.xml"
+                        if (statsPrefsFile.exists()) {
+                            statsPrefsFile.inputStream().buffered().use { inputStream ->
+                                outputStream.putNextEntry(java.util.zip.ZipEntry("airbeats_global_stats.xml"))
+                                inputStream.copyTo(outputStream)
+                            }
+                        }
+                    }
+
+                    kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+                        database.checkpoint()
+                    }
+                    java.io.FileInputStream(database.openHelper.writableDatabase.path).use { inputStream ->
+                        outputStream.putNextEntry(java.util.zip.ZipEntry(com.darkxvenom.airbeats.db.InternalDatabase.DB_NAME))
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+            }
+
+            val authManager = com.darkxvenom.airbeats.utils.GoogleAuthManager(context)
+            authManager.uploadBackupToDrive(account, tempFile).isSuccess
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun restoreFromDrive(context: Context, account: com.google.android.gms.auth.api.signin.GoogleSignInAccount): Boolean {
+        return try {
+            val tempFile = java.io.File(context.cacheDir, "temp_restore.zip")
+            val authManager = com.darkxvenom.airbeats.utils.GoogleAuthManager(context)
+            val result = authManager.downloadBackupFromDrive(account, tempFile)
+            if (result.isFailure) return false
+
+            tempFile.inputStream().use { fileIn ->
+                fileIn.zipInputStream().use { inputStream ->
+                    var entry = com.darkxvenom.airbeats.utils.tryOrNull { inputStream.nextEntry }
+                    while (entry != null) {
+                        when (entry.name) {
+                            SETTINGS_FILENAME -> {
+                                (context.filesDir / "datastore" / SETTINGS_FILENAME).outputStream().use { outputStream ->
+                                    inputStream.copyTo(outputStream)
+                                }
+                            }
+                            "user_name_preferences.preferences_pb" -> {
+                                val destFile = context.filesDir / "datastore" / "user_name_preferences.preferences_pb"
+                                destFile.parentFile?.mkdirs()
+                                destFile.outputStream().use { outputStream ->
+                                    inputStream.copyTo(outputStream)
+                                }
+                            }
+                            "airbeats_global_stats.xml" -> {
+                                val parentFile = context.filesDir.parentFile
+                                if (parentFile != null) {
+                                    val destFile = parentFile / "shared_prefs" / "airbeats_global_stats.xml"
+                                    destFile.parentFile?.mkdirs()
+                                    destFile.outputStream().use { outputStream ->
+                                        inputStream.copyTo(outputStream)
+                                    }
+                                }
+                            }
+                            com.darkxvenom.airbeats.db.InternalDatabase.DB_NAME -> {
+                                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+                                    database.checkpoint()
+                                }
+                                database.close()
+                                java.io.FileOutputStream(database.openHelper.writableDatabase.path).use { outputStream ->
+                                    inputStream.copyTo(outputStream)
+                                }
+                            }
+                        }
+                        entry = com.darkxvenom.airbeats.utils.tryOrNull { inputStream.nextEntry }
+                    }
+                }
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     fun importPlaylistFromCsv(context: Context, uri: Uri): ArrayList<Song> {
         val songs = arrayListOf<Song>()
         runCatching {
