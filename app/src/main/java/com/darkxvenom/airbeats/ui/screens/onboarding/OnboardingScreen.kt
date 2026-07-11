@@ -98,10 +98,8 @@ fun OnboardingScreen(
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             try {
-                val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
-                val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-                val email = account.email ?: return@rememberLauncherForActivityResult
-                val name = account.displayName ?: "Google User"
+                val email = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_NAME) ?: return@rememberLauncherForActivityResult
+                val name = email.substringBefore("@")
                 
                 currentUserEmail = email
                 currentUserName = name
@@ -143,22 +141,21 @@ fun OnboardingScreen(
             } catch (e: Exception) {
                 isLoading = false
                 e.printStackTrace()
-                if (e.message?.contains("10:") == true) {
-                    Toast.makeText(context, "Sign in failed: SHA-1 fingerprint is not registered in Google Cloud Console.", Toast.LENGTH_LONG).show()
-                } else {
-                    Toast.makeText(context, "Sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
+                Toast.makeText(context, "Sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         } else {
             isLoading = false
-            Toast.makeText(context, "Google Sign-In was cancelled or failed due to missing SHA-1 in Google Cloud Console.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Account selection cancelled.", Toast.LENGTH_LONG).show()
         }
     }
 
     val onGoogleSignInClick: () -> Unit = {
         isLoading = true
-        val googleAuthManager = GoogleAuthManager(context)
-        googleAuthLauncher.launch(googleAuthManager.getSignInClient().signInIntent)
+        val options = com.google.android.gms.common.AccountPicker.AccountChooserOptions.Builder()
+            .setAllowableAccountsTypes(listOf("com.google"))
+            .build()
+        val intent = com.google.android.gms.common.AccountPicker.newChooseAccountIntent(options)
+        googleAuthLauncher.launch(intent)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
