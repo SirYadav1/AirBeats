@@ -419,11 +419,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            val isNameSet by namePreferenceManager.isNameSet.collectAsState(initial = null)
             var showSplash by remember { mutableStateOf(true) }
 
-            LaunchedEffect(Unit) {
-                delay(2000)
-                showSplash = false
+            LaunchedEffect(isNameSet) {
+                if (isNameSet != null) {
+                    delay(1500)
+                    showSplash = false
+                }
             }
 
             var showFullscreenLyrics by remember { mutableStateOf(false) }
@@ -1381,7 +1384,7 @@ class MainActivity : ComponentActivity() {
 
                                     NavHost(
                                         navController = navController,
-                                        startDestination = when (tabOpenedFromShortcut ?: defaultOpenTab) {
+                                        startDestination = if (isNameSet == false) "onboarding" else when (tabOpenedFromShortcut ?: defaultOpenTab) {
                                             NavigationTab.HOME -> Screens.Home
                                             NavigationTab.EXPLORE -> Screens.Explore
                                             NavigationTab.LIBRARY -> Screens.Library

@@ -142,6 +142,14 @@ fun NavGraphBuilder.navigationBuilder(
     composable("history") {
         HistoryScreen(navController)
     }
+    composable("onboarding") {
+        com.darkxvenom.airbeats.ui.screens.onboarding.OnboardingScreen(
+            navController = navController
+        )
+    }
+    composable("guest_profile_setup") {
+        com.darkxvenom.airbeats.ui.screens.onboarding.GuestProfileSetupScreen(navController = navController)
+    }
     composable("neon_search") {
         com.darkxvenom.airbeats.ui.screens.search.NeonSearchScreen(navController = navController)
     }
