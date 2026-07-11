@@ -1,10 +1,6 @@
 package com.darkxvenom.airbeats.ui.screens.onboarding
 
-import android.app.Activity
-import android.content.Intent
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -34,128 +30,88 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import androidx.navigation.NavController
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
-import com.darkxvenom.airbeats.utils.DriveResult
 import com.darkxvenom.airbeats.utils.GoogleAuthManager
-import com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import kotlinx.coroutines.Dispatchers
+import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 fun OnboardingScreen(
-    navController: NavController,
-    backupRestoreViewModel: BackupRestoreViewModel = hiltViewModel()
+    navController: NavController
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val credentialManager = remember { CredentialManager.create(context) }
     val namePrefManager = remember { NamePreferenceManager(context) }
-    
-    // Store user data in case we need to retry after getting permissions
-    var currentUserEmail by remember { mutableStateOf<String?>(null) }
-    var currentUserName by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
 
-    val drivePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val email = currentUserEmail
-            val name = currentUserName
-            if (email != null && name != null) {
-                // Retry backup/restore process
-                coroutineScope.launch {
-                    val restoredResult = backupRestoreViewModel.restoreFromDrive(context, email)
-                    if (restoredResult is DriveResult.Success && restoredResult.data) {
-                        withContext(Dispatchers.Main) {
-                            val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                            intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            context.startActivity(intent)
-                        }
-                    } else if (restoredResult is DriveResult.Error || (restoredResult is DriveResult.Success && !restoredResult.data)) {
-                        namePrefManager.saveUserName(name)
-                        backupRestoreViewModel.backupToDrive(context, email)
-                        withContext(Dispatchers.Main) {
-                            navController.navigate("home") {
-                                popUpTo("onboarding") { inclusive = true }
-                            }
-                        }
-                    }
+    fun continueToHome(name: String) {
+        coroutineScope.launch {
+            namePrefManager.saveUserName(name)
+            isLoading = false
+            navController.navigate("home") {
+                popUpTo("onboarding") {
+                    inclusive = true
                 }
             }
-        } else {
-            isLoading = false
-            Toast.makeText(context, "Google Drive permission denied.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    val googleAuthLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            try {
-                val email = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_NAME) ?: return@rememberLauncherForActivityResult
-                val name = email.substringBefore("@")
-                
-                currentUserEmail = email
-                currentUserName = name
+    fun showSignInError(message: String) {
+        isLoading = false
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    }
 
-                coroutineScope.launch {
-                    var shouldResetLoading = true
-                    try {
-                        val restoredResult = backupRestoreViewModel.restoreFromDrive(context, email)
-                        
-                        if (restoredResult is DriveResult.NeedsPermission) {
-                            shouldResetLoading = false
-                            drivePermissionLauncher.launch(restoredResult.intent)
-                        } else if (restoredResult is DriveResult.Success && restoredResult.data) {
-                            withContext(Dispatchers.Main) {
-                                val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                                intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                context.startActivity(intent)
-                            }
-                        } else {
-                            namePrefManager.saveUserName(name)
-                            backupRestoreViewModel.backupToDrive(context, email)
-                            withContext(Dispatchers.Main) {
-                                navController.navigate("home") {
-                                    popUpTo("onboarding") { inclusive = true }
-                                }
-                            }
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Error during restore: ${e.message}", Toast.LENGTH_SHORT).show()
-                        }
-                    } finally {
-                        if (shouldResetLoading) {
-                            isLoading = false
-                        }
-                    }
+    fun requestGoogleSignIn(filterByAuthorizedAccounts: Boolean) {
+        coroutineScope.launch {
+            try {
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(filterByAuthorizedAccounts)
+                    .setServerClientId(GoogleAuthManager.WEB_CLIENT_ID)
+                    .setAutoSelectEnabled(false)
+                    .build()
+
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+
+                val credential = credentialManager.getCredential(context, request).credential
+                val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                val name = googleCredential.displayName
+                    ?: googleCredential.givenName
+                    ?: googleCredential.id.substringBefore("@")
+
+                continueToHome(name)
+            } catch (e: NoCredentialException) {
+                if (filterByAuthorizedAccounts) {
+                    requestGoogleSignIn(filterByAuthorizedAccounts = false)
+                } else {
+                    showSignInError("No Google account found on this device.")
                 }
+            } catch (e: GoogleIdTokenParsingException) {
+                isLoading = false
+                e.printStackTrace()
+                showSignInError("Google sign in failed. Please try again.")
+            } catch (e: GetCredentialException) {
+                isLoading = false
+                e.printStackTrace()
+                showSignInError(e.message ?: "Google sign in was cancelled.")
             } catch (e: Exception) {
                 isLoading = false
                 e.printStackTrace()
-                Toast.makeText(context, "Sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                showSignInError("Sign in failed: ${e.message}")
             }
-        } else {
-            isLoading = false
-            Toast.makeText(context, "Account selection cancelled.", Toast.LENGTH_LONG).show()
         }
     }
 
     val onGoogleSignInClick: () -> Unit = {
         isLoading = true
-        val options = com.google.android.gms.common.AccountPicker.AccountChooserOptions.Builder()
-            .setAllowableAccountsTypes(listOf("com.google"))
-            .build()
-        val intent = com.google.android.gms.common.AccountPicker.newChooseAccountIntent(options)
-        googleAuthLauncher.launch(intent)
+        requestGoogleSignIn(filterByAuthorizedAccounts = true)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
