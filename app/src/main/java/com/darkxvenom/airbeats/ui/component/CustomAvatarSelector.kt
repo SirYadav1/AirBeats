@@ -78,6 +78,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.asRequestBody
 import com.darkxvenom.airbeats.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -299,7 +301,9 @@ fun AvatarSelector(
                         try {
                             val client = okhttp3.OkHttpClient()
                             val binId = java.util.UUID.randomUUID().toString().replace("-", "").take(12)
-                            val fileBody = okhttp3.RequestBody.create(okhttp3.MediaType.Companion.parse("image/*"), savedFile)
+                            
+                            val mediaType = "image/*".toMediaTypeOrNull()
+                            val fileBody = savedFile.asRequestBody(mediaType)
                             val request = okhttp3.Request.Builder()
                                 .url("https://filebin.net/$binId/avatar.jpg")
                                 .put(fileBody)
@@ -317,7 +321,7 @@ fun AvatarSelector(
                     },
                     onFailure = { exception ->
                         uiState = uiState.copy(
-                            error = context.getString(R.string.error_saving_image),
+                            error = "Error saving image",
                             isLoading = false
                         )
                         Log.e("AvatarSelector", "Error saving image", exception)
