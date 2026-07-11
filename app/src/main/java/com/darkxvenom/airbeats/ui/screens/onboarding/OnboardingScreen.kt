@@ -195,7 +195,6 @@ fun OnboardingScreen(
                 // If it fails, we fall back to the old one. We keep isLoading = true because the intent is starting.
                 val googleAuthManager = GoogleAuthManager(context)
                 fallbackGoogleAuthLauncher.launch(googleAuthManager.getSignInClient().signInIntent)
-                }
             }
         }
     }
