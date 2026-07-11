@@ -27,6 +27,7 @@ import com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.Person
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
 import com.darkxvenom.airbeats.utils.GoogleAuthManager
 import kotlinx.coroutines.launch
@@ -58,7 +59,6 @@ fun OnboardingScreen(
                         backupRestoreViewModel.backupToDrive(context, account)
                     }
                     
-                    namePrefManager.setUserNameSet(true)
                     
                     withContext(Dispatchers.Main) {
                         if (restored) {
@@ -171,7 +171,7 @@ fun OnboardingScreen(
                     .height(56.dp)
             ) {
                 Icon(
-                    painter = painterResource(id = R.drawable.search), // Ideally a Google icon, fallback to search
+                    imageVector = androidx.compose.material.icons.Icons.Default.Person,
                     contentDescription = "Google",
                     tint = Color.Black,
                     modifier = Modifier.size(24.dp)
