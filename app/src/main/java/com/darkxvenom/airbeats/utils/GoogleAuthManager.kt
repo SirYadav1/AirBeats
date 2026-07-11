@@ -28,6 +28,15 @@ class GoogleAuthManager(private val context: Context) {
         const val BACKUP_FILE_NAME = "airbeats_backup.backup"
     }
 
+    fun getSignInClient(): com.google.android.gms.auth.api.signin.GoogleSignInClient {
+        val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(WEB_CLIENT_ID)
+            .requestEmail()
+            .requestProfile()
+            .build()
+        return com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
+    }
+
     private fun getDriveService(email: String): Drive {
         val credential = GoogleAccountCredential.usingOAuth2(
             context, listOf(DriveScopes.DRIVE_APPDATA, "https://www.googleapis.com/auth/youtube")

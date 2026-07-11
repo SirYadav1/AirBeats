@@ -88,6 +88,47 @@ fun OnboardingScreen(
         }
     }
 
+    val fallbackGoogleAuthLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            try {
+                val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+                val email = account.email ?: return@rememberLauncherForActivityResult
+                val name = account.displayName ?: "Google User"
+                
+                currentUserEmail = email
+                currentUserName = name
+
+                coroutineScope.launch {
+                    val restoredResult = backupRestoreViewModel.restoreFromDrive(context, email)
+                    
+                    if (restoredResult is DriveResult.NeedsPermission) {
+                        drivePermissionLauncher.launch(restoredResult.intent)
+                    } else if (restoredResult is DriveResult.Success && restoredResult.data) {
+                        withContext(Dispatchers.Main) {
+                            val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                            intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                            context.startActivity(intent)
+                        }
+                    } else {
+                        namePrefManager.saveUserName(name)
+                        backupRestoreViewModel.backupToDrive(context, email)
+                        withContext(Dispatchers.Main) {
+                            navController.navigate("home") {
+                                popUpTo("onboarding") { inclusive = true }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     val onGoogleSignInClick: () -> Unit = {
         coroutineScope.launch {
             try {
@@ -135,9 +176,18 @@ fun OnboardingScreen(
                         }
                     }
                 }
+            } catch (e: androidx.credentials.exceptions.NoCredentialException) {
+                // Fallback to legacy GoogleSignInClient if no credentials available
+                val googleAuthManager = GoogleAuthManager(context)
+                fallbackGoogleAuthLauncher.launch(googleAuthManager.getSignInClient().signInIntent)
             } catch (e: Exception) {
-                e.printStackTrace()
-                Toast.makeText(context, "Sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                if (e.message?.contains("NoCredential") == true) {
+                    val googleAuthManager = GoogleAuthManager(context)
+                    fallbackGoogleAuthLauncher.launch(googleAuthManager.getSignInClient().signInIntent)
+                } else {
+                    e.printStackTrace()
+                    Toast.makeText(context, "Sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
