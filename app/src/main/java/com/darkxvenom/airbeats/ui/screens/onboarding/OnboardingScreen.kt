@@ -93,7 +93,7 @@ fun OnboardingScreen(
         }
     }
 
-    val fallbackGoogleAuthLauncher = rememberLauncherForActivityResult(
+    val googleAuthLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -157,67 +157,8 @@ fun OnboardingScreen(
 
     val onGoogleSignInClick: () -> Unit = {
         isLoading = true
-        coroutineScope.launch {
-            var shouldResetLoading = true
-            try {
-                val credentialManager = CredentialManager.create(context)
-                val googleIdOption = GetGoogleIdOption.Builder()
-                    .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId(GoogleAuthManager.WEB_CLIENT_ID)
-                    .build()
-
-                val request = GetCredentialRequest.Builder()
-                    .addCredentialOption(googleIdOption)
-                    .build()
-
-                val result = credentialManager.getCredential(context, request)
-                val credential = result.credential
-                
-                if (credential is androidx.credentials.CustomCredential &&
-                    credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
-                ) {
-                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                    val email = googleIdTokenCredential.id
-                    val name = googleIdTokenCredential.displayName ?: "Google User"
-                    
-                    currentUserEmail = email
-                    currentUserName = name
-
-                    val restoredResult = backupRestoreViewModel.restoreFromDrive(context, email)
-                    
-                    if (restoredResult is DriveResult.NeedsPermission) {
-                        shouldResetLoading = false
-                        drivePermissionLauncher.launch(restoredResult.intent)
-                    } else if (restoredResult is DriveResult.Success && restoredResult.data) {
-                        withContext(Dispatchers.Main) {
-                            val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                            intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            context.startActivity(intent)
-                        }
-                    } else {
-                        // Error or false (not restored) -> Do initial backup
-                        namePrefManager.saveUserName(name)
-                        backupRestoreViewModel.backupToDrive(context, email)
-                        withContext(Dispatchers.Main) {
-                            navController.navigate("home") {
-                                popUpTo("onboarding") { inclusive = true }
-                            }
-                        }
-                    }
-                } else {
-                    Toast.makeText(context, "Unrecognized credential returned.", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                // If it fails, we fall back to the old one. We keep isLoading = true because the intent is starting.
-                shouldResetLoading = false
-                val googleAuthManager = GoogleAuthManager(context)
-                fallbackGoogleAuthLauncher.launch(googleAuthManager.getSignInClient().signInIntent)
-            } finally {
-                if (shouldResetLoading) {
-                    isLoading = false
-                }
-            }
-        }
+        val googleAuthManager = GoogleAuthManager(context)
+        googleAuthLauncher.launch(googleAuthManager.getSignInClient().signInIntent)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
