@@ -58,6 +58,7 @@ fun OnboardingScreen(
     // Store user data in case we need to retry after getting permissions
     var currentUserEmail by remember { mutableStateOf<String?>(null) }
     var currentUserName by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
 
     val drivePermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -87,6 +88,7 @@ fun OnboardingScreen(
                 }
             }
         } else {
+            isLoading = false
             Toast.makeText(context, "Google Drive permission denied.", Toast.LENGTH_SHORT).show()
         }
     }
@@ -126,13 +128,21 @@ fun OnboardingScreen(
                     }
                 }
             } catch (e: Exception) {
+                isLoading = false
                 e.printStackTrace()
-                Toast.makeText(context, "Sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                if (e.message?.contains("10:") == true) {
+                    Toast.makeText(context, "Sign in failed: SHA-1 fingerprint is not registered in Google Cloud Console.", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "Sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             }
+        } else {
+            isLoading = false
         }
     }
 
     val onGoogleSignInClick: () -> Unit = {
+        isLoading = true
         coroutineScope.launch {
             try {
                 val credentialManager = CredentialManager.create(context)
@@ -169,7 +179,6 @@ fun OnboardingScreen(
                             context.startActivity(intent)
                         }
                     } else {
-                        // Error or false (not restored) -> Do initial backup
                         namePrefManager.saveUserName(name)
                         backupRestoreViewModel.backupToDrive(context, email)
                         withContext(Dispatchers.Main) {
@@ -178,18 +187,14 @@ fun OnboardingScreen(
                             }
                         }
                     }
+                } else {
+                    isLoading = false
+                    Toast.makeText(context, "Unrecognized credential returned.", Toast.LENGTH_SHORT).show()
                 }
-            } catch (e: androidx.credentials.exceptions.NoCredentialException) {
-                // Fallback to legacy GoogleSignInClient if no credentials available
+            } catch (e: Exception) {
+                // If it fails, we fall back to the old one. We keep isLoading = true because the intent is starting.
                 val googleAuthManager = GoogleAuthManager(context)
                 fallbackGoogleAuthLauncher.launch(googleAuthManager.getSignInClient().signInIntent)
-            } catch (e: Exception) {
-                if (e.message?.contains("NoCredential") == true) {
-                    val googleAuthManager = GoogleAuthManager(context)
-                    fallbackGoogleAuthLauncher.launch(googleAuthManager.getSignInClient().signInIntent)
-                } else {
-                    e.printStackTrace()
-                    Toast.makeText(context, "Sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -271,25 +276,34 @@ fun OnboardingScreen(
             // Primary Purple Button (Continue with Google)
             Button(
                 onClick = onGoogleSignInClick,
+                enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA259FF)),
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
             ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.google),
-                    contentDescription = "Google",
-                    tint = Color.Unspecified, // Keep original colors
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Continue With Google",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        painter = painterResource(id = R.drawable.google),
+                        contentDescription = "Google",
+                        tint = Color.Unspecified, // Keep original colors
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Continue With Google",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -297,6 +311,7 @@ fun OnboardingScreen(
             // Secondary Dark Button (Continue as Guest)
             Button(
                 onClick = { navController.navigate("guest_profile_setup") },
+                enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF232336)),
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier
