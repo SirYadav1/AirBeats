@@ -15,7 +15,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
-import com.darkxvenom.airbeats.ui.screens.settings.CustomAvatarSelector
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,10 +61,11 @@ fun GuestProfileSetupScreen(navController: NavController) {
                 value = name,
                 onValueChange = { name = it },
                 label = { Text("What should we call you?", color = Color.White.copy(alpha = 0.7f)) },
-                colors = TextFieldDefaults.outlinedTextFieldColors(
-                    textColor = Color.White,
-                    focusedBorderColor = Color.Cyan,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
+                colors = TextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedIndicatorColor = Color.Cyan,
+                    unfocusedIndicatorColor = Color.White.copy(alpha = 0.5f),
                     cursorColor = Color.Cyan
                 ),
                 singleLine = true,
@@ -79,7 +79,6 @@ fun GuestProfileSetupScreen(navController: NavController) {
                     if (name.isNotBlank()) {
                         coroutineScope.launch {
                             namePrefManager.saveUserName(name)
-                            namePrefManager.setUserNameSet(true)
                             navController.navigate("home") { // Needs to pop back stack
                                 popUpTo("onboarding") { inclusive = true }
                             }
