@@ -1,36 +1,42 @@
 package com.darkxvenom.airbeats.ui.screens.onboarding
 
+import android.app.Activity
+import android.content.Intent
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.material.icons.filled.Person
+import androidx.navigation.NavController
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
+import com.darkxvenom.airbeats.utils.DriveResult
 import com.darkxvenom.airbeats.utils.GoogleAuthManager
+import com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun OnboardingScreen(
@@ -41,32 +47,83 @@ fun OnboardingScreen(
     val coroutineScope = rememberCoroutineScope()
     val namePrefManager = remember { NamePreferenceManager(context) }
     
-    val googleAuthLauncher = rememberLauncherForActivityResult(
+    // Store user data in case we need to retry after getting permissions
+    var currentUserEmail by remember { mutableStateOf<String?>(null) }
+    var currentUserName by remember { mutableStateOf<String?>(null) }
+
+    val drivePermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            try {
-                val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-                val name = account.displayName ?: "Google User"
-                
+        if (result.resultCode == Activity.RESULT_OK) {
+            val email = currentUserEmail
+            val name = currentUserName
+            if (email != null && name != null) {
+                // Retry backup/restore process
                 coroutineScope.launch {
-                    // Try to restore from Google Drive
-                    val restored = backupRestoreViewModel.restoreFromDrive(context, account)
-                    if (!restored) {
-                        // If no backup exists, do an initial backup
-                        namePrefManager.saveUserName(name)
-                        backupRestoreViewModel.backupToDrive(context, account)
-                    }
-                    
-                    
-                    withContext(Dispatchers.Main) {
-                        if (restored) {
-                            // If restored, restart app to load DB
+                    val restoredResult = backupRestoreViewModel.restoreFromDrive(context, email)
+                    if (restoredResult is DriveResult.Success && restoredResult.data) {
+                        withContext(Dispatchers.Main) {
                             val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                            intent?.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                            intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                             context.startActivity(intent)
-                        } else {
+                        }
+                    } else if (restoredResult is DriveResult.Error || (restoredResult is DriveResult.Success && !restoredResult.data)) {
+                        namePrefManager.saveUserName(name)
+                        backupRestoreViewModel.backupToDrive(context, email)
+                        withContext(Dispatchers.Main) {
+                            navController.navigate("home") {
+                                popUpTo("onboarding") { inclusive = true }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Toast.makeText(context, "Google Drive permission denied.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val onGoogleSignInClick: () -> Unit = {
+        coroutineScope.launch {
+            try {
+                val credentialManager = CredentialManager.create(context)
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(GoogleAuthManager.WEB_CLIENT_ID)
+                    .build()
+
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+
+                val result = credentialManager.getCredential(context, request)
+                val credential = result.credential
+                
+                if (credential is androidx.credentials.CustomCredential &&
+                    credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                ) {
+                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                    val email = googleIdTokenCredential.id
+                    val name = googleIdTokenCredential.displayName ?: "Google User"
+                    
+                    currentUserEmail = email
+                    currentUserName = name
+
+                    val restoredResult = backupRestoreViewModel.restoreFromDrive(context, email)
+                    
+                    if (restoredResult is DriveResult.NeedsPermission) {
+                        drivePermissionLauncher.launch(restoredResult.intent)
+                    } else if (restoredResult is DriveResult.Success && restoredResult.data) {
+                        withContext(Dispatchers.Main) {
+                            val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                            intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                            context.startActivity(intent)
+                        }
+                    } else {
+                        // Error or false (not restored) -> Do initial backup
+                        namePrefManager.saveUserName(name)
+                        backupRestoreViewModel.backupToDrive(context, email)
+                        withContext(Dispatchers.Main) {
                             navController.navigate("home") {
                                 popUpTo("onboarding") { inclusive = true }
                             }
@@ -75,13 +132,9 @@ fun OnboardingScreen(
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                Toast.makeText(context, "Sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
-    }
-
-    val onGoogleSignInClick: () -> Unit = {
-        val googleAuthManager = GoogleAuthManager(context)
-        googleAuthLauncher.launch(googleAuthManager.getSignInClient().signInIntent)
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "stringAnim")

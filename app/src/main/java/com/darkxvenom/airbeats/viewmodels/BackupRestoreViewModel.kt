@@ -135,7 +135,7 @@ class BackupRestoreViewModel @Inject constructor(
         }
     }
 
-    suspend fun backupToDrive(context: Context, account: com.google.android.gms.auth.api.signin.GoogleSignInAccount): Boolean {
+    suspend fun backupToDrive(context: Context, email: String): com.darkxvenom.airbeats.utils.DriveResult<Boolean> {
         return try {
             val tempFile = java.io.File(context.cacheDir, "temp_backup.zip")
             tempFile.outputStream().use { fileOut ->
@@ -175,19 +175,25 @@ class BackupRestoreViewModel @Inject constructor(
             }
 
             val authManager = com.darkxvenom.airbeats.utils.GoogleAuthManager(context)
-            authManager.uploadBackupToDrive(account, tempFile).isSuccess
+            when (val result = authManager.uploadBackupToDrive(email, tempFile)) {
+                is com.darkxvenom.airbeats.utils.DriveResult.Success -> com.darkxvenom.airbeats.utils.DriveResult.Success(true)
+                is com.darkxvenom.airbeats.utils.DriveResult.NeedsPermission -> result
+                is com.darkxvenom.airbeats.utils.DriveResult.Error -> result
+            }
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            com.darkxvenom.airbeats.utils.DriveResult.Error(e)
         }
     }
 
-    suspend fun restoreFromDrive(context: Context, account: com.google.android.gms.auth.api.signin.GoogleSignInAccount): Boolean {
+    suspend fun restoreFromDrive(context: Context, email: String): com.darkxvenom.airbeats.utils.DriveResult<Boolean> {
         return try {
             val tempFile = java.io.File(context.cacheDir, "temp_restore.zip")
             val authManager = com.darkxvenom.airbeats.utils.GoogleAuthManager(context)
-            val result = authManager.downloadBackupFromDrive(account, tempFile)
-            if (result.isFailure) return false
+            val result = authManager.downloadBackupFromDrive(email, tempFile)
+            if (result !is com.darkxvenom.airbeats.utils.DriveResult.Success) {
+                return result as com.darkxvenom.airbeats.utils.DriveResult<Boolean>
+            }
 
             tempFile.inputStream().use { fileIn ->
                 fileIn.zipInputStream().use { inputStream ->
@@ -230,10 +236,10 @@ class BackupRestoreViewModel @Inject constructor(
                     }
                 }
             }
-            true
+            com.darkxvenom.airbeats.utils.DriveResult.Success(true)
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            com.darkxvenom.airbeats.utils.DriveResult.Error(e)
         }
     }
 

@@ -1,13 +1,11 @@
 package com.darkxvenom.airbeats.utils
 
+import android.accounts.Account
 import android.content.Context
 import android.content.Intent
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.android.gms.auth.api.signin.GoogleSignInClient
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.Scope
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
+import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException
+import com.google.api.client.http.FileContent
 import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
@@ -15,9 +13,13 @@ import com.google.api.services.drive.DriveScopes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import com.google.api.client.http.FileContent
 import java.io.FileOutputStream
-import com.darkxvenom.airbeats.BuildConfig
+
+sealed class DriveResult<out T> {
+    data class Success<out T>(val data: T) : DriveResult<T>()
+    data class Error(val exception: Exception) : DriveResult<Nothing>()
+    data class NeedsPermission(val intent: Intent) : DriveResult<Nothing>()
+}
 
 class GoogleAuthManager(private val context: Context) {
     
@@ -26,34 +28,11 @@ class GoogleAuthManager(private val context: Context) {
         const val BACKUP_FILE_NAME = "airbeats_backup.backup"
     }
 
-    fun getSignInClient(): GoogleSignInClient {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(WEB_CLIENT_ID)
-            .requestEmail()
-            .requestProfile()
-            .requestScopes(
-                Scope(DriveScopes.DRIVE_APPDATA),
-                Scope("https://www.googleapis.com/auth/youtube")
-            )
-            .build()
-        return GoogleSignIn.getClient(context, gso)
-    }
-
-    fun getSignedInAccount(): GoogleSignInAccount? {
-        return GoogleSignIn.getLastSignedInAccount(context)
-    }
-
-    fun signOut(onComplete: () -> Unit) {
-        getSignInClient().signOut().addOnCompleteListener {
-            onComplete()
-        }
-    }
-
-    private fun getDriveService(account: GoogleSignInAccount): Drive {
+    private fun getDriveService(email: String): Drive {
         val credential = GoogleAccountCredential.usingOAuth2(
             context, listOf(DriveScopes.DRIVE_APPDATA, "https://www.googleapis.com/auth/youtube")
         )
-        credential.selectedAccount = account.account
+        credential.selectedAccount = Account(email, "com.google")
         
         return Drive.Builder(
             NetHttpTransport(),
@@ -62,11 +41,10 @@ class GoogleAuthManager(private val context: Context) {
         ).setApplicationName("AirBeats").build()
     }
 
-    suspend fun uploadBackupToDrive(account: GoogleSignInAccount, backupFile: File): Result<String> = withContext(Dispatchers.IO) {
-        runCatching {
-            val driveService = getDriveService(account)
+    suspend fun uploadBackupToDrive(email: String, backupFile: File): DriveResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val driveService = getDriveService(email)
             
-            // Check if file already exists in AppData folder
             val fileList = driveService.files().list()
                 .setSpaces("appDataFolder")
                 .setFields("nextPageToken, files(id, name)")
@@ -76,12 +54,10 @@ class GoogleAuthManager(private val context: Context) {
             val fileContent = FileContent("application/octet-stream", backupFile)
             
             if (fileList.files.isNotEmpty()) {
-                // Update existing
                 val existingFileId = fileList.files[0].id
                 driveService.files().update(existingFileId, null, fileContent).execute()
-                existingFileId
+                DriveResult.Success(existingFileId)
             } else {
-                // Create new
                 val fileMetadata = com.google.api.services.drive.model.File().apply {
                     name = BACKUP_FILE_NAME
                     parents = listOf("appDataFolder")
@@ -89,14 +65,18 @@ class GoogleAuthManager(private val context: Context) {
                 val file = driveService.files().create(fileMetadata, fileContent)
                     .setFields("id")
                     .execute()
-                file.id
+                DriveResult.Success(file.id)
             }
+        } catch (e: UserRecoverableAuthIOException) {
+            DriveResult.NeedsPermission(e.intent!!)
+        } catch (e: Exception) {
+            DriveResult.Error(e)
         }
     }
 
-    suspend fun downloadBackupFromDrive(account: GoogleSignInAccount, destFile: File): Result<File> = withContext(Dispatchers.IO) {
-        runCatching {
-            val driveService = getDriveService(account)
+    suspend fun downloadBackupFromDrive(email: String, destFile: File): DriveResult<File> = withContext(Dispatchers.IO) {
+        try {
+            val driveService = getDriveService(email)
             
             val fileList = driveService.files().list()
                 .setSpaces("appDataFolder")
@@ -105,14 +85,18 @@ class GoogleAuthManager(private val context: Context) {
                 .execute()
 
             if (fileList.files.isEmpty()) {
-                throw Exception("No backup found on Google Drive")
+                DriveResult.Error(Exception("No backup found on Google Drive"))
+            } else {
+                val fileId = fileList.files[0].id
+                FileOutputStream(destFile).use { outStream ->
+                    driveService.files().get(fileId).executeMediaAndDownloadTo(outStream)
+                }
+                DriveResult.Success(destFile)
             }
-            
-            val fileId = fileList.files[0].id
-            FileOutputStream(destFile).use { outStream ->
-                driveService.files().get(fileId).executeMediaAndDownloadTo(outStream)
-            }
-            destFile
+        } catch (e: UserRecoverableAuthIOException) {
+            DriveResult.NeedsPermission(e.intent!!)
+        } catch (e: Exception) {
+            DriveResult.Error(e)
         }
     }
 }
