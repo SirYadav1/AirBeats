@@ -31,9 +31,9 @@ fun GuestProfileSetupScreen(navController: NavController) {
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF0F2027),
-                        Color(0xFF203A43),
-                        Color(0xFF2C5364)
+                        Color(0xFFE3F2FD),
+                        Color(0xFFBBDEFB),
+                        Color(0xFF90CAF9)
                     )
                 )
             )
@@ -47,7 +47,7 @@ fun GuestProfileSetupScreen(navController: NavController) {
         ) {
             Text(
                 text = "Set Up Profile",
-                color = Color.White,
+                color = Color(0xFF111111),
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 32.dp)
@@ -60,13 +60,15 @@ fun GuestProfileSetupScreen(navController: NavController) {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("What should we call you?", color = Color.White.copy(alpha = 0.7f)) },
+                label = { Text("What should we call you?", color = Color(0xFF333333)) },
                 colors = TextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedIndicatorColor = Color.Cyan,
-                    unfocusedIndicatorColor = Color.White.copy(alpha = 0.5f),
-                    cursorColor = Color.Cyan
+                    focusedTextColor = Color.Black,
+                    unfocusedTextColor = Color.DarkGray,
+                    focusedIndicatorColor = Color(0xFF1976D2),
+                    unfocusedIndicatorColor = Color.Gray,
+                    cursorColor = Color(0xFF1976D2),
+                    focusedContainerColor = Color.White.copy(alpha = 0.5f),
+                    unfocusedContainerColor = Color.White.copy(alpha = 0.5f)
                 ),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -87,12 +89,13 @@ fun GuestProfileSetupScreen(navController: NavController) {
                 },
                 enabled = name.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Cyan,
-                    contentColor = Color.Black,
-                    disabledContainerColor = Color.Gray,
+                    containerColor = Color(0xFF1976D2),
+                    contentColor = Color.White,
+                    disabledContainerColor = Color.LightGray,
                     disabledContentColor = Color.DarkGray
                 ),
                 shape = RoundedCornerShape(24.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)

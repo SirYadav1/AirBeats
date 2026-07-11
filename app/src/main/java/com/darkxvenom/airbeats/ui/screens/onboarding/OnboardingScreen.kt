@@ -100,9 +100,9 @@ fun OnboardingScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF0F2027),
-                        Color(0xFF203A43),
-                        Color(0xFF2C5364)
+                        Color(0xFFE3F2FD),
+                        Color(0xFFBBDEFB),
+                        Color(0xFF90CAF9)
                     )
                 )
             )
@@ -126,18 +126,18 @@ fun OnboardingScreen(
             
             drawPath(
                 path = path,
-                color = Color.Cyan.copy(alpha = 0.8f),
+                color = Color(0xFF1976D2).copy(alpha = 0.8f),
                 style = Stroke(width = 4.dp.toPx())
             )
             
             // Draw simple stick figures holding the string
-            drawCircle(Color.White, radius = 15f, center = Offset(width * 0.08f, startY - 30f))
-            drawLine(Color.White, Offset(width * 0.08f, startY - 15f), Offset(width * 0.08f, startY + 40f), strokeWidth = 5f)
-            drawLine(Color.White, Offset(width * 0.08f, startY), Offset(width * 0.1f, startY), strokeWidth = 5f)
+            drawCircle(Color(0xFF333333), radius = 15f, center = Offset(width * 0.08f, startY - 30f))
+            drawLine(Color(0xFF333333), Offset(width * 0.08f, startY - 15f), Offset(width * 0.08f, startY + 40f), strokeWidth = 5f)
+            drawLine(Color(0xFF333333), Offset(width * 0.08f, startY), Offset(width * 0.1f, startY), strokeWidth = 5f)
             
-            drawCircle(Color.White, radius = 15f, center = Offset(width * 0.92f, startY - 30f))
-            drawLine(Color.White, Offset(width * 0.92f, startY - 15f), Offset(width * 0.92f, startY + 40f), strokeWidth = 5f)
-            drawLine(Color.White, Offset(width * 0.92f, startY), Offset(width * 0.9f, startY), strokeWidth = 5f)
+            drawCircle(Color(0xFF333333), radius = 15f, center = Offset(width * 0.92f, startY - 30f))
+            drawLine(Color(0xFF333333), Offset(width * 0.92f, startY - 15f), Offset(width * 0.92f, startY + 40f), strokeWidth = 5f)
+            drawLine(Color(0xFF333333), Offset(width * 0.92f, startY), Offset(width * 0.9f, startY), strokeWidth = 5f)
         }
 
         Column(
@@ -149,7 +149,7 @@ fun OnboardingScreen(
         ) {
             Text(
                 text = "Welcome to AirBeats",
-                color = Color.White,
+                color = Color(0xFF111111),
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -157,7 +157,7 @@ fun OnboardingScreen(
             
             Text(
                 text = "Sync your music across devices seamlessly",
-                color = Color.White.copy(alpha = 0.7f),
+                color = Color(0xFF333333),
                 fontSize = 16.sp,
                 modifier = Modifier.padding(bottom = 32.dp)
             )
@@ -166,6 +166,7 @@ fun OnboardingScreen(
                 onClick = onGoogleSignInClick,
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                 shape = RoundedCornerShape(24.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
@@ -187,10 +188,14 @@ fun OnboardingScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            OutlinedButton(
+            Button(
                 onClick = { navController.navigate("guest_profile_setup") },
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF1976D2),
+                    contentColor = Color.White
+                ),
                 shape = RoundedCornerShape(24.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)

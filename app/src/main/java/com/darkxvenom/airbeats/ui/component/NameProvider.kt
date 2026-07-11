@@ -66,11 +66,4 @@ fun NameProvider(
     ) {
         content()
     }
-
-    // Show dialog if needed
-    if (showNameDialog && isInitialized) {
-        NameSetupDialog(
-            onNameConfirmed = onNameConfirmed
-        )
-    }
 }
