@@ -107,23 +107,36 @@ fun OnboardingScreen(
                 currentUserName = name
 
                 coroutineScope.launch {
-                    val restoredResult = backupRestoreViewModel.restoreFromDrive(context, email)
-                    
-                    if (restoredResult is DriveResult.NeedsPermission) {
-                        drivePermissionLauncher.launch(restoredResult.intent)
-                    } else if (restoredResult is DriveResult.Success && restoredResult.data) {
-                        withContext(Dispatchers.Main) {
-                            val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                            intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            context.startActivity(intent)
-                        }
-                    } else {
-                        namePrefManager.saveUserName(name)
-                        backupRestoreViewModel.backupToDrive(context, email)
-                        withContext(Dispatchers.Main) {
-                            navController.navigate("home") {
-                                popUpTo("onboarding") { inclusive = true }
+                    var shouldResetLoading = true
+                    try {
+                        val restoredResult = backupRestoreViewModel.restoreFromDrive(context, email)
+                        
+                        if (restoredResult is DriveResult.NeedsPermission) {
+                            shouldResetLoading = false
+                            drivePermissionLauncher.launch(restoredResult.intent)
+                        } else if (restoredResult is DriveResult.Success && restoredResult.data) {
+                            withContext(Dispatchers.Main) {
+                                val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                                intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                context.startActivity(intent)
                             }
+                        } else {
+                            namePrefManager.saveUserName(name)
+                            backupRestoreViewModel.backupToDrive(context, email)
+                            withContext(Dispatchers.Main) {
+                                navController.navigate("home") {
+                                    popUpTo("onboarding") { inclusive = true }
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Error during restore: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    } finally {
+                        if (shouldResetLoading) {
+                            isLoading = false
                         }
                     }
                 }
@@ -138,12 +151,14 @@ fun OnboardingScreen(
             }
         } else {
             isLoading = false
+            Toast.makeText(context, "Google Sign-In was cancelled or failed due to missing SHA-1 in Google Cloud Console.", Toast.LENGTH_LONG).show()
         }
     }
 
     val onGoogleSignInClick: () -> Unit = {
         isLoading = true
         coroutineScope.launch {
+            var shouldResetLoading = true
             try {
                 val credentialManager = CredentialManager.create(context)
                 val googleIdOption = GetGoogleIdOption.Builder()
@@ -171,6 +186,7 @@ fun OnboardingScreen(
                     val restoredResult = backupRestoreViewModel.restoreFromDrive(context, email)
                     
                     if (restoredResult is DriveResult.NeedsPermission) {
+                        shouldResetLoading = false
                         drivePermissionLauncher.launch(restoredResult.intent)
                     } else if (restoredResult is DriveResult.Success && restoredResult.data) {
                         withContext(Dispatchers.Main) {
@@ -179,6 +195,7 @@ fun OnboardingScreen(
                             context.startActivity(intent)
                         }
                     } else {
+                        // Error or false (not restored) -> Do initial backup
                         namePrefManager.saveUserName(name)
                         backupRestoreViewModel.backupToDrive(context, email)
                         withContext(Dispatchers.Main) {
@@ -188,13 +205,17 @@ fun OnboardingScreen(
                         }
                     }
                 } else {
-                    isLoading = false
                     Toast.makeText(context, "Unrecognized credential returned.", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 // If it fails, we fall back to the old one. We keep isLoading = true because the intent is starting.
+                shouldResetLoading = false
                 val googleAuthManager = GoogleAuthManager(context)
                 fallbackGoogleAuthLauncher.launch(googleAuthManager.getSignInClient().signInIntent)
+            } finally {
+                if (shouldResetLoading) {
+                    isLoading = false
+                }
             }
         }
     }
