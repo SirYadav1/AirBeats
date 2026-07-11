@@ -191,9 +191,9 @@ class BackupRestoreViewModel @Inject constructor(
 
             tempFile.inputStream().use { fileIn ->
                 fileIn.zipInputStream().use { inputStream ->
-                    var entry = com.darkxvenom.airbeats.utils.tryOrNull { inputStream.nextEntry }
+                    var entry = runCatching { inputStream.nextEntry }.getOrNull()
                     while (entry != null) {
-                        when (entry.name) {
+                        when (entry?.name) {
                             SETTINGS_FILENAME -> {
                                 (context.filesDir / "datastore" / SETTINGS_FILENAME).outputStream().use { outputStream ->
                                     inputStream.copyTo(outputStream)
@@ -226,7 +226,7 @@ class BackupRestoreViewModel @Inject constructor(
                                 }
                             }
                         }
-                        entry = com.darkxvenom.airbeats.utils.tryOrNull { inputStream.nextEntry }
+                        entry = runCatching { inputStream.nextEntry }.getOrNull()
                     }
                 }
             }
