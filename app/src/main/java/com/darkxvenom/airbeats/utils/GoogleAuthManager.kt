@@ -24,7 +24,7 @@ sealed class DriveResult<out T> {
 class GoogleAuthManager(private val context: Context) {
     
     companion object {
-        const val WEB_CLIENT_ID = "83152931540-5tmnaka8rvkp5hh8ucihhl9cksuo9lob.apps.googleusercontent.com"
+        const val WEB_CLIENT_ID = "83152931540-n3p9rbv3f41p5mhjbvk2fr0et09q44l7.apps.googleusercontent.com"
         const val BACKUP_FILE_NAME = "airbeats_backup.backup"
     }
 
