@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +16,10 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.darkxvenom.airbeats.R
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -137,103 +142,70 @@ fun OnboardingScreen(
         }
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "stringAnim")
-    val stringWave by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2f * Math.PI.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ), label = "wave"
-    )
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Hero background image with subtle blur
+        Image(
+            painter = painterResource(id = R.drawable.hero_bg),
+            contentDescription = "Background",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(radius = 8.dp)
+        )
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFFE3F2FD),
-                        Color(0xFFBBDEFB),
-                        Color(0xFF90CAF9)
+        // Gradient overlay fading to dark purple/black at bottom
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color(0x800D0D1A),
+                            Color(0xFF0D0D1A),
+                            Color(0xFF0D0D1A)
+                        ),
+                        startY = 0f,
+                        endY = Float.POSITIVE_INFINITY
                     )
                 )
-            )
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val width = size.width
-            val height = size.height
-            val startY = height * 0.4f
-
-            val path = Path()
-            path.moveTo(width * 0.1f, startY)
-            
-            // Draw a wobbly string between two imaginary people
-            val control1X = width * 0.3f
-            val control1Y = startY + kotlin.math.sin(stringWave) * 100f
-            val control2X = width * 0.7f
-            val control2Y = startY + kotlin.math.sin(stringWave + 1f) * 100f
-            val endX = width * 0.9f
-            
-            path.cubicTo(control1X, control1Y, control2X, control2Y, endX, startY)
-            
-            drawPath(
-                path = path,
-                color = Color(0xFF1976D2).copy(alpha = 0.8f),
-                style = Stroke(width = 4.dp.toPx())
-            )
-            
-            // Draw simple stick figures holding the string
-            drawCircle(Color(0xFF333333), radius = 15f, center = Offset(width * 0.08f, startY - 30f))
-            drawLine(Color(0xFF333333), Offset(width * 0.08f, startY - 15f), Offset(width * 0.08f, startY + 40f), strokeWidth = 5f)
-            drawLine(Color(0xFF333333), Offset(width * 0.08f, startY), Offset(width * 0.1f, startY), strokeWidth = 5f)
-            
-            drawCircle(Color(0xFF333333), radius = 15f, center = Offset(width * 0.92f, startY - 30f))
-            drawLine(Color(0xFF333333), Offset(width * 0.92f, startY - 15f), Offset(width * 0.92f, startY + 40f), strokeWidth = 5f)
-            drawLine(Color(0xFF333333), Offset(width * 0.92f, startY), Offset(width * 0.9f, startY), strokeWidth = 5f)
-        }
+        )
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
+                .padding(horizontal = 24.dp, vertical = 48.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Bottom
         ) {
             Text(
-                text = "Welcome to AirBeats",
-                color = Color(0xFF111111),
-                fontSize = 28.sp,
+                text = "Let get started",
+                color = Color.White,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
             
             Text(
-                text = "Sync your music across devices seamlessly",
-                color = Color(0xFF333333),
-                fontSize = 16.sp,
-                modifier = Modifier.padding(bottom = 32.dp)
+                text = "Sign up or log in to see what's happening\nnear you",
+                color = Color.LightGray,
+                fontSize = 14.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(bottom = 48.dp)
             )
 
+            // Primary Purple Button (Continue as Guest / Setup)
             Button(
-                onClick = onGoogleSignInClick,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                onClick = { navController.navigate("guest_profile_setup") },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA259FF)),
                 shape = RoundedCornerShape(24.dp),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
             ) {
-                Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Default.Person,
-                    contentDescription = "Google",
-                    tint = Color.Black,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Continue with Google",
-                    color = Color.Black,
+                    text = "Continue as Guest",
+                    color = Color.White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -241,25 +213,38 @@ fun OnboardingScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Secondary Dark Button (Continue with Google)
             Button(
-                onClick = { navController.navigate("guest_profile_setup") },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1976D2),
-                    contentColor = Color.White
-                ),
+                onClick = onGoogleSignInClick,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF232336)),
                 shape = RoundedCornerShape(24.dp),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
             ) {
+                Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Default.Person,
+                    contentDescription = "Google",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Continue as Guest",
+                    text = "Continue With Google",
+                    color = Color.White,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Medium
                 )
             }
-            Spacer(modifier = Modifier.height(32.dp))
+
+            Spacer(modifier = Modifier.height(48.dp))
+
+            Text(
+                text = "By signing up or logging in, I accept the AirBeats\nTerms of Service and Privacy Policy",
+                color = Color.Gray,
+                fontSize = 12.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }
