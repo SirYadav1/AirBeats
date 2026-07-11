@@ -25,6 +25,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -209,17 +212,17 @@ fun OnboardingScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .blur(radius = 24.dp)
-                .androidx.compose.ui.graphics.graphicsLayer { alpha = 0.99f }
-                .androidx.compose.ui.draw.drawWithContent {
+                .graphicsLayer { alpha = 0.99f }
+                .drawWithContent {
                     val colors = listOf(Color.Transparent, Color.Black, Color.Black)
                     drawContent()
                     drawRect(
                         brush = Brush.verticalGradient(
                             colors = colors,
-                            startY = size.height * 0.4f,
-                            endY = size.height * 0.8f
+                            startY = this.size.height * 0.4f,
+                            endY = this.size.height * 0.8f
                         ),
-                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                        blendMode = BlendMode.DstIn
                     )
                 }
         )
