@@ -177,8 +177,8 @@ fun UserCard(
                         )
                         .border(1.5.dp, borderBrush, CircleShape)
                 ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
+            com.darkxvenom.airbeats.ui.component.BlurredBackground(
+                model = ImageRequest.Builder(LocalContext.current)
                             .data(imageUrl)
                             .crossfade(true)
                             .build(),
@@ -371,11 +371,6 @@ fun AboutScreen(
         artworkUrl?.let { imageUrl ->
             AsyncImage(
                 model = imageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(90.dp)
             )
 
             val isDarkTheme =

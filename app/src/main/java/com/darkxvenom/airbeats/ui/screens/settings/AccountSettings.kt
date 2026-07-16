@@ -104,13 +104,8 @@ fun AccountSettings(
         val artworkUrl = mediaMetadata?.thumbnailUrl
 
         artworkUrl?.let { imageUrl ->
-            AsyncImage(
+            com.darkxvenom.airbeats.ui.component.BlurredBackground(
                 model = imageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(90.dp)
             )
 
             val isDarkTheme =
