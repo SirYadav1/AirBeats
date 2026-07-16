@@ -66,9 +66,19 @@ fun Modifier.drawBackdropCustomShape(
             lens(24f.dp.toPx(), size.minDimension / 2f, true)
         },
         onDrawBackdrop = { drawBackdrop ->
-            drawBackdrop()
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                drawBackdrop()
+            }
         },
         shape = { shape },
-        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.1f)) }
+        onDrawSurface = {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                drawRect(Color.Black.copy(alpha = 0.1f))
+            } else {
+                // Fallback for Android 11 and below since RenderEffect blur isn't supported
+                // We use a dark color (since this is mostly used in dark themes) or surface color
+                drawRect(Color(0xE6121212)) // 90% opaque dark gray (standard dark surface)
+            }
+        }
     )
 }
