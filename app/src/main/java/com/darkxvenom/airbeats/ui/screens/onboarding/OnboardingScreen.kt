@@ -72,7 +72,7 @@ fun OnboardingScreen(
             try {
                 val googleIdOption = GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(filterByAuthorizedAccounts)
-                    .setServerClientId(GoogleAuthManager.WEB_CLIENT_ID)
+                    .setServerClientId(context.getString(com.darkxvenom.airbeats.R.string.default_web_client_id))
                     .setAutoSelectEnabled(false)
                     .build()
 
