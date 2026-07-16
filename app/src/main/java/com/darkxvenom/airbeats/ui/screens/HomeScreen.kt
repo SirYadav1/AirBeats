@@ -80,7 +80,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -379,7 +378,7 @@ fun HomeScreen(
     // Main container Box that holds everything (same pattern as ExploreScreen)
     Box(modifier = Modifier.fillMaxSize()) {
 
-        // 🎵 BLUR BACKGROUND (exactly same as ExploreScreen)
+        // Blur background
         val artworkUrl = mediaMetadata?.thumbnailUrl
 
         artworkUrl?.let { imageUrl ->
@@ -420,7 +419,7 @@ fun HomeScreen(
             )
         }
 
-        // 📜 CONTENT (LazyColumn with pull-to-refresh, exactly same as before but moved outside)
+        // Content
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -1052,13 +1051,13 @@ fun ModernHomeTopBarInline(
             .padding(top = 24.dp, bottom = 12.dp)
     ) {
 
-        // 🔹 TOP ROW
+        // Top row
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
-            // 🔥 Avatar + Animated Ring
+            // Avatar and animated ring
             Box(
                 modifier = Modifier.size(72.dp),
                 contentAlignment = Alignment.Center
@@ -1164,35 +1163,21 @@ fun ModernHomeTopBarInline(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 🔹 GREETING
-        val greatVibesFontFamily = androidx.compose.ui.text.font.FontFamily(androidx.compose.ui.text.font.Font(com.darkxvenom.airbeats.R.font.great_vibes))
         Row(
             modifier = Modifier
-                .padding(start = 8.dp)
-                .offset(y = (-10).dp)
-                .rotate(-8f)
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
 
             Text(
-                text = "Hi, ",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                fontFamily = greatVibesFontFamily,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Text(
-                text = displayName,
-                fontFamily = greatVibesFontFamily,
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.secondary,
-                            MaterialTheme.colorScheme.tertiary
-                        )
-                    )
+                text = "Hi, $displayName",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             )
 
@@ -1205,7 +1190,7 @@ fun ModernHomeTopBarInline(
             val coroutineScope = rememberCoroutineScope()
 
             currentRank?.let { rank ->
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 var showBadgeSelector by remember { mutableStateOf(false) }
                 RankBadge(
                     rank = rank,

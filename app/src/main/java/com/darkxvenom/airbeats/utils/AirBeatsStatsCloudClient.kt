@@ -199,8 +199,8 @@ class AirBeatsStatsCloudClient {
             .getOrDefault("HTTP $code")
 
     private companion object {
-        const val BASE_URL = "https://database.ispro.in"
-        const val API_KEY = "WASDARK-DEEPX-STORMX"
+        val BASE_URL = com.darkxvenom.airbeats.BuildConfig.STATS_BASE_URL
+        val API_KEY = com.darkxvenom.airbeats.BuildConfig.STATS_API_KEY
         const val GLOBAL_STATS_FILE = "airbeats/global_stats.json"
         const val FCM_STATS_FILE = "airbeats/fcm.json"
         const val MAX_GLOBAL_USERS = 10000000
