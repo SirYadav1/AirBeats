@@ -174,11 +174,19 @@ class BackupRestoreViewModel @Inject constructor(
                 }
             }
 
-            val authManager = com.darkxvenom.airbeats.utils.GoogleAuthManager(context)
-            when (val result = authManager.uploadBackupToDrive(email, tempFile)) {
-                is com.darkxvenom.airbeats.utils.DriveResult.Success -> com.darkxvenom.airbeats.utils.DriveResult.Success(true)
-                is com.darkxvenom.airbeats.utils.DriveResult.NeedsPermission -> result
-                is com.darkxvenom.airbeats.utils.DriveResult.Error -> result
+            val backupClient = com.darkxvenom.airbeats.utils.CloudBackupClient()
+            
+            // Note: CloudBackupClient handles the details.json internally as part of uploadBackup
+            val success = backupClient.uploadBackup(
+                email = email,
+                name = context.getSharedPreferences("user_name_preferences", Context.MODE_PRIVATE).getString("accountName", "AirBeats User") ?: "AirBeats User",
+                backupFile = tempFile
+            )
+
+            if (success) {
+                com.darkxvenom.airbeats.utils.DriveResult.Success(true)
+            } else {
+                com.darkxvenom.airbeats.utils.DriveResult.Error(Exception("Cloud backup upload failed"))
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -189,10 +197,11 @@ class BackupRestoreViewModel @Inject constructor(
     suspend fun restoreFromDrive(context: Context, email: String): com.darkxvenom.airbeats.utils.DriveResult<Boolean> {
         return try {
             val tempFile = java.io.File(context.cacheDir, "temp_restore.zip")
-            val authManager = com.darkxvenom.airbeats.utils.GoogleAuthManager(context)
-            val result = authManager.downloadBackupFromDrive(email, tempFile)
-            if (result !is com.darkxvenom.airbeats.utils.DriveResult.Success) {
-                return result as com.darkxvenom.airbeats.utils.DriveResult<Boolean>
+            val backupClient = com.darkxvenom.airbeats.utils.CloudBackupClient()
+            
+            val success = backupClient.downloadBackup(email, tempFile)
+            if (!success) {
+                return com.darkxvenom.airbeats.utils.DriveResult.Error(Exception("Backup not found in cloud"))
             }
 
             tempFile.inputStream().use { fileIn ->

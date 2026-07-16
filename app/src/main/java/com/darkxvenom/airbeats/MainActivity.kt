@@ -429,6 +429,27 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            val accountEmail by rememberPreference(com.darkxvenom.airbeats.constants.AccountEmailKey, "")
+            val (lastBackupTimestamp, setLastBackupTimestamp) = rememberPreference(com.darkxvenom.airbeats.constants.LastBackupTimestampKey, 0L)
+            val backupViewModel: com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+            val context = androidx.compose.ui.platform.LocalContext.current
+            
+            LaunchedEffect(accountEmail) {
+                if (accountEmail.isNotBlank()) {
+                    val now = System.currentTimeMillis()
+                    val oneDayMs = 24 * 60 * 60 * 1000L
+                    if (now - lastBackupTimestamp > oneDayMs) {
+                        // Needs backup
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            val result = backupViewModel.backupToDrive(context, accountEmail)
+                            if (result is com.darkxvenom.airbeats.utils.DriveResult.Success) {
+                                setLastBackupTimestamp(now)
+                            }
+                        }
+                    }
+                }
+            }
+
             var showFullscreenLyrics by remember { mutableStateOf(false) }
 
             val playerScreenStyle by rememberEnumPreference(PlayerScreenStyleKey, defaultValue = PlayerScreenStyle.CLASSIC)

@@ -41,8 +41,13 @@ suspend fun <T> DataStore<Preferences>.getSuspend(key: Preferences.Key<T>): T? {
     @Suppress("UNCHECKED_CAST")
     if (dataStoreCache.containsKey(cacheKey)) return dataStoreCache[cacheKey] as? T
     val value = data.first()[key]
-    dataStoreCache[cacheKey] = value
-    return value
+    val finalValue = if (value is String && (cacheKey == "discordToken" || cacheKey == "innerTubeCookie" || cacheKey == "accountEmail")) {
+        CryptoManager.decrypt(value) as T
+    } else {
+        value
+    }
+    dataStoreCache[cacheKey] = finalValue
+    return finalValue
 }
 
 suspend fun <T> DataStore<Preferences>.getSuspend(
@@ -54,7 +59,13 @@ suspend fun <T> DataStore<Preferences>.getSuspend(
 suspend fun DataStore<Preferences>.initializeCache() {
     val prefs = data.first()
     prefs.asMap().forEach { (key, value) ->
-        dataStoreCache[key.name] = value
+        val cacheKey = key.name
+        val decryptedValue = if (value is String && (cacheKey == "discordToken" || cacheKey == "innerTubeCookie" || cacheKey == "accountEmail")) {
+            CryptoManager.decrypt(value)
+        } else {
+            value
+        }
+        dataStoreCache[cacheKey] = decryptedValue
     }
 }
 

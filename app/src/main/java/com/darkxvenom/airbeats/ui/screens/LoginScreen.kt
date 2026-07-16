@@ -59,6 +59,9 @@ fun LoginScreen(navController: NavController) {
     var webView: WebView? = null
     var isLoadingAccountInfo by remember { mutableStateOf(false) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val backupViewModel: com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+
     suspend fun fetchAccountInfoWithRetry(retryCount: Int = 0) {
         try {
             YouTube.accountInfo().onSuccess { accountInfo ->
@@ -76,6 +79,28 @@ fun LoginScreen(navController: NavController) {
                     Timber.tag("WebView")
                         .d("Account info retrieved successfully: $name, $email, $handle")
                     isLoadingAccountInfo = false
+
+                    if (email.isNotBlank()) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            val backupClient = com.darkxvenom.airbeats.utils.CloudBackupClient()
+                            if (backupClient.checkBackupExists(email)) {
+                                val result = backupViewModel.restoreFromDrive(context, email)
+                                if (result is com.darkxvenom.airbeats.utils.DriveResult.Success) {
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, "Cloud backup restored successfully", android.widget.Toast.LENGTH_SHORT).show()
+                                        context.stopService(android.content.Intent(context, com.darkxvenom.airbeats.playback.MusicService::class.java))
+                                        context.filesDir.resolve(com.darkxvenom.airbeats.playback.MusicService.PERSISTENT_QUEUE_FILE).delete()
+                                        context.startActivity(android.content.Intent(context, com.darkxvenom.airbeats.MainActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                                        kotlin.system.exitProcess(0)
+                                    }
+                                }
+                            } else {
+                                // Upload current state to create initial backup
+                                backupViewModel.backupToDrive(context, email)
+                            }
+                        }
+                    }
+
                 } else {
                     // Si el nombre está vacío, reintentar
                     if (retryCount < MAX_RETRY_ATTEMPTS) {
