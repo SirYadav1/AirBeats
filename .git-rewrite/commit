@@ -1,6 +1,0 @@
-tree ad6b57ee495ebcb0acca21c45b182ff262c12479
-parent 6c2e816737469cb797405ea1bd808946a2605518
-author d0x-dev <cervantesdarkxvenom@gmail.com> 1780206113 +0530
-committer d0x-dev <cervantesdarkxvenom@gmail.com> 1780206113 +0530
-
-fix: smooth swipe and snap behaviour for immersive and Spotify players

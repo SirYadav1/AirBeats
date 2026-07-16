@@ -89,8 +89,13 @@ fun LocalSongsScreen(
     Box(modifier = Modifier.fillMaxSize()) {
 
         mediaMetadata?.thumbnailUrl?.let { imageUrl ->
-            com.darkxvenom.airbeats.ui.component.BlurredBackground(
+            AsyncImage(
                 model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(90.dp)
             )
             val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
             Box(
