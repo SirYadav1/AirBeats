@@ -11,6 +11,7 @@
   [![Android](https://img.shields.io/badge/Platform-Android%206.0+-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white&labelColor=161B22)](https://www.android.com)
   [![GitHub Stars](https://img.shields.io/github/stars/d0x-dev/airbeats?style=for-the-badge&logo=github&labelColor=161B22)](https://github.com/d0x-dev/AirBeats/stargazers)
   [![GitHub Forks](https://img.shields.io/github/forks/d0x-dev/airbeats?style=for-the-badge&logo=github&labelColor=161B22)](https://github.com/d0x-dev/AirBeats/network)
+  [![Crowdin](https://badges.crowdin.net/airbeats/localized.svg)](https://crowdin.com/project/airbeats)
 </div>
 
 ---
@@ -148,6 +149,16 @@ the Free Software Foundation, either version 3 of the License.
 ## 🤝 Contributing
 
 We'd love your contributions! Here's how:
+
+### 🌍 Translate AirBeats
+
+Help us translate AirBeats into your language! You don't need any coding experience to help. We use **Crowdin** to manage our translations.
+
+1. Go to our [Crowdin Project Page](https://crowdin.com/project/airbeats).
+2. Create a free account.
+3. Select your native language and start translating! All translations will be automatically synced to our GitHub repository.
+
+### 💻 Code Contributions
 
 1. **Fork** the repository
 2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
