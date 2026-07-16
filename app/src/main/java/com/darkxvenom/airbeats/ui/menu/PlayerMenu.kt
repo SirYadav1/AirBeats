@@ -325,12 +325,13 @@ fun PlayerMenu(
                                 modifier = Modifier
                                     .size(34.dp)
                                     .clip(CircleShape)
-                                    .clickable {
                                         isMuted = !isMuted
                                         if (isMuted) {
                                             previousVolume = playerVolume.value
+                                            playerConnection.setVolume(0f)
                                             playerConnection.service.playerVolume.value = 0f
                                         } else {
+                                            playerConnection.setVolume(previousVolume)
                                             playerConnection.service.playerVolume.value = previousVolume
                                         }
                                     }
@@ -342,6 +343,7 @@ fun PlayerMenu(
                                 value = if (isMuted) 0f else playerVolume.value,
                                 onValueChange = { newVolume ->
                                     if (!isMuted) {
+                                        playerConnection.setVolume(newVolume)
                                         playerConnection.service.playerVolume.value = newVolume
                                         previousVolume = newVolume
                                     }
