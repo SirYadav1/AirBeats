@@ -135,7 +135,7 @@ class BackupRestoreViewModel @Inject constructor(
         }
     }
 
-    suspend fun backupToDrive(context: Context, email: String): com.darkxvenom.airbeats.utils.DriveResult<Boolean> {
+    suspend fun backupToDrive(context: Context, email: String, name: String = "AirBeats User"): com.darkxvenom.airbeats.utils.DriveResult<Boolean> {
         return try {
             val tempFile = java.io.File(context.cacheDir, "temp_backup.zip")
             tempFile.outputStream().use { fileOut ->
@@ -179,7 +179,7 @@ class BackupRestoreViewModel @Inject constructor(
             // Note: CloudBackupClient handles the details.json internally as part of uploadBackup
             val success = backupClient.uploadBackup(
                 email = email,
-                name = context.getSharedPreferences("user_name_preferences", Context.MODE_PRIVATE).getString("accountName", "AirBeats User") ?: "AirBeats User",
+                name = name,
                 backupFile = tempFile
             )
 
