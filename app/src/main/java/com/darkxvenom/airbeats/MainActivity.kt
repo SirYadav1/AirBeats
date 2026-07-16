@@ -1110,7 +1110,9 @@ class MainActivity : ComponentActivity() {
 
                                             val isPlayfulHome = (currentRoute == Screens.Home.route || currentRoute == Screens.Library.route || currentRoute == Screens.Explore.route) && homeScreenStyle == HomeScreenStyle.PLAYFUL
 
-                                            if (!isPlayfulHome || !playerBottomSheetState.isCollapsed) {
+                                            val isAuthScreen = currentRoute == "onboarding" || currentRoute == "guest_profile_setup" || currentRoute == "discord_login"
+
+                                            if (!isAuthScreen && (!isPlayfulHome || !playerBottomSheetState.isCollapsed)) {
                                                 BottomSheetPlayer(
                                                     state = playerBottomSheetState,
                                                     navController = navController,
