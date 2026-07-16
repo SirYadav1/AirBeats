@@ -24,12 +24,13 @@ sealed class DriveResult<out T> {
 class GoogleAuthManager(private val context: Context) {
     
     companion object {
+        const val WEB_CLIENT_ID = "83152931540-5tmnaka8rvkp5hh8ucihhl9cksuo9lob.apps.googleusercontent.com"
         const val BACKUP_FILE_NAME = "airbeats_backup.backup"
     }
 
     fun getSignInClient(): com.google.android.gms.auth.api.signin.GoogleSignInClient {
         val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(context.getString(com.darkxvenom.airbeats.R.string.default_web_client_id))
+            .requestIdToken(WEB_CLIENT_ID)
             .requestEmail()
             .requestProfile()
             .build()
