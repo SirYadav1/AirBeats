@@ -219,13 +219,8 @@ fun StatsScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         val artworkUrl = mediaMetadata?.thumbnailUrl
         artworkUrl?.let { imageUrl ->
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(90.dp)
+            com.darkxvenom.airbeats.ui.component.BlurredBackground(
+                model = imageUrl
             )
             val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
             val overlayBrush = if (isDarkTheme) {
