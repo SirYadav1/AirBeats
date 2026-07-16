@@ -18,7 +18,7 @@ class NamePreferenceManager @Inject constructor(
 ) {
     companion object {
         private val USER_NAME_KEY = stringPreferencesKey("user_name")
-        private val NAME_SET_KEY = stringPreferencesKey("name_set")
+        private val NAME_SET_KEY = stringPreferencesKey("name_set_v58")
     }
 
     val userName: Flow<String> = context.nameDataStore.data
