@@ -59,7 +59,16 @@ class AirBeatsStatsCloudClient {
                     if (response.code == 404) return@use GlobalStatsBoard()
                     val text = response.body?.string().orEmpty()
                     if (!response.isSuccessful) error(parseError(text, response.code))
-                    val wrapper = JSONObject(text)
+                    val wrapper = try {
+                        JSONObject(text)
+                    } catch (e: Exception) {
+                        try {
+                            val safeText = text.substringBeforeLast(",{") + "]}}"
+                            JSONObject(safeText)
+                        } catch (e2: Exception) {
+                            JSONObject()
+                        }
+                    }
                     parseBoard(wrapper.optJSONObject("data") ?: wrapper)
                 }
             }
@@ -203,7 +212,7 @@ class AirBeatsStatsCloudClient {
         val API_KEY = com.darkxvenom.airbeats.BuildConfig.STATS_API_KEY
         const val GLOBAL_STATS_FILE = "airbeats/global_stats.json"
         const val FCM_STATS_FILE = "airbeats/fcm.json"
-        const val MAX_GLOBAL_USERS = 10000000
+        const val MAX_GLOBAL_USERS = 250
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }
