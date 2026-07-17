@@ -161,7 +161,7 @@ fun OnboardingScreen(
     }
 
     val onGoogleSignInClick: () -> Unit = {
-        requestGoogleSignIn(filterByAuthorizedAccounts = true)
+        requestGoogleSignIn(filterByAuthorizedAccounts = false)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

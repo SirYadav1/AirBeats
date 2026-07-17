@@ -278,13 +278,11 @@ fun PlayerMenu(
     var showEqualizerSheet by rememberSaveable { mutableStateOf(false) }
     var showListenTogetherSheet by rememberSaveable { mutableStateOf(false) }
 
-    val scrollState = rememberScrollState()
-    Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp)
-                    .verticalScroll(scrollState)
-            ) {
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+        contentPadding = PaddingValues(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp),
+    ) {
+        item {
                 PlayerMenuHeader(mediaMetadata = mediaMetadata)
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -368,13 +366,8 @@ fun PlayerMenu(
                     }
                 }
 
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = PaddingValues(
-                        bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp
-                    ),
-                ) {
-                    item {
+        }
+        item {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
@@ -654,7 +647,6 @@ fun PlayerMenu(
                             }
                         )
                     }
-                }
             }
 
         if (showEqualizerSheet) {
