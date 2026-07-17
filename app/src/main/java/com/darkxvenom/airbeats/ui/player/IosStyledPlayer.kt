@@ -175,6 +175,7 @@ fun IosStyledPlayer(
                     navController = navController,
                     state = state,
                     menuState = menuState,
+                    onShowDetailsDialog = { showDetailsDialog = true },
                     onSliderValueChange = onSeek,
                     onSliderValueChangeFinished = onSeekFinished,
                     nextUpMetadata = nextUpMetadata,
@@ -303,6 +304,7 @@ private fun V8PlayerControlsContent(
     navController: NavController,
     state: BottomSheetState,
     menuState: MenuState,
+    onShowDetailsDialog: () -> Unit,
     
     onSliderValueChange: (Long) -> Unit,
     onSliderValueChangeFinished: () -> Unit,
@@ -394,9 +396,7 @@ private fun V8PlayerControlsContent(
                                     mediaMetadata = mediaMetadata,
                                     navController = navController,
                                     playerBottomSheetState = state,
-                                    onShowDetailsDialog = {
-                                        showDetailsDialog = true
-                                    },
+                                    onShowDetailsDialog = onShowDetailsDialog,
                                     onDismiss = menuState::dismiss,
                                 )
                             }

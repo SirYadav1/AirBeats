@@ -2540,7 +2540,6 @@ fun BottomSheetPlayer(
                 playerConnection = playerConnection,
                 navController = navController,
                 menuState = menuState,
-                bottomSheetPageState = bottomSheetPageState,
                 nextUpMetadata = nextMediaMetadata,
                 currentFormat = currentFormat,
                 playerVolume = playerVolume.value,
