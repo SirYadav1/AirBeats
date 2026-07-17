@@ -35,6 +35,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -273,10 +275,12 @@ fun PlayerMenu(
     var showEqualizerSheet by rememberSaveable { mutableStateOf(false) }
     var showListenTogetherSheet by rememberSaveable { mutableStateOf(false) }
 
+    val scrollState = rememberScrollState()
     Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 18.dp)
+                    .verticalScroll(scrollState)
             ) {
                 PlayerMenuHeader(mediaMetadata = mediaMetadata)
 
@@ -369,7 +373,8 @@ fun PlayerMenu(
                         bottom = WindowInsets.navigationBars.asPaddingValues()
                             .calculateBottomPadding() + 16.dp
                     ),
-                    modifier = Modifier.heightIn(max = 360.dp)
+                    modifier = Modifier.height(450.dp),
+                    userScrollEnabled = false
                 ) {
                     item {
                         PlayerMenuActionTile(
