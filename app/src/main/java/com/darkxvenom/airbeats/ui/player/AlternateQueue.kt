@@ -373,11 +373,7 @@ fun AlternateQueue(
                                 navController = navController,
                                 playerBottomSheetState = playerBottomSheetState,
                                 onShowDetailsDialog = {
-                                    mediaMetadata?.id?.let {
-                                        bottomSheetPageState.show {
-                                            
-                                        }
-                                    }
+                                    showDetailsDialog = true
                                 },
                                 onDismiss = menuState::dismiss
                             )
@@ -506,11 +502,7 @@ fun AlternateQueue(
                                                             playerBottomSheetState = playerBottomSheetState,
                                                             isQueueTrigger = true,
                                                             onShowDetailsDialog = {
-                                                                window.mediaItem.mediaId.let {
-                                                                    bottomSheetPageState.show {
-                                                                        
-                                                                    }
-                                                                }
+                                                                showDetailsDialog = true
                                                             },
                                                             onDismiss = menuState::dismiss,
                                                         )

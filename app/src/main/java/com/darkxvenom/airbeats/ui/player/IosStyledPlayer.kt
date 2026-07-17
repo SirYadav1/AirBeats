@@ -75,7 +75,8 @@ import com.darkxvenom.airbeats.constants.PlayerHorizontalPadding
 import com.darkxvenom.airbeats.db.entities.FormatEntity
 import com.darkxvenom.airbeats.models.MediaMetadata
 import com.darkxvenom.airbeats.playback.PlayerConnection
-import com.darkxvenom.airbeats.ui.component.BottomSheetPageState
+import com.darkxvenom.airbeats.ui.component.BottomSheetPage
+import com.darkxvenom.airbeats.ui.component.SongDetailsDialogState
 import com.darkxvenom.airbeats.ui.component.BottomSheetState
 import com.darkxvenom.airbeats.ui.component.MenuState
 import com.darkxvenom.airbeats.ui.menu.PlayerMenu
@@ -382,7 +383,7 @@ private fun V8PlayerControlsContent(
                                     navController = navController,
                                     playerBottomSheetState = state,
                                     onShowDetailsDialog = {
-                                        bottomSheetPageState.show {}
+                                        showDetailsDialog = true
                                     },
                                     onDismiss = menuState::dismiss,
                                 )
