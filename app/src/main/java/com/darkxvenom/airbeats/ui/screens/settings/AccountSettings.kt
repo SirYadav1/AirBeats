@@ -44,7 +44,6 @@ import coil.compose.AsyncImage
 import com.darkxvenom.airbeats.LocalPlayerAwareWindowInsets
 import com.darkxvenom.airbeats.LocalPlayerConnection
 import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
 import java.net.URLEncoder
@@ -189,13 +188,9 @@ fun AccountSettings(
         }
     }
 
-    val googleSignInOptions = remember {
-        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            .requestProfile()
-            .build()
+    val googleSignInClient = remember {
+        com.darkxvenom.airbeats.utils.GoogleAuthManager(context).getSignInClient()
     }
-    val googleSignInClient = remember { GoogleSignIn.getClient(context, googleSignInOptions) }
 
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
