@@ -126,7 +126,7 @@ fun BackupAndRestore(
     var enableCloudUpload by remember {
         mutableStateOf(
             context.getSharedPreferences("backup_settings", Context.MODE_PRIVATE)
-                .getBoolean("enable_cloud_upload", false)
+                .getBoolean("enable_cloud_upload", true)
         )
     }
 
@@ -157,11 +157,19 @@ fun BackupAndRestore(
                 if (enableCloudUpload) {
                     coroutineScope.launch {
                         uploadStatus = UploadStatus.Uploading
-                        val fileUrl = uploadBackupToFilebin(context, uri)
-                        uploadStatus = if (fileUrl != null) {
-                            UploadStatus.Success(fileUrl)
+                        val nameManager = com.darkxvenom.airbeats.ui.component.NamePreferenceManager(context)
+                        val email = kotlinx.coroutines.flow.firstOrNull(nameManager.accountEmail)
+                        val name = kotlinx.coroutines.flow.firstOrNull(nameManager.userName) ?: "AirBeats User"
+                        
+                        if (!email.isNullOrBlank()) {
+                            val result = viewModel.backupToDrive(context, email, name)
+                            uploadStatus = if (result is com.darkxvenom.airbeats.utils.DriveResult.Success) {
+                                UploadStatus.Success("Cloud Database")
+                            } else {
+                                UploadStatus.Failure
+                            }
                         } else {
-                            UploadStatus.Failure
+                            uploadStatus = UploadStatus.Failure
                         }
                     }
                 }
@@ -224,6 +232,19 @@ fun BackupAndRestore(
                             .edit()
                             .putBoolean("enable_cloud_upload", isEnabled)
                             .apply()
+                            
+                        if (isEnabled) {
+                            val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.darkxvenom.airbeats.worker.DailyBackupWorker>(1, java.util.concurrent.TimeUnit.DAYS)
+                                .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build())
+                                .build()
+                            androidx.work.WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                                "DailyBackupWorker",
+                                androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                                workRequest
+                            )
+                        } else {
+                            androidx.work.WorkManager.getInstance(context).cancelUniqueWork("DailyBackupWorker")
+                        }
                     }
                 )},
                 {PreferenceEntry(
@@ -705,105 +726,6 @@ private fun MinimalConfirmDialog(
         },
         shape = RoundedCornerShape(24.dp)
     )
-}
-
-// Filebin upload function (no significant changes)
-@SuppressLint("LogNotTimber")
-suspend fun uploadBackupToFilebin(
-    context: Context,
-    uri: Uri,
-    progressCallback: (Float) -> Unit = {}
-): String? {
-    return withContext(Dispatchers.IO) {
-        val tempFile = File(context.cacheDir, "temp_backup_${System.currentTimeMillis()}.backup")
-
-        try {
-            val inputStream = context.contentResolver.openInputStream(uri)
-                ?: return@withContext null
-
-            inputStream.use { input ->
-                val fileSize = try {
-                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                        val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                        if (sizeIndex != -1 && cursor.moveToFirst()) {
-                            cursor.getLong(sizeIndex)
-                        } else {
-                            input.available().toLong()
-                        }
-                    } ?: input.available().toLong()
-                } catch (e: Exception) {
-                    Log.w("BackupRestore", "The file size could not be obtained: ${e.message}")
-                    input.available().toLong()
-                }
-
-                var totalBytesRead = 0L
-                tempFile.outputStream().use { outputStream ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    var bytesRead: Int
-
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        outputStream.write(buffer, 0, bytesRead)
-                        totalBytesRead += bytesRead
-                        if (fileSize > 0) {
-                            progressCallback(totalBytesRead / fileSize.toFloat() * 0.5f)
-                        }
-                    }
-                }
-            }
-
-            val binId = UUID.randomUUID().toString().substring(0, 8)
-
-            val fileRequestBody = object : RequestBody() {
-                override fun contentType() = "application/octet-stream".toMediaTypeOrNull()
-                override fun contentLength() = tempFile.length()
-
-                override fun writeTo(sink: BufferedSink) {
-                    tempFile.inputStream().use { input ->
-                        val fileSize = tempFile.length().toFloat()
-                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        var bytesRead: Int
-                        var totalBytesRead = 0L
-
-                        while (input.read(buffer).also { bytesRead = it } != -1) {
-                            sink.write(buffer, 0, bytesRead)
-                            totalBytesRead += bytesRead
-                            val uploadProgress = 0.5f + (totalBytesRead / fileSize * 0.5f)
-                            progressCallback(uploadProgress)
-                        }
-                    }
-                }
-            }
-
-            val client = OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(60, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .build()
-
-            val fileName = tempFile.name
-            val request = Request.Builder()
-                .url("https://filebin.net/$binId/$fileName")
-                .put(fileRequestBody)
-                .build()
-
-            val response = client.newCall(request).execute()
-
-            if (!response.isSuccessful) {
-                Log.e("BackupRestore", "Error in server response: ${response.code}")
-                return@withContext null
-            }
-
-            return@withContext "https://filebin.net/$binId/$fileName"
-
-        } catch (e: Exception) {
-            Log.e("BackupRestore", "Error during upload", e)
-            return@withContext null
-        } finally {
-            if (tempFile.exists()) {
-                tryOrNull { tempFile.delete() }
-            }
-        }
-    }
 }
 
 @SuppressLint("LogNotTimber")

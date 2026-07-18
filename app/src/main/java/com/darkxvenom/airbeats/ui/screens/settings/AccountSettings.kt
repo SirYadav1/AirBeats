@@ -163,11 +163,18 @@ fun AccountSettings(
                         Toast.makeText(context, "Failed to restore backup.", Toast.LENGTH_SHORT).show()
                     }
                 } else {
+                    Toast.makeText(context, "Creating initial cloud backup...", Toast.LENGTH_SHORT).show()
                     // Upload initial backup
-                    backupViewModel.backupToDrive(context, email, name)
-                    nameManager.saveUserName(name)
-                    nameManager.saveAccountEmail(email)
-                    Toast.makeText(context, "Google Account Linked!", Toast.LENGTH_SHORT).show()
+                    val result = backupViewModel.backupToDrive(context, email, name)
+                    if (result is com.darkxvenom.airbeats.utils.DriveResult.Success) {
+                        nameManager.saveUserName(name)
+                        nameManager.saveAccountEmail(email)
+                        Toast.makeText(context, "Google Account Linked and Backup Created!", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(context, "Failed to create initial backup. Account still linked.", Toast.LENGTH_LONG).show()
+                        nameManager.saveUserName(name)
+                        nameManager.saveAccountEmail(email)
+                    }
                 }
             } catch (e: NoCredentialException) {
                 if (filterByAuthorizedAccounts) {

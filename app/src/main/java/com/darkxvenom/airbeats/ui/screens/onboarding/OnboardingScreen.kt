@@ -43,6 +43,7 @@ enum class SyncState {
     CHECKING,
     RESTORING,
     RESTORED,
+    CREATING_BACKUP,
     NEW_USER
 }
 
@@ -137,9 +138,14 @@ fun OnboardingScreen(
                         syncState = SyncState.NEW_USER
                     }
                 } else {
-                    syncState = SyncState.NEW_USER
-                    // Upload initial backup in background (name/email will be saved when user clicks Get Started)
-                    backupViewModel.backupToDrive(context, email, name)
+                    syncState = SyncState.CREATING_BACKUP
+                    val result = backupViewModel.backupToDrive(context, email, name)
+                    if (result is com.darkxvenom.airbeats.utils.DriveResult.Success) {
+                        syncState = SyncState.NEW_USER
+                    } else {
+                        Toast.makeText(context, "Failed to create initial backup. Continuing...", Toast.LENGTH_SHORT).show()
+                        syncState = SyncState.NEW_USER
+                    }
                 }
             } catch (e: NoCredentialException) {
                 if (filterByAuthorizedAccounts) {
@@ -300,6 +306,18 @@ fun OnboardingScreen(
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.padding(bottom = 120.dp)
                             )
+                        }
+
+                        SyncState.CREATING_BACKUP -> {
+                            CircularProgressIndicator(color = Color(0xFFA259FF), modifier = Modifier.padding(bottom = 24.dp))
+                            Text(
+                                text = "Creating initial backup...",
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
+                            Text("Securing your data in the cloud.", color = Color.LightGray, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 120.dp))
                         }
 
                         SyncState.NEW_USER -> {
