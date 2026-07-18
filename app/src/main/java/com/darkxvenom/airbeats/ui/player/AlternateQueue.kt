@@ -729,7 +729,7 @@ fun AlternateQueue(
 
                     IconButton(
                         modifier = Modifier.align(Alignment.CenterEnd),
-                        onClick = playerConnection.player::toggleRepeatMode,
+                        onClick = { playerConnection.player.toggleRepeatMode() },
                     ) {
                         Icon(
                             painter =

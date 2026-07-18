@@ -344,7 +344,7 @@ fun SpotifyLyrics(
                 valueRange = 0f..safeDuration.coerceAtLeast(1L).toFloat(),
                 onValueChange = { sliderPosition = it.toLong() },
                 onValueChangeFinished = {
-                    sliderPosition?.let(playerConnection.player::seekTo)
+                    sliderPosition?.let { playerConnection.player.seekTo(it) }
                     sliderPosition = null
                 },
                 colors = SliderDefaults.colors(
