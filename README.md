@@ -1,4 +1,8 @@
-# 🎵 AirBeats 亗
+<p align="center">
+<img width="1024" height="1024" alt="1000116784" src="https://github.com/user-attachments/assets/2bf845a0-a67a-4f6f-9874-9f26eb712f05" />
+</p>
+
+<h1 align="center" style="font-size: 3.2rem;">AirBeats</h1>
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/drkvenom786/Airbeats/refs/heads/main/sc.png" alt="AirBeats Preview" width="100%"/>
@@ -11,7 +15,7 @@
   [![Android](https://img.shields.io/badge/Platform-Android%206.0+-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white&labelColor=161B22)](https://www.android.com)
   [![GitHub Stars](https://img.shields.io/github/stars/d0x-dev/airbeats?style=for-the-badge&logo=github&labelColor=161B22)](https://github.com/d0x-dev/AirBeats/stargazers)
   [![GitHub Forks](https://img.shields.io/github/forks/d0x-dev/airbeats?style=for-the-badge&logo=github&labelColor=161B22)](https://github.com/d0x-dev/AirBeats/network)
-  [![Crowdin](https://badges.crowdin.net/airbeats/localized.svg)](https://crowdin.com/project/airbeats)
+  [![Crowdin](https://img.shields.io/badge/𝐓𝐑𝐀𝐍𝐒𝐋𝐀𝐓𝐄-2E3340?style=for-the-badge&logo=crowdin&logoColor=white)](https://crowdin.com/project/airbeats)
 </div>
 
 ---
