@@ -67,7 +67,7 @@ class CloudBackupClient {
 
                 // 2. Upload the actual backup zip file
                 val backupRequest = Request.Builder()
-                    .url("$BASE_URL/write?file=airbeats/backups/$folder/airbeats_backup.backup")
+                    .url("$BASE_URL/upload?file=airbeats/backups/$folder/airbeats_backup.backup")
                     .addHeader("X-API-Key", API_KEY)
                     .post(backupFile.asRequestBody("application/octet-stream".toMediaType()))
                     .build()
@@ -82,7 +82,7 @@ class CloudBackupClient {
                 val folder = getEmailFolder(email)
                 val fileName = "airbeats/backups/$folder/airbeats_backup.backup"
                 val request = Request.Builder()
-                    .url("$BASE_URL/read?file=$fileName&_t=${System.currentTimeMillis()}")
+                    .url("$BASE_URL/download?file=$fileName&_t=${System.currentTimeMillis()}")
                     .header("Cache-Control", "no-cache")
                     .get()
                     .build()
