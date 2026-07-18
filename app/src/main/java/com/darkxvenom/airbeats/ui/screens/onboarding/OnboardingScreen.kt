@@ -1,6 +1,9 @@
 package com.darkxvenom.airbeats.ui.screens.onboarding
 
+import android.app.Activity
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,18 +28,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.credentials.CredentialManager
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.GetCredentialException
-import androidx.credentials.exceptions.NoCredentialException
 import androidx.navigation.NavController
+import com.darkxvenom.airbeats.ui.component.AvatarPreferenceManager
+import com.darkxvenom.airbeats.ui.component.AvatarSelection
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
-import com.darkxvenom.airbeats.utils.GoogleAuthManager
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
+import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 enum class SyncState {
     IDLE,
@@ -53,19 +56,87 @@ fun OnboardingScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val credentialManager = remember { CredentialManager.create(context) }
     val namePrefManager = remember { NamePreferenceManager(context) }
+    val avatarPrefManager = remember { AvatarPreferenceManager(context) }
     val backupViewModel: com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     
     var syncState by remember { mutableStateOf(SyncState.IDLE) }
     var currentUserName by remember { mutableStateOf("") }
     var currentUserEmail by remember { mutableStateOf("") }
     var featureStep by remember { mutableStateOf(0) }
+    var isGoogleSignInOpen by remember { mutableStateOf(false) }
+
+    fun generatedAvatarUrl(name: String, email: String): String {
+        val seed = name.takeIf { it.isNotBlank() } ?: email
+        val encodedSeed = URLEncoder.encode(seed, StandardCharsets.UTF_8.toString())
+        return "https://api.dicebear.com/9.x/initials/svg?seed=$encodedSeed&backgroundType=gradientLinear"
+    }
+
+    fun displayNameFromEmail(email: String): String {
+        return email
+            .substringBefore("@")
+            .replace('.', ' ')
+            .replace('_', ' ')
+            .replace('-', ' ')
+            .split(' ')
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { part ->
+                part.replaceFirstChar { char ->
+                    if (char.isLowerCase()) char.titlecase() else char.toString()
+                }
+            }
+            .ifBlank { "Friend" }
+    }
+
+    fun saveGoogleProfile(name: String, email: String, photoUrl: String?) {
+        coroutineScope.launch {
+            currentUserName = name
+            currentUserEmail = email
+            syncState = SyncState.CHECKING
+            namePrefManager.saveUserName(name)
+            namePrefManager.saveAccountEmail(email)
+            if (!photoUrl.isNullOrBlank()) {
+                avatarPrefManager.saveAvatarSelection(
+                    AvatarSelection.Custom(uri = photoUrl, cloudUrl = photoUrl)
+                )
+            } else {
+                avatarPrefManager.saveAvatarSelection(
+                    AvatarSelection.DiceBear(generatedAvatarUrl(name, email))
+                )
+            }
+
+            val backupClient = com.darkxvenom.airbeats.utils.CloudBackupClient()
+            if (backupClient.checkBackupExists(email)) {
+                syncState = SyncState.RESTORING
+                when (backupViewModel.restoreFromDrive(context, email)) {
+                    is com.darkxvenom.airbeats.utils.DriveResult.Success -> {
+                        syncState = SyncState.RESTORED
+                        delay(1500)
+                        context.stopService(android.content.Intent(context, com.darkxvenom.airbeats.playback.MusicService::class.java))
+                        context.startActivity(
+                            android.content.Intent(context, com.darkxvenom.airbeats.MainActivity::class.java).apply {
+                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                            }
+                        )
+                        Runtime.getRuntime().exit(0)
+                    }
+                    else -> {
+                        Toast.makeText(context, "Cloud restore failed. Creating a fresh backup.", Toast.LENGTH_SHORT).show()
+                        syncState = SyncState.CREATING_BACKUP
+                        backupViewModel.backupToDrive(context, email, name)
+                        syncState = SyncState.NEW_USER
+                    }
+                }
+            } else {
+                syncState = SyncState.CREATING_BACKUP
+                backupViewModel.backupToDrive(context, email, name)
+                syncState = SyncState.NEW_USER
+            }
+        }
+    }
 
     fun continueToHome() {
         coroutineScope.launch {
-            if (currentUserName.isNotBlank()) namePrefManager.saveUserName(currentUserName)
-            if (currentUserEmail.isNotBlank()) namePrefManager.saveAccountEmail(currentUserEmail)
             syncState = SyncState.IDLE
             navController.navigate("home") {
                 popUpTo("onboarding") {
@@ -76,111 +147,62 @@ fun OnboardingScreen(
     }
 
     fun showSignInError(message: String) {
+        isGoogleSignInOpen = false
         syncState = SyncState.IDLE
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
 
-    fun requestGoogleSignIn(filterByAuthorizedAccounts: Boolean) {
-        coroutineScope.launch {
-            try {
-                val credentialOption: androidx.credentials.CredentialOption = if (filterByAuthorizedAccounts) {
-                    GetGoogleIdOption.Builder()
-                        .setFilterByAuthorizedAccounts(true)
-                        .setServerClientId(GoogleAuthManager.WEB_CLIENT_ID)
-                        .setAutoSelectEnabled(false)
-                        .build()
-                } else {
-                    com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption.Builder(GoogleAuthManager.WEB_CLIENT_ID)
-                        .build()
-                }
+    fun googleSignInErrorMessage(error: ApiException): String {
+        return when (error.statusCode) {
+            GoogleSignInStatusCodes.SIGN_IN_CANCELLED -> "Google sign in was cancelled."
+            GoogleSignInStatusCodes.SIGN_IN_CURRENTLY_IN_PROGRESS -> "Google sign in is already open."
+            GoogleSignInStatusCodes.SIGN_IN_FAILED -> "Google sign in failed. Check the Android OAuth client package and SHA-1."
+            else -> "Google sign in failed (${error.statusCode}): ${error.message.orEmpty()}"
+        }
+    }
 
-                val request = GetCredentialRequest.Builder()
-                    .addCredentialOption(credentialOption)
-                    .build()
+    val googleSignInOptions = remember {
+        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestProfile()
+            .build()
+    }
+    val googleSignInClient = remember { GoogleSignIn.getClient(context, googleSignInOptions) }
 
-                val credential = credentialManager.getCredential(context, request).credential
-                
-                // Only change state after user has actually selected an account
-                syncState = SyncState.CHECKING
-                
-                val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                val name = googleCredential.displayName
-                    ?: googleCredential.givenName
-                    ?: googleCredential.id.substringBefore("@")
-                val email = googleCredential.id
-                
-                currentUserName = name
-                currentUserEmail = email
-
-                val backupClient = com.darkxvenom.airbeats.utils.CloudBackupClient()
-                val backupExists = backupClient.checkBackupExists(email)
-                
-                if (backupExists) {
-                    syncState = SyncState.RESTORING
-                    val result = backupViewModel.restoreFromDrive(context, email)
-                    if (result is com.darkxvenom.airbeats.utils.DriveResult.Success) {
-                        syncState = SyncState.RESTORED
-                        delay(2500) // Show restored message for a bit
-                        
-                        // Save name and email only when we are done
-                        namePrefManager.saveUserName(name)
-                        namePrefManager.saveAccountEmail(email)
-                        
-                        // Restart app to apply changes
-                        context.stopService(android.content.Intent(context, com.darkxvenom.airbeats.playback.MusicService::class.java))
-                        context.startActivity(android.content.Intent(context, com.darkxvenom.airbeats.MainActivity::class.java).apply {
-                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                        })
-                        Runtime.getRuntime().exit(0)
-                        return@launch
-                    } else {
-                        Toast.makeText(context, "Failed to restore backup. Continuing...", Toast.LENGTH_SHORT).show()
-                        syncState = SyncState.NEW_USER
-                    }
-                } else {
-                    syncState = SyncState.CREATING_BACKUP
-                    val result = backupViewModel.backupToDrive(context, email, name)
-                    if (result is com.darkxvenom.airbeats.utils.DriveResult.Success) {
-                        syncState = SyncState.NEW_USER
-                    } else {
-                        Toast.makeText(context, "Failed to create initial backup. Continuing...", Toast.LENGTH_SHORT).show()
-                        syncState = SyncState.NEW_USER
-                    }
-                }
-            } catch (e: GetCredentialException) {
-                e.printStackTrace()
-                if (filterByAuthorizedAccounts) {
-                    try {
-                        credentialManager.clearCredentialState(androidx.credentials.ClearCredentialStateRequest())
-                    } catch (clearE: Exception) {
-                        clearE.printStackTrace()
-                    }
-                    requestGoogleSignIn(filterByAuthorizedAccounts = false)
-                } else {
-                    if (e is androidx.credentials.exceptions.GetCredentialCancellationException) {
-                        showSignInError("Google sign in was cancelled.")
-                    } else {
-                        showSignInError(e.message ?: "Google sign in failed.")
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                if (filterByAuthorizedAccounts) {
-                    try {
-                        credentialManager.clearCredentialState(androidx.credentials.ClearCredentialStateRequest())
-                    } catch (clearE: Exception) {
-                        clearE.printStackTrace()
-                    }
-                    requestGoogleSignIn(filterByAuthorizedAccounts = false)
-                } else {
-                    showSignInError("Sign in failed: ${e.message}")
-                }
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        try {
+            val account = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                .getResult(ApiException::class.java)
+            val email = account.email.orEmpty()
+            if (email.isBlank()) {
+                showSignInError("Google did not return an email for this account.")
+                return@rememberLauncherForActivityResult
             }
+            val name = account.displayName
+                ?.takeIf { it.isNotBlank() }
+                ?: account.givenName
+                ?: displayNameFromEmail(email)
+
+            isGoogleSignInOpen = false
+            saveGoogleProfile(name, email, account.photoUrl?.toString())
+        } catch (e: ApiException) {
+            e.printStackTrace()
+            showSignInError(googleSignInErrorMessage(e))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            showSignInError("Google sign in failed: ${e.message}")
         }
     }
 
     val onGoogleSignInClick: () -> Unit = {
-        requestGoogleSignIn(filterByAuthorizedAccounts = false)
+        if (!isGoogleSignInOpen) {
+            isGoogleSignInOpen = true
+            googleSignInClient.revokeAccess().addOnCompleteListener {
+                googleSignInLauncher.launch(googleSignInClient.signInIntent)
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -282,7 +304,7 @@ fun OnboardingScreen(
                         SyncState.CHECKING -> {
                             CircularProgressIndicator(color = Color(0xFFA259FF), modifier = Modifier.padding(bottom = 24.dp))
                             Text(
-                                text = "Looking for any backup in cloud...",
+                                text = "Looking for your cloud backup...",
                                 color = Color.White,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -294,7 +316,7 @@ fun OnboardingScreen(
                         SyncState.RESTORING -> {
                             CircularProgressIndicator(color = Color(0xFFA259FF), modifier = Modifier.padding(bottom = 24.dp))
                             Text(
-                                text = "Restoring your backup...",
+                                text = "Restoring your cloud backup...",
                                 color = Color.White,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -324,13 +346,13 @@ fun OnboardingScreen(
                         SyncState.CREATING_BACKUP -> {
                             CircularProgressIndicator(color = Color(0xFFA259FF), modifier = Modifier.padding(bottom = 24.dp))
                             Text(
-                                text = "Creating initial backup...",
+                                text = "Creating your cloud backup...",
                                 color = Color.White,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 textAlign = TextAlign.Center
                             )
-                            Text("Securing your data in the cloud.", color = Color.LightGray, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 120.dp))
+                            Text("Uploading your first backup now.", color = Color.LightGray, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 120.dp))
                         }
 
                         SyncState.NEW_USER -> {

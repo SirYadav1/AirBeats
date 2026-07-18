@@ -23,15 +23,10 @@ import com.darkxvenom.airbeats.utils.rememberPreference
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import android.widget.Toast
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.credentials.CredentialManager
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.NoCredentialException
-import androidx.credentials.exceptions.GetCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
-import com.darkxvenom.airbeats.utils.GoogleAuthManager
 import com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
@@ -48,6 +43,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import coil.compose.AsyncImage
 import com.darkxvenom.airbeats.LocalPlayerAwareWindowInsets
 import com.darkxvenom.airbeats.LocalPlayerConnection
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
+import com.google.android.gms.common.api.ApiException
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountSettings(
@@ -61,10 +62,11 @@ fun AccountSettings(
     val currentDisplayName by nameManager.userName.collectAsState(initial = "")
     val currentGoogleEmail by nameManager.accountEmail.collectAsState(initial = "")
     
-    val credentialManager = remember { CredentialManager.create(context) }
     val backupViewModel: BackupRestoreViewModel = hiltViewModel()
+    val avatarManager = remember { AvatarPreferenceManager(context) }
 
     var showEditNameDialog by remember { mutableStateOf(false) }
+    var isGoogleSignInOpen by remember { mutableStateOf(false) }
 
     val (accountName, onAccountNameChange) = rememberPreference(AccountNameKey, "")
     val (accountEmail, onAccountEmailChange) = rememberPreference(AccountEmailKey, "")
@@ -115,31 +117,42 @@ fun AccountSettings(
     val mediaMetadata by playerConnection?.mediaMetadata?.collectAsState()
         ?: remember { mutableStateOf(null) }
 
-    fun requestGoogleSignIn(filterByAuthorizedAccounts: Boolean) {
+    fun generatedAvatarUrl(name: String, email: String): String {
+        val seed = name.takeIf { it.isNotBlank() } ?: email
+        val encodedSeed = URLEncoder.encode(seed, StandardCharsets.UTF_8.toString())
+        return "https://api.dicebear.com/9.x/initials/svg?seed=$encodedSeed&backgroundType=gradientLinear"
+    }
+
+    fun displayNameFromEmail(email: String): String {
+        return email
+            .substringBefore("@")
+            .replace('.', ' ')
+            .replace('_', ' ')
+            .replace('-', ' ')
+            .split(' ')
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { part ->
+                part.replaceFirstChar { char ->
+                    if (char.isLowerCase()) char.titlecase() else char.toString()
+                }
+            }
+            .ifBlank { "Friend" }
+    }
+
+    fun linkGoogleAccount(name: String, email: String, photoUrl: String?) {
         scope.launch {
             try {
-                val credentialOption: androidx.credentials.CredentialOption = if (filterByAuthorizedAccounts) {
-                    GetGoogleIdOption.Builder()
-                        .setFilterByAuthorizedAccounts(true)
-                        .setServerClientId(GoogleAuthManager.WEB_CLIENT_ID)
-                        .setAutoSelectEnabled(false)
-                        .build()
+                nameManager.saveUserName(name)
+                nameManager.saveAccountEmail(email)
+                if (!photoUrl.isNullOrBlank()) {
+                    avatarManager.saveAvatarSelection(
+                        AvatarSelection.Custom(uri = photoUrl, cloudUrl = photoUrl)
+                    )
                 } else {
-                    com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption.Builder(GoogleAuthManager.WEB_CLIENT_ID)
-                        .build()
+                    avatarManager.saveAvatarSelection(
+                        AvatarSelection.DiceBear(generatedAvatarUrl(name, email))
+                    )
                 }
-
-                val request = GetCredentialRequest.Builder()
-                    .addCredentialOption(credentialOption)
-                    .build()
-
-                val credential = credentialManager.getCredential(context, request).credential
-                
-                val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                val name = googleCredential.displayName
-                    ?: googleCredential.givenName
-                    ?: googleCredential.id.substringBefore("@")
-                val email = googleCredential.id
                 
                 val backupClient = com.darkxvenom.airbeats.utils.CloudBackupClient()
                 val backupExists = backupClient.checkBackupExists(email)
@@ -149,8 +162,6 @@ fun AccountSettings(
                     val result = backupViewModel.restoreFromDrive(context, email)
                     if (result is com.darkxvenom.airbeats.utils.DriveResult.Success) {
                         Toast.makeText(context, "Cloud backup restored!", Toast.LENGTH_SHORT).show()
-                        nameManager.saveUserName(name)
-                        nameManager.saveAccountEmail(email)
                         
                         delay(1500)
                         context.stopService(android.content.Intent(context, com.darkxvenom.airbeats.playback.MusicService::class.java))
@@ -164,45 +175,68 @@ fun AccountSettings(
                     }
                 } else {
                     Toast.makeText(context, "Creating initial cloud backup...", Toast.LENGTH_SHORT).show()
-                    // Upload initial backup
                     val result = backupViewModel.backupToDrive(context, email, name)
                     if (result is com.darkxvenom.airbeats.utils.DriveResult.Success) {
-                        nameManager.saveUserName(name)
-                        nameManager.saveAccountEmail(email)
                         Toast.makeText(context, "Google Account Linked and Backup Created!", Toast.LENGTH_LONG).show()
                     } else {
                         Toast.makeText(context, "Failed to create initial backup. Account still linked.", Toast.LENGTH_LONG).show()
-                        nameManager.saveUserName(name)
-                        nameManager.saveAccountEmail(email)
-                    }
-                }
-            } catch (e: GetCredentialException) {
-                e.printStackTrace()
-                if (filterByAuthorizedAccounts) {
-                    try {
-                        credentialManager.clearCredentialState(androidx.credentials.ClearCredentialStateRequest())
-                    } catch (clearE: Exception) {
-                        clearE.printStackTrace()
-                    }
-                    requestGoogleSignIn(filterByAuthorizedAccounts = false)
-                } else {
-                    if (e !is androidx.credentials.exceptions.GetCredentialCancellationException) {
-                        Toast.makeText(context, "Sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                if (filterByAuthorizedAccounts) {
-                    try {
-                        credentialManager.clearCredentialState(androidx.credentials.ClearCredentialStateRequest())
-                    } catch (clearE: Exception) {
-                        clearE.printStackTrace()
-                    }
-                    requestGoogleSignIn(filterByAuthorizedAccounts = false)
-                } else {
-                    Toast.makeText(context, "Sign in failed: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
+                Toast.makeText(context, "Google account linked, but cloud sync failed: ${e.message}", Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    val googleSignInOptions = remember {
+        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestProfile()
+            .build()
+    }
+    val googleSignInClient = remember { GoogleSignIn.getClient(context, googleSignInOptions) }
+
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        try {
+            val account = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                .getResult(ApiException::class.java)
+            val email = account.email.orEmpty()
+            if (email.isBlank()) {
+                Toast.makeText(context, "Google did not return an email for this account.", Toast.LENGTH_SHORT).show()
+                return@rememberLauncherForActivityResult
+            }
+            val name = account.displayName
+                ?.takeIf { it.isNotBlank() }
+                ?: account.givenName
+                ?: displayNameFromEmail(email)
+
+            isGoogleSignInOpen = false
+            linkGoogleAccount(name, email, account.photoUrl?.toString())
+        } catch (e: ApiException) {
+            e.printStackTrace()
+            val message = when (e.statusCode) {
+                GoogleSignInStatusCodes.SIGN_IN_CANCELLED -> "Google sign in was cancelled."
+                GoogleSignInStatusCodes.SIGN_IN_CURRENTLY_IN_PROGRESS -> "Google sign in is already open."
+                GoogleSignInStatusCodes.SIGN_IN_FAILED -> "Google sign in failed. Check the Android OAuth client package and SHA-1."
+                else -> "Google sign in failed (${e.statusCode}): ${e.message.orEmpty()}"
+            }
+            isGoogleSignInOpen = false
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            isGoogleSignInOpen = false
+            Toast.makeText(context, "Google sign in failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun requestGoogleSignIn() {
+        if (isGoogleSignInOpen) return
+        isGoogleSignInOpen = true
+        googleSignInClient.revokeAccess().addOnCompleteListener {
+            googleSignInLauncher.launch(googleSignInClient.signInIntent)
         }
     }
 
@@ -402,7 +436,7 @@ fun AccountSettings(
                                 },
                                 onClick = {
                                     if (currentGoogleEmail.isBlank()) {
-                                        requestGoogleSignIn(false)
+                                        requestGoogleSignIn()
                                     }
                                 }
                             )
