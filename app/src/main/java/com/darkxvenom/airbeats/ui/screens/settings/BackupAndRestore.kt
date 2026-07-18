@@ -88,6 +88,7 @@ import com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
@@ -158,8 +159,8 @@ fun BackupAndRestore(
                     coroutineScope.launch {
                         uploadStatus = UploadStatus.Uploading
                         val nameManager = com.darkxvenom.airbeats.ui.component.NamePreferenceManager(context)
-                        val email = kotlinx.coroutines.flow.firstOrNull(nameManager.accountEmail)
-                        val name = kotlinx.coroutines.flow.firstOrNull(nameManager.userName) ?: "AirBeats User"
+                        val email = nameManager.accountEmail.first()
+                        val name = nameManager.userName.first()
                         
                         if (!email.isNullOrBlank()) {
                             val result = viewModel.backupToDrive(context, email, name)

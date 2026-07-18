@@ -5,7 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
 import com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel
-import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.first
 import android.util.Log
 
 class DailyBackupWorker(
@@ -16,8 +16,8 @@ class DailyBackupWorker(
     override suspend fun doWork(): Result {
         try {
             val nameManager = NamePreferenceManager(context)
-            val email = nameManager.accountEmail.firstOrNull()
-            val name = nameManager.userName.firstOrNull() ?: "AirBeats User"
+            val email = nameManager.accountEmail.first()
+            val name = nameManager.userName.first().takeIf { it.isNotBlank() } ?: "AirBeats User"
 
             if (email.isNullOrBlank()) {
                 Log.w("DailyBackupWorker", "No Google account linked. Skipping backup.")
@@ -25,7 +25,7 @@ class DailyBackupWorker(
             }
 
             Log.i("DailyBackupWorker", "Starting daily cloud backup for $email")
-            val backupViewModel = BackupRestoreViewModel()
+            val backupViewModel = BackupRestoreViewModel(com.darkxvenom.airbeats.db.InternalDatabase.newInstance(context))
             val result = backupViewModel.backupToDrive(context, email, name)
 
             return if (result is com.darkxvenom.airbeats.utils.DriveResult.Success) {
