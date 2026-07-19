@@ -6,6 +6,7 @@ import com.darkxvenom.airbeats.ui.component.AvatarPreferenceManager
 import com.darkxvenom.airbeats.ui.component.AvatarSelection
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
 import kotlinx.coroutines.flow.first
+import java.security.MessageDigest
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -20,7 +21,7 @@ object AirBeatsStatsCloudSync {
         namePreferenceManager: NamePreferenceManager,
     ): Result<GlobalStatsBoard>? {
         val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-        val userId = stableUserId(preferences)
+        val userId = resolveStableUserId(context, namePreferenceManager, preferences)
         val upload = buildUpload(context, database, namePreferenceManager, userId) ?: return null
         return AirBeatsStatsCloudClient()
             .uploadDaily(upload)
@@ -51,6 +52,7 @@ object AirBeatsStatsCloudSync {
         val totalListenMs = allSongs.sumOf { it.timeListened?.toLong() ?: 0L }
         val weeklyListenMs = weekSongs.sumOf { it.timeListened?.toLong() ?: 0L }
         val name = namePreferenceManager.userName.first().ifBlank { android.os.Build.MODEL ?: "AirBeats User" }
+        val email = namePreferenceManager.accountEmail.first().normalizedEmail()
         val profileUrl =
             when (val avatar = AvatarPreferenceManager(context).getAvatarSelection.first()) {
                 is AvatarSelection.DiceBear -> avatar.url
@@ -61,6 +63,7 @@ object AirBeatsStatsCloudSync {
             userId = userId,
             name = name,
             profileUrl = profileUrl,
+            email = email,
             totalListenMs = totalListenMs,
             weeklyListenMs = weeklyListenMs,
         )
@@ -69,6 +72,31 @@ object AirBeatsStatsCloudSync {
     fun stableUserId(context: Context): String =
         stableUserId(context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE))
 
+    suspend fun resolveStableUserId(
+        context: Context,
+        namePreferenceManager: NamePreferenceManager,
+        preferences: android.content.SharedPreferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE),
+    ): String {
+        val existing = preferences.getString(KEY_USER_ID, null)
+        if (!existing.isNullOrBlank()) return existing
+
+        val email = namePreferenceManager.accountEmail.first().normalizedEmail()
+        if (!email.isNullOrBlank()) {
+            val boardUserId =
+                AirBeatsStatsCloudClient()
+                    .readBoard()
+                    .getOrNull()
+                    ?.users
+                    ?.firstOrNull { it.email.normalizedEmail() == email }
+                    ?.id
+            val resolved = boardUserId ?: "google-${sha256(email)}"
+            preferences.edit().putString(KEY_USER_ID, resolved).apply()
+            return resolved
+        }
+
+        return stableUserId(preferences)
+    }
+
     private fun stableUserId(preferences: android.content.SharedPreferences): String {
         val existing = preferences.getString(KEY_USER_ID, null)
         if (!existing.isNullOrBlank()) return existing
@@ -76,6 +104,17 @@ object AirBeatsStatsCloudSync {
         preferences.edit().putString(KEY_USER_ID, generated).apply()
         return generated
     }
+
+    private fun sha256(value: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
+        return bytes.joinToString("") { "%02x".format(it) }.take(32)
+    }
+
+    private fun String?.normalizedEmail(): String? =
+        this
+            ?.trim()
+            ?.lowercase()
+            ?.takeIf { it.isNotBlank() && it != "null" }
 
     const val PREFERENCES_NAME = "airbeats_global_stats"
     const val KEY_USER_ID = "global_stats_user_id"

@@ -30,17 +30,17 @@ class CloudBackupClient {
         withContext(Dispatchers.IO) {
             runCatching {
                 val folder = getEmailFolder(email)
-                val fileName = "airbeats/backups/$folder/details.json"
+                val fileName = "airbeats/backups/$folder/airbeats_backup.backup"
                 val request =
                     Request
                         .Builder()
-                        .url("$BASE_URL/read?file=$fileName&_t=${System.currentTimeMillis()}")
+                        .url("$BASE_URL/download?file=$fileName&_t=${System.currentTimeMillis()}")
                         .header("Cache-Control", "no-cache")
                         .header("Pragma", "no-cache")
                         .get()
                         .build()
                 client.newCall(request).execute().use { response ->
-                    response.isSuccessful
+                    response.isSuccessful && (response.body?.contentLength() ?: 0L) != 0L
                 }
             }.getOrDefault(false)
         }
@@ -54,6 +54,8 @@ class CloudBackupClient {
                 val detailsJson = JSONObject()
                     .put("email", email)
                     .put("name", name)
+                    .put("backupFile", "airbeats_backup.backup")
+                    .put("backupSize", backupFile.length())
                     .put("lastBackupAt", System.currentTimeMillis())
 
                 val detailsRequest = Request.Builder()

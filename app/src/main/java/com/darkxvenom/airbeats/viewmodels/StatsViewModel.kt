@@ -11,6 +11,7 @@ import com.darkxvenom.airbeats.ui.component.AvatarSelection
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
 import com.darkxvenom.airbeats.ui.screens.OptionStats
 import com.darkxvenom.airbeats.utils.AirBeatsStatsCloudClient
+import com.darkxvenom.airbeats.utils.AirBeatsStatsCloudSync
 import com.darkxvenom.airbeats.utils.GlobalStatsBoard
 import com.darkxvenom.airbeats.utils.LocalStatsUpload
 import com.darkxvenom.airbeats.utils.reportException
@@ -33,7 +34,6 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.temporal.WeekFields
 import java.util.Locale
-import java.util.UUID
 import javax.inject.Inject
 
 import kotlinx.coroutines.flow.Flow
@@ -233,7 +233,7 @@ constructor(
 
     private suspend fun syncAndLoadGlobalStats(forceUpload: Boolean = false) {
         globalStats.value = globalStats.value.copy(isLoading = true, error = null)
-        val userId = stableUserId()
+        val userId = AirBeatsStatsCloudSync.resolveStableUserId(context, namePreferenceManager, statsPreferences)
         if (forceUpload || shouldUploadToday()) {
             buildUpload(userId)?.let { upload ->
                 cloudClient
@@ -294,6 +294,7 @@ constructor(
         val totalListenMs = allSongs.sumOf { it.timeListened?.toLong() ?: 0L }
         val weeklyListenMs = weekSongs.sumOf { it.timeListened?.toLong() ?: 0L }
         val name = namePreferenceManager.userName.first().ifBlank { android.os.Build.MODEL ?: "AirBeats User" }
+        val email = namePreferenceManager.accountEmail.first().trim().lowercase().takeIf { it.isNotBlank() }
         val profileUrl =
             when (val avatar = AvatarPreferenceManager(context).getAvatarSelection.first()) {
                 is AvatarSelection.DiceBear -> avatar.url
@@ -326,6 +327,7 @@ constructor(
             userId = userId,
             name = name,
             profileUrl = profileUrl,
+            email = email,
             totalListenMs = totalListenMs,
             weeklyListenMs = weeklyListenMs,
             fcmToken = fcmToken,
@@ -333,14 +335,6 @@ constructor(
     }
 
     private fun shouldUploadToday(): Boolean = true
-
-    private fun stableUserId(): String {
-        val existing = statsPreferences.getString(KEY_USER_ID, null)
-        if (!existing.isNullOrBlank()) return existing
-        val generated = UUID.randomUUID().toString()
-        statsPreferences.edit().putString(KEY_USER_ID, generated).apply()
-        return generated
-    }
 
     private fun currentWeekKey(): String {
         val date = LocalDate.now()

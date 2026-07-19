@@ -18,10 +18,13 @@ import com.darkxvenom.airbeats.extensions.zipInputStream
 import com.darkxvenom.airbeats.extensions.zipOutputStream
 import com.darkxvenom.airbeats.playback.MusicService
 import com.darkxvenom.airbeats.playback.MusicService.Companion.PERSISTENT_QUEUE_FILE
+import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
 import com.darkxvenom.airbeats.utils.reportException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import org.json.JSONObject
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.zip.ZipEntry
@@ -48,6 +51,18 @@ class BackupRestoreViewModel @Inject constructor(
                             outputStream.putNextEntry(ZipEntry("user_name_preferences.preferences_pb"))
                             inputStream.copyTo(outputStream)
                         }
+                    }
+
+                    val accountEmail = runBlocking { NamePreferenceManager(context).accountEmail.first() }
+                    if (accountEmail.isNotBlank()) {
+                        outputStream.putNextEntry(ZipEntry(GOOGLE_ACCOUNT_FILENAME))
+                        outputStream.write(
+                            JSONObject()
+                                .put("email", accountEmail)
+                                .put("previouslyLoggedIn", true)
+                                .toString()
+                                .toByteArray()
+                        )
                     }
 
                     val parentFile = context.filesDir.parentFile
@@ -111,6 +126,18 @@ class BackupRestoreViewModel @Inject constructor(
                                 }
                             }
 
+                            GOOGLE_ACCOUNT_FILENAME -> {
+                                val email = inputStream.readBytes()
+                                    .toString(Charsets.UTF_8)
+                                    .let { JSONObject(it).optString("email") }
+                                    .trim()
+                                if (email.isNotBlank()) {
+                                    runBlocking {
+                                        NamePreferenceManager(context).rememberGoogleLoginEmail(email)
+                                    }
+                                }
+                            }
+
                             InternalDatabase.DB_NAME -> {
                                 runBlocking(Dispatchers.IO) {
                                     database.checkpoint()
@@ -152,6 +179,15 @@ class BackupRestoreViewModel @Inject constructor(
                             inputStream.copyTo(outputStream)
                         }
                     }
+
+                    outputStream.putNextEntry(java.util.zip.ZipEntry(GOOGLE_ACCOUNT_FILENAME))
+                    outputStream.write(
+                        org.json.JSONObject()
+                            .put("email", email)
+                            .put("previouslyLoggedIn", true)
+                            .toString()
+                            .toByteArray()
+                    )
 
                     val parentFile = context.filesDir.parentFile
                     if (parentFile != null) {
@@ -228,6 +264,17 @@ class BackupRestoreViewModel @Inject constructor(
                                     destFile.parentFile?.mkdirs()
                                     destFile.outputStream().use { outputStream ->
                                         inputStream.copyTo(outputStream)
+                                    }
+                                }
+                            }
+                            GOOGLE_ACCOUNT_FILENAME -> {
+                                val restoredEmail = inputStream.readBytes()
+                                    .toString(Charsets.UTF_8)
+                                    .let { org.json.JSONObject(it).optString("email") }
+                                    .trim()
+                                if (restoredEmail.isNotBlank()) {
+                                    kotlinx.coroutines.runBlocking {
+                                        NamePreferenceManager(context).rememberGoogleLoginEmail(restoredEmail)
                                     }
                                 }
                             }
@@ -364,6 +411,7 @@ class BackupRestoreViewModel @Inject constructor(
 
     companion object {
         const val SETTINGS_FILENAME = "settings.preferences_pb"
+        const val GOOGLE_ACCOUNT_FILENAME = "google_account.json"
     }
 }
 

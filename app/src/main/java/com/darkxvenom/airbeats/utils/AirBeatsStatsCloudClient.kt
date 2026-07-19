@@ -14,6 +14,7 @@ data class GlobalStatsUser(
     val id: String,
     val name: String,
     val profileUrl: String?,
+    val email: String? = null,
     val totalListenMs: Long,
     val weeklyListenMs: Long,
     val lastUpdatedAt: Long,
@@ -30,6 +31,7 @@ data class LocalStatsUpload(
     val userId: String,
     val name: String,
     val profileUrl: String?,
+    val email: String? = null,
     val totalListenMs: Long,
     val weeklyListenMs: Long,
     val fcmToken: String? = null,
@@ -94,15 +96,25 @@ class AirBeatsStatsCloudClient {
                 val currentGlobal = readBoard(GLOBAL_STATS_FILE).getOrThrow()
                 val currentFcm = readBoard(FCM_STATS_FILE).getOrElse { GlobalStatsBoard() }
                 val now = System.currentTimeMillis()
+                val normalizedEmail = upload.email.normalizedEmail()
+                val existingGlobalUser =
+                    currentGlobal.users.firstOrNull { it.id == upload.userId }
+                        ?: normalizedEmail?.let { email ->
+                            currentGlobal.users.firstOrNull { it.email.normalizedEmail() == email }
+                        }
+                val resolvedUserId = existingGlobalUser?.id ?: upload.userId
 
-                // 1. Process Global Stats
                 val globalUsers =
-                    (currentGlobal.users.filterNot { it.id == upload.userId } +
+                    (currentGlobal.users.filterNot {
+                        it.id == resolvedUserId ||
+                            (normalizedEmail != null && it.email.normalizedEmail() == normalizedEmail)
+                    } +
                         GlobalStatsUser(
-                            id = upload.userId,
+                            id = resolvedUserId,
                             name = upload.name.ifBlank { "AirBeats User" },
                             profileUrl = upload.profileUrl,
-                            totalListenMs = upload.totalListenMs.coerceAtLeast(0L),
+                            email = normalizedEmail ?: existingGlobalUser?.email,
+                            totalListenMs = maxOf(upload.totalListenMs.coerceAtLeast(0L), existingGlobalUser?.totalListenMs ?: 0L),
                             weeklyListenMs = upload.weeklyListenMs.coerceAtLeast(0L),
                             lastUpdatedAt = now,
                         ))
@@ -112,29 +124,35 @@ class AirBeatsStatsCloudClient {
 
                 val globalBoard = GlobalStatsBoard(users = globalUsers, updatedAt = now)
                 
-                // 2. Process FCM Stats
-                val existingFcmUser = currentFcm.users.find { it.id == upload.userId }
+                val existingFcmUser =
+                    currentFcm.users.firstOrNull { it.id == resolvedUserId }
+                        ?: normalizedEmail?.let { email ->
+                            currentFcm.users.firstOrNull { it.email.normalizedEmail() == email }
+                        }
                 val validNewToken = upload.fcmToken.takeIf { it != null && it != "n/v" }
                 val resolvedToken = validNewToken ?: existingFcmUser?.fcmToken ?: "n/v"
 
                 val fcmUsers = 
-                    (currentFcm.users.filterNot { it.id == upload.userId } +
+                    (currentFcm.users.filterNot {
+                        it.id == resolvedUserId ||
+                            (normalizedEmail != null && it.email.normalizedEmail() == normalizedEmail)
+                    } +
                         GlobalStatsUser(
-                            id = upload.userId,
+                            id = resolvedUserId,
                             name = upload.name.ifBlank { "AirBeats User" },
-                            totalListenMs = upload.totalListenMs.coerceAtLeast(0L),
-                            rank = globalUsers.find { it.id == upload.userId }?.rank ?: 0,
+                            totalListenMs = maxOf(upload.totalListenMs.coerceAtLeast(0L), existingFcmUser?.totalListenMs ?: 0L),
+                            rank = globalUsers.find { it.id == resolvedUserId }?.rank ?: 0,
                             fcmToken = resolvedToken,
                             lastUpdatedAt = now,
                             weeklyListenMs = 0L,
-                            profileUrl = null
+                            profileUrl = null,
+                            email = normalizedEmail ?: existingFcmUser?.email,
                         ))
                         .sortedByDescending { it.totalListenMs }
                         .take(MAX_GLOBAL_USERS)
 
                 val fcmBoard = GlobalStatsBoard(users = fcmUsers, updatedAt = now)
 
-                // 3. Upload Both
                 writeBoard(GLOBAL_STATS_FILE, globalBoard.toJson(isFcmFile = false))
                 writeBoard(FCM_STATS_FILE, fcmBoard.toJson(isFcmFile = true))
 
@@ -154,11 +172,16 @@ class AirBeatsStatsCloudClient {
                             it.optString("profileUrl")
                                 .trim()
                                 .takeIf { value -> value.isNotBlank() && !value.equals("null", ignoreCase = true) }
+                        val email =
+                            it.optString("email")
+                                .trim()
+                                .takeIf { value -> value.isNotBlank() && !value.equals("null", ignoreCase = true) }
                         
                         GlobalStatsUser(
                             id = parsedId,
                             name = it.optString("name", "AirBeats User"),
                             profileUrl = profileUrl,
+                            email = email,
                             totalListenMs = it.optLong("totalListenMs").takeIf { v -> v > 0 } ?: it.optLong("listenTime"),
                             weeklyListenMs = it.optLong("weeklyListenMs"),
                             lastUpdatedAt = it.optLong("lastUpdatedAt"),
@@ -186,6 +209,7 @@ class AirBeatsStatsCloudClient {
                             JSONObject()
                                 .put("uuid", user.id)
                                 .put("name", user.name)
+                                .put("email", user.email ?: JSONObject.NULL)
                                 .put("fcmToken", user.fcmToken ?: JSONObject.NULL)
                                 .put("listenTime", user.totalListenMs)
                                 .put("rank", user.rank)
@@ -193,6 +217,7 @@ class AirBeatsStatsCloudClient {
                             JSONObject()
                                 .put("id", user.id)
                                 .put("name", user.name)
+                                .put("email", user.email ?: JSONObject.NULL)
                                 .put("profileUrl", user.profileUrl ?: JSONObject.NULL)
                                 .put("totalListenMs", user.totalListenMs)
                                 .put("weeklyListenMs", user.weeklyListenMs)
@@ -206,6 +231,12 @@ class AirBeatsStatsCloudClient {
     private fun parseError(text: String, code: Int): String =
         runCatching { JSONObject(text).optString("error").ifBlank { "HTTP $code" } }
             .getOrDefault("HTTP $code")
+
+    private fun String?.normalizedEmail(): String? =
+        this
+            ?.trim()
+            ?.lowercase()
+            ?.takeIf { it.isNotBlank() && it != "null" }
 
     private companion object {
         val BASE_URL = com.darkxvenom.airbeats.BuildConfig.STATS_BASE_URL

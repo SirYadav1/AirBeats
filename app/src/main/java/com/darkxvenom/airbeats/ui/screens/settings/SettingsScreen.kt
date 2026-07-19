@@ -496,7 +496,7 @@ fun VersionCard(uriHandler: UriHandler) {
                                 )
                             }
                         },
-                        onClick = { uriHandler.openUri("https://airbeats.stormx.pw") }
+                        onClick = { uriHandler.openUri("https://airbeats.app") }
                     ),
                     isLast = true
                 )

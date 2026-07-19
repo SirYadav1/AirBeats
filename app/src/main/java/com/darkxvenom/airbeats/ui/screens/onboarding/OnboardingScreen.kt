@@ -36,6 +36,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -89,11 +90,19 @@ fun OnboardingScreen(
 
     fun saveGoogleProfile(name: String, email: String, photoUrl: String?) {
         coroutineScope.launch {
+            if (!namePrefManager.canUseGoogleEmail(email)) {
+                val lockedEmail = namePrefManager.previousGoogleEmail.first().ifBlank { "your previous email" }
+                isGoogleSignInOpen = false
+                syncState = SyncState.IDLE
+                Toast.makeText(context, namePrefManager.lockedEmailMessage(lockedEmail), Toast.LENGTH_LONG).show()
+                return@launch
+            }
+
             currentUserName = name
             currentUserEmail = email
             syncState = SyncState.CHECKING
             namePrefManager.saveUserName(name)
-            namePrefManager.saveAccountEmail(email)
+            namePrefManager.rememberGoogleLoginEmail(email)
             if (!photoUrl.isNullOrBlank()) {
                 avatarPrefManager.saveAvatarSelection(
                     AvatarSelection.Custom(uri = photoUrl, cloudUrl = photoUrl)

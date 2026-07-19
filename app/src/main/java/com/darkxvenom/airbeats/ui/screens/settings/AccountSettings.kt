@@ -46,6 +46,7 @@ import com.darkxvenom.airbeats.LocalPlayerConnection
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
+import kotlinx.coroutines.flow.first
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,8 +142,14 @@ fun AccountSettings(
     fun linkGoogleAccount(name: String, email: String, photoUrl: String?) {
         scope.launch {
             try {
+                if (!nameManager.canUseGoogleEmail(email)) {
+                    val lockedEmail = nameManager.previousGoogleEmail.first().ifBlank { "your previous email" }
+                    Toast.makeText(context, nameManager.lockedEmailMessage(lockedEmail), Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+
                 nameManager.saveUserName(name)
-                nameManager.saveAccountEmail(email)
+                nameManager.rememberGoogleLoginEmail(email)
                 if (!photoUrl.isNullOrBlank()) {
                     avatarManager.saveAvatarSelection(
                         AvatarSelection.Custom(uri = photoUrl, cloudUrl = photoUrl)
