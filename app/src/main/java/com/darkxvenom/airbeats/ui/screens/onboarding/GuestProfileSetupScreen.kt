@@ -10,11 +10,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.darkxvenom.airbeats.ui.component.NamePreferenceManager
+import com.darkxvenom.airbeats.R
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,7 +48,7 @@ fun GuestProfileSetupScreen(navController: NavController) {
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Set Up Profile",
+                text = stringResource(R.string.set_up_profile),
                 color = Color(0xFF111111),
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
@@ -60,7 +62,7 @@ fun GuestProfileSetupScreen(navController: NavController) {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("What should we call you?", color = Color(0xFF333333)) },
+                label = { Text(stringResource(R.string.what_should_we_call_you), color = Color(0xFF333333)) },
                 colors = TextFieldDefaults.colors(
                     focusedTextColor = Color.Black,
                     unfocusedTextColor = Color.DarkGray,

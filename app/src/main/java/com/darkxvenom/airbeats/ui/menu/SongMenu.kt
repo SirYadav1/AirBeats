@@ -378,7 +378,7 @@ fun SongMenu(
                     val intent = Intent().apply {
                         action = Intent.ACTION_SEND
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, "https://play.airbeats.app/${song.id}")
+                        putExtra(Intent.EXTRA_TEXT, "https://play.airbeats.app/song?id=${song.id}")
                     }
                     context.startActivity(Intent.createChooser(intent, null))
                 }

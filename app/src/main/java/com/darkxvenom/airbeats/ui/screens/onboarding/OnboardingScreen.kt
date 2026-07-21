@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import com.darkxvenom.airbeats.R
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -290,7 +291,7 @@ fun OnboardingScreen(
                             ) {
                                 Icon(painter = painterResource(id = R.drawable.google), contentDescription = "Google", tint = Color.Unspecified, modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Continue With Google", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                Text(stringResource(R.string.continue_with_google), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(
@@ -299,10 +300,10 @@ fun OnboardingScreen(
                                 shape = RoundedCornerShape(24.dp),
                                 modifier = Modifier.fillMaxWidth().height(56.dp)
                             ) {
-                                Text("Continue as Guest", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                                Text(stringResource(R.string.continue_as_guest), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                             }
                             Spacer(modifier = Modifier.height(48.dp))
-                            Text("By signing up or logging in, I accept the AirBeats\nTerms of Service and Privacy Policy", color = Color.Gray, fontSize = 12.sp, textAlign = TextAlign.Center)
+                            Text(stringResource(R.string.onboarding_terms), color = Color.Gray, fontSize = 12.sp, textAlign = TextAlign.Center)
                         }
 
                         SyncState.CHECKING -> {
@@ -314,7 +315,7 @@ fun OnboardingScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 textAlign = TextAlign.Center
                             )
-                            Text("Hold on a moment.", color = Color.LightGray, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 120.dp))
+                            Text(stringResource(R.string.please_wait), color = Color.LightGray, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 120.dp))
                         }
 
                         SyncState.RESTORING -> {
@@ -326,7 +327,7 @@ fun OnboardingScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 textAlign = TextAlign.Center
                             )
-                            Text("Hold on a moment.", color = Color.LightGray, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 120.dp))
+                            Text(stringResource(R.string.please_wait), color = Color.LightGray, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 120.dp))
                         }
 
                         SyncState.RESTORED -> {
@@ -356,7 +357,7 @@ fun OnboardingScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 textAlign = TextAlign.Center
                             )
-                            Text("Uploading your first backup now.", color = Color.LightGray, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 120.dp))
+                            Text(stringResource(R.string.uploading_first_backup), color = Color.LightGray, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 120.dp))
                         }
 
                         SyncState.NEW_USER -> {

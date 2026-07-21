@@ -239,7 +239,7 @@ fun AppearanceSettings(
                             )
                     )
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text("Auto (From Song)", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.auto_from_song), fontWeight = FontWeight.Bold)
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -439,11 +439,11 @@ fun AppearanceSettings(
                     onIslandOffsetXChange(0)
                     onIslandOffsetYChange(8)
                 }) {
-                    Text("Reset")
+                    Text(stringResource(R.string.reset))
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 TextButton(onClick = { showIslandAdjustmentDialog = false }) {
-                    Text("Done")
+                    Text(stringResource(R.string.done))
                 }
             },
             onDismiss = { showIslandAdjustmentDialog = false }
@@ -453,7 +453,7 @@ fun AppearanceSettings(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("Adjust Position", style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.adjust_position), style = MaterialTheme.typography.titleLarge)
                 
                 Text(
                     "Use the arrows to adjust the actual Dynamic Island position on your screen.",
@@ -605,7 +605,7 @@ fun AppearanceSettings(
                     title = stringResource(R.string.theme),
                     items = listOf(
                         {EnumListPreference(
-                            title = { Text("Home Screen Style") },
+                            title = { Text(stringResource(R.string.home_screen_style)) },
                             icon = { Icon(painterResource(R.drawable.home), null) },
                             selectedValue = homeScreenStyle,
                             onValueSelected = onHomeScreenStyleChange,
@@ -620,7 +620,7 @@ fun AppearanceSettings(
                             },
                         )},
                         {EnumListPreference(
-                            title = { Text("Navigation Bar Style") },
+                            title = { Text(stringResource(R.string.navigation_bar_style)) },
                             icon = { Icon(painterResource(R.drawable.nav_bar), null) },
                             selectedValue = navBarStyle,
                             onValueSelected = onNavBarStyleChange,
@@ -688,7 +688,7 @@ fun AppearanceSettings(
                         },
                         *(if (enableDynamicIsland) arrayOf(
                             { PreferenceEntry(
-                                title = { Text("Adjust Dynamic Island") },
+                                title = { Text(stringResource(R.string.adjust_dynamic_island)) },
                                 description = "Change the position of the dynamic island on screen",
                                 icon = { Icon(painterResource(R.drawable.add), null) },
                                 onClick = {
@@ -787,7 +787,7 @@ fun AppearanceSettings(
 
                         *(if (playerScreenStyle == PlayerScreenStyle.COLOURFULL || playerScreenStyle == PlayerScreenStyle.APPLE || playerScreenStyle == PlayerScreenStyle.GALAXY) arrayOf(
                             { PreferenceEntry(
-                                title = { Text("Player colour") },
+                                title = { Text(stringResource(R.string.player_colour)) },
                                 description = "Choose a custom background color",
                                 icon = { Icon(painterResource(R.drawable.palette), null) },
                                 onClick = {
@@ -956,7 +956,7 @@ fun AppearanceSettings(
                         )},
 
                         {SwitchPreference(
-                            title = { Text("New Queue Screen") },
+                            title = { Text(stringResource(R.string.new_queue_screen)) },
                             icon = { Icon(painterResource(R.drawable.music_note), null) },
                             description = "Use OpenTune's queue screen",
                             checked = enableNewQueueScreen,

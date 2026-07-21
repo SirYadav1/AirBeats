@@ -615,7 +615,7 @@ fun AboutScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "3 Contributors",
+                            text = "2 Contributors",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary
                         )

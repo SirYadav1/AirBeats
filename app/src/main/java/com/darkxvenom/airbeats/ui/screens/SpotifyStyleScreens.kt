@@ -76,6 +76,7 @@ import coil.compose.AsyncImage
 import com.darkxvenom.airbeats.LocalPlayerAwareWindowInsets
 import com.darkxvenom.airbeats.LocalPlayerConnection
 import com.darkxvenom.airbeats.R
+import androidx.compose.ui.res.stringResource
 import com.darkxvenom.airbeats.db.entities.LocalItem
 import com.darkxvenom.airbeats.db.entities.Song
 import com.darkxvenom.airbeats.innertube.models.AlbumItem
@@ -268,11 +269,11 @@ fun SpotifyHomeScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     val chipItems = listOf(
-                        "history" to "History",
-                        "liked" to "Liked",
-                        "offline" to "Offline",
-                        "stats" to "Stats",
-                        "search" to "Search"
+                        "history" to context.getString(R.string.history),
+                        "liked" to context.getString(R.string.liked),
+                        "offline" to context.getString(R.string.offline),
+                        "stats" to context.getString(R.string.stats),
+                        "search" to context.getString(R.string.search)
                     )
                     items(chipItems) { (route, label) ->
                         androidx.compose.material3.ElevatedFilterChip(
@@ -326,7 +327,7 @@ fun SpotifySearchScreen(
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
 
     SpotifyScaffold(
-        title = "Search",
+        title = stringResource(R.string.search),
         subtitle = "Find your favorite music",
         actions = {}
     ) {
@@ -450,7 +451,7 @@ fun SpotifyExploreScreen(
     val playerConnection = LocalPlayerConnection.current ?: return
 
     SpotifyScaffold(
-        title = "Explore",
+        title = stringResource(R.string.explore),
         subtitle = "Fresh music and moods",
         actions = {
             androidx.compose.material3.IconButton(onClick = { navController.navigate(Screens.Search.route) }) {
@@ -459,7 +460,7 @@ fun SpotifyExploreScreen(
         }
     ) {
         item {
-            SpotifySectionTitle("New releases")
+            SpotifySectionTitle(stringResource(R.string.new_release_albums))
             SpotifyYtRow(explorePage?.newReleaseAlbums.orEmpty(), navController, playerConnection)
         }
         moodAndGenres?.forEach { group ->
@@ -498,7 +499,7 @@ fun SpotifyLibraryScreen(navController: NavController) {
     var filterType by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.darkxvenom.airbeats.constants.LibraryFilter.PLAYLISTS) }
 
     SpotifyScaffold(
-        title = "Your Library",
+        title = stringResource(R.string.library),
         subtitle = "Saved music in AirBeats",
         actions = {
             androidx.compose.material3.IconButton(onClick = { navController.navigate(Screens.Search.route) }) {
@@ -516,32 +517,32 @@ fun SpotifyLibraryScreen(navController: NavController) {
                 modifier = Modifier.padding(bottom = 8.dp)
             ) {
                 item {
-                    SpotifyChip(text = "Playlists", isSelected = filterType == com.darkxvenom.airbeats.constants.LibraryFilter.PLAYLISTS) {
+                    SpotifyChip(text = stringResource(R.string.playlists), isSelected = filterType == com.darkxvenom.airbeats.constants.LibraryFilter.PLAYLISTS) {
                         filterType = com.darkxvenom.airbeats.constants.LibraryFilter.PLAYLISTS
                     }
                 }
                 item {
-                    SpotifyChip(text = "Songs", isSelected = filterType == com.darkxvenom.airbeats.constants.LibraryFilter.SONGS) {
+                    SpotifyChip(text = stringResource(R.string.songs), isSelected = filterType == com.darkxvenom.airbeats.constants.LibraryFilter.SONGS) {
                         filterType = com.darkxvenom.airbeats.constants.LibraryFilter.SONGS
                     }
                 }
                 item {
-                    SpotifyChip(text = "Albums", isSelected = filterType == com.darkxvenom.airbeats.constants.LibraryFilter.ALBUMS) {
+                    SpotifyChip(text = stringResource(R.string.albums), isSelected = filterType == com.darkxvenom.airbeats.constants.LibraryFilter.ALBUMS) {
                         filterType = com.darkxvenom.airbeats.constants.LibraryFilter.ALBUMS
                     }
                 }
                 item {
-                    SpotifyChip(text = "Artists", isSelected = filterType == com.darkxvenom.airbeats.constants.LibraryFilter.ARTISTS) {
+                    SpotifyChip(text = stringResource(R.string.artists), isSelected = filterType == com.darkxvenom.airbeats.constants.LibraryFilter.ARTISTS) {
                         filterType = com.darkxvenom.airbeats.constants.LibraryFilter.ARTISTS
                     }
                 }
                 item {
-                    SpotifyChip(text = "Local Files", isSelected = filterType == com.darkxvenom.airbeats.constants.LibraryFilter.LOCAL) {
+                    SpotifyChip(text = stringResource(R.string.local_files), isSelected = filterType == com.darkxvenom.airbeats.constants.LibraryFilter.LOCAL) {
                         filterType = com.darkxvenom.airbeats.constants.LibraryFilter.LOCAL
                     }
                 }
                 item {
-                    SpotifyChip(text = "History", isSelected = false) {
+                    SpotifyChip(text = stringResource(R.string.history), isSelected = false) {
                         navController.navigate("history")
                     }
                 }

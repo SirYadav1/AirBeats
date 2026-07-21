@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -298,7 +299,7 @@ fun TopSongPage(song: Song?, songStats: SongWithStats?) {
                 }
             }
         } else {
-            Text("Keep listening to discover your top song!", color = Color.White)
+            Text(stringResource(R.string.keep_listening_top_song), color = Color.White)
         }
     }
 }
@@ -354,7 +355,7 @@ fun TopArtistPage(artist: Artist?) {
                 }
             }
         } else {
-            Text("Keep listening to discover your top artist!", color = Color.White)
+            Text(stringResource(R.string.keep_listening_top_artist), color = Color.White)
         }
     }
 }
@@ -411,7 +412,7 @@ fun TopAlbumPage(album: Album?) {
                 }
             }
         } else {
-            Text("Keep listening to discover your top album!", color = Color.White)
+            Text(stringResource(R.string.keep_listening_top_album), color = Color.White)
         }
     }
 }
@@ -529,7 +530,7 @@ fun SummaryPage(topSongs: List<Song>, navController: NavController) {
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.fillMaxWidth(0.8f).height(56.dp)
             ) {
-                Text("Done", color = Color.Black, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.done), color = Color.Black, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

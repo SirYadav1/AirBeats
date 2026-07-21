@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
@@ -590,10 +591,11 @@ fun AppleExploreScreen(
 
 @Composable
 fun AppleLibraryScreen(navController: NavController) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var filterType by remember { mutableStateOf(LibraryFilter.PLAYLISTS) }
 
     AppleScaffold(
-        title = "Library",
+        title = stringResource(R.string.library),
         navController = navController
     ) {
         item {
@@ -603,11 +605,11 @@ fun AppleLibraryScreen(navController: NavController) {
                 modifier = Modifier.padding(bottom = 8.dp)
             ) {
                 val filters = listOf(
-                    "Playlists" to LibraryFilter.PLAYLISTS,
-                    "Songs" to LibraryFilter.SONGS,
-                    "Albums" to LibraryFilter.ALBUMS,
-                    "Artists" to LibraryFilter.ARTISTS,
-                    "Local Files" to LibraryFilter.LOCAL
+                    context.getString(R.string.playlists) to LibraryFilter.PLAYLISTS,
+                    context.getString(R.string.songs) to LibraryFilter.SONGS,
+                    context.getString(R.string.albums) to LibraryFilter.ALBUMS,
+                    context.getString(R.string.artists) to LibraryFilter.ARTISTS,
+                    context.getString(R.string.local_files) to LibraryFilter.LOCAL
                 )
                 items(filters) { (label, filter) ->
                     val isSelected = filterType == filter
@@ -668,7 +670,7 @@ fun AppleSearchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp),
-                placeholder = { Text("Artists, Songs, Lyrics, and More", color = AppleText.copy(alpha = 0.5f)) },
+                placeholder = { Text(stringResource(R.string.search_everything_placeholder), color = AppleText.copy(alpha = 0.5f)) },
                 leadingIcon = { Icon(painterResource(R.drawable.search), contentDescription = null, tint = AppleText.copy(alpha=0.5f)) },
                 trailingIcon = {
                     IconButton(onClick = { navController.navigate(com.darkxvenom.airbeats.ui.screens.musicrecognition.MusicRecognitionRoute) }) {
@@ -827,8 +829,8 @@ fun AppleStatsScreen(
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     androidx.compose.foundation.layout.Column(modifier = Modifier.weight(1f)) {
-                        Text("Leaderboard", color = AppleText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text("Top Users: ${globalStats.board.users.size}", color = AppleText.copy(alpha = 0.7f), fontSize = 14.sp)
+                        Text(stringResource(R.string.leaderboard), color = AppleText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.top_users, globalStats.board.users.size), color = AppleText.copy(alpha = 0.7f), fontSize = 14.sp)
                     }
                     androidx.compose.material3.Button(
                         onClick = { viewModel.refreshGlobalStats() },
@@ -851,7 +853,7 @@ fun AppleStatsScreen(
                             .background(AppleBg.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                             .padding(12.dp)
                     ) {
-                        Text("Top listener", color = AppleText.copy(alpha = 0.7f), fontSize = 12.sp)
+                        Text(stringResource(R.string.top_listener), color = AppleText.copy(alpha = 0.7f), fontSize = 12.sp)
                         val topHours = topUser?.totalListenMs?.let { it / (3600.0 * 1000.0) }?.toInt()
                         Text(if (topUser != null) "${topHours}h" else "--", color = AppleText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
@@ -861,7 +863,7 @@ fun AppleStatsScreen(
                             .background(AppleBg.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                             .padding(12.dp)
                     ) {
-                        Text("Your rank", color = AppleText.copy(alpha = 0.7f), fontSize = 12.sp)
+                        Text(stringResource(R.string.your_rank), color = AppleText.copy(alpha = 0.7f), fontSize = 12.sp)
                         Text(if (currentUser != null) "#${currentUser.rank}" else "--", color = AppleText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }

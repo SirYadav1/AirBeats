@@ -29,6 +29,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.darkxvenom.airbeats.LocalPlayerAwareWindowInsets
 import com.darkxvenom.airbeats.R
+import androidx.compose.ui.res.stringResource
 import com.darkxvenom.airbeats.constants.InnerTubeCookieKey
 import com.darkxvenom.airbeats.innertube.utils.parseCookieString
 import com.darkxvenom.airbeats.ui.component.CreatePlaylistDialog
@@ -131,12 +132,17 @@ fun NeonLibraryScreen(
             Spacer(modifier = Modifier.height(16.dp))
             
             // Filter Chips
-            val filters = listOf("Playlists", "Songs", "Albums", "Artists")
-            var selectedFilter by remember { mutableStateOf("Playlists") }
+            val filters = listOf(
+                "playlists" to stringResource(R.string.playlists),
+                "songs" to stringResource(R.string.songs),
+                "albums" to stringResource(R.string.albums),
+                "artists" to stringResource(R.string.artists),
+            )
+            var selectedFilter by remember { mutableStateOf("playlists") }
             
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(filters) { filter ->
-                    val isSelected = filter == selectedFilter
+                items(filters) { (filterId, filterLabel) ->
+                    val isSelected = filterId == selectedFilter
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
@@ -146,11 +152,11 @@ fun NeonLibraryScreen(
                                 RoundedCornerShape(20.dp)
                             )
                             .background(if (isSelected) NeonPurple.copy(alpha = 0.1f) else Color.Transparent)
-                            .clickable { selectedFilter = filter }
+                            .clickable { selectedFilter = filterId }
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Text(
-                            text = filter,
+                            text = filterLabel,
                             color = if (isSelected) textColor else Color.Gray,
                             fontSize = 14.sp,
                             fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
@@ -193,7 +199,7 @@ fun NeonLibraryScreen(
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
-                    text = "Create New Playlist",
+                    text = stringResource(R.string.create_new_playlist),
                     color = NeonPurple,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
@@ -204,25 +210,25 @@ fun NeonLibraryScreen(
             
             // Big Cards Grid
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                LibraryBigCard(Modifier.weight(1f), "Liked Songs", "auto", R.drawable.favorite, listOf(Color(0xFF833AB4), Color(0xFFFD1D1D))) {
+                LibraryBigCard(Modifier.weight(1f), stringResource(R.string.liked_songs), "auto", R.drawable.favorite, listOf(Color(0xFF833AB4), Color(0xFFFD1D1D))) {
                     navController.navigate("auto_playlist/liked")
                 }
-                LibraryBigCard(Modifier.weight(1f), "Downloaded", "auto", R.drawable.download, listOf(Color(0xFFFF416C), Color(0xFFFF4B2B))) {
+                LibraryBigCard(Modifier.weight(1f), stringResource(R.string.offline), "auto", R.drawable.download, listOf(Color(0xFFFF416C), Color(0xFFFF4B2B))) {
                     navController.navigate("auto_playlist/downloaded")
                 }
-                LibraryBigCard(Modifier.weight(1f), "My Top $topSize", "auto", R.drawable.trending_up, listOf(Color(0xFFDA22FF), Color(0xFF9733EE))) {
+                LibraryBigCard(Modifier.weight(1f), "${stringResource(R.string.my_top)} $topSize", "auto", R.drawable.trending_up, listOf(Color(0xFFDA22FF), Color(0xFF9733EE))) {
                     navController.navigate("top_playlist/$topSize")
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                LibraryBigCard(Modifier.weight(1f), "Cached", "auto", R.drawable.sync, listOf(Color(0xFF11998E), Color(0xFF38EF7D))) {
+                LibraryBigCard(Modifier.weight(1f), stringResource(R.string.cached_playlist), "auto", R.drawable.sync, listOf(Color(0xFF11998E), Color(0xFF38EF7D))) {
                     navController.navigate("cache_playlist/cached")
                 }
                 LibraryBigCard(
                     modifier = Modifier.weight(1f),
-                    title = "Import Playlist",
-                    subtitle = "Spotify URL",
+                    title = stringResource(R.string.import_playlist),
+                    subtitle = stringResource(R.string.spotify_url),
                     iconRes = R.drawable.playlist_import,
                     gradientColors = listOf(Color(0xFF1DB954), Color(0xFF191414)),
                     onClick = { showSpotifyImportDialog = true }
@@ -241,7 +247,7 @@ fun NeonLibraryScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Playlists",
+                        text = stringResource(R.string.playlists),
                         color = NeonPurple,
                         fontSize = 14.sp
                     )

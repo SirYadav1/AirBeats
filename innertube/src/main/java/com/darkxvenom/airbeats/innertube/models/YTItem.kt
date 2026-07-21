@@ -33,7 +33,7 @@ data class SongItem(
     val endpoint: WatchEndpoint? = null,
 ) : YTItem() {
     override val shareLink: String
-        get() = "https://play.airbeats.app/$id"
+        get() = "https://play.airbeats.app/song?id=$id"
 }
 
 data class AlbumItem(
@@ -78,7 +78,7 @@ data class ArtistItem(
     override val explicit: Boolean
         get() = false
     override val shareLink: String
-        get() = "https://music.youtube.com/channel/$id"
+        get() = "https://play.airbeats.app/artist?id=$id"
 }
 
 fun <T : YTItem> List<T>.filterExplicit(enabled: Boolean = true) =

@@ -366,7 +366,7 @@ fun AccountSettings(
                         // 🔹 EDIT DISPLAY NAME
                         {
                             PreferenceEntry(
-                                title = { Text("Edit Display Name") },
+                                title = { Text(stringResource(R.string.edit_display_name)) },
                                 description = if (currentDisplayName.isNotBlank())
                                     "Current: $currentDisplayName"
                                 else
@@ -543,7 +543,7 @@ fun AccountSettings(
 
         AlertDialog(
             onDismissRequest = { showEditNameDialog = false },
-            title = { Text("Edit Display Name") },
+            title = { Text(stringResource(R.string.edit_display_name)) },
             text = {
                 Column {
                     OutlinedTextField(
@@ -552,7 +552,7 @@ fun AccountSettings(
                             if (it.text.length <= 9)
                                 newName = it
                         },
-                        label = { Text("Your name") },
+                        label = { Text(stringResource(R.string.your_name)) },
                         singleLine = true
                     )
 
@@ -573,14 +573,14 @@ fun AccountSettings(
                         showEditNameDialog = false
                     }
                 ) {
-                    Text("Save")
+                    Text(stringResource(R.string.save))
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showEditNameDialog = false }
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -599,14 +599,14 @@ fun AccountSettings(
                     OutlinedTextField(
                         value = cookieValue,
                         onValueChange = { cookieValue = it },
-                        label = { Text("InnerTube Cookie") },
+                        label = { Text(stringResource(R.string.inner_tube_cookie)) },
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = visitorDataValue,
                         onValueChange = { visitorDataValue = it },
-                        label = { Text("VisitorData") },
+                        label = { Text(stringResource(R.string.visitor_data)) },
                         singleLine = true
                     )
                 }
@@ -619,14 +619,14 @@ fun AccountSettings(
                         showTokenEditor = false
                     }
                 ) {
-                    Text("Save")
+                    Text(stringResource(R.string.save))
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showTokenEditor = false }
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )

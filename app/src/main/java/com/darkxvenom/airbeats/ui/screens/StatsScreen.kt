@@ -357,7 +357,7 @@ fun StatsScreen(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Top 5 Songs", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.top_5_songs), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(12.dp))
                             top5.forEachIndexed { index, song ->
                                 val fraction = if (maxPlayCount > 0) song.songCountListened.toFloat() / maxPlayCount else 0f
@@ -886,7 +886,7 @@ private fun WeeklyGlobalStatsSheet(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                 ) {
-                    Text("Done")
+                    Text(stringResource(R.string.done))
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }

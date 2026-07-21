@@ -6,11 +6,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavController
 import com.darkxvenom.airbeats.NotificationPermissionPreference
 import com.darkxvenom.airbeats.R
+import com.darkxvenom.airbeats.innertube.YouTube
 import com.darkxvenom.airbeats.constants.ContentCountryKey
 import com.darkxvenom.airbeats.constants.MusicProviderKey
 import com.darkxvenom.airbeats.constants.ContentLanguageKey
@@ -31,6 +35,7 @@ import com.darkxvenom.airbeats.constants.SYSTEM_DEFAULT
 import com.darkxvenom.airbeats.constants.TopSize
 import com.darkxvenom.airbeats.ui.component.EditTextPreference
 import com.darkxvenom.airbeats.ui.component.ListPreference
+import com.darkxvenom.airbeats.ui.component.LocaleManager
 import com.darkxvenom.airbeats.ui.component.SettingsGeneralCategory
 import com.darkxvenom.airbeats.ui.component.SettingsPage
 import com.darkxvenom.airbeats.ui.component.SliderPreference
@@ -38,6 +43,8 @@ import com.darkxvenom.airbeats.ui.component.SwitchPreference
 import com.darkxvenom.airbeats.utils.rememberEnumPreference
 import com.darkxvenom.airbeats.utils.rememberPreference
 import java.net.Proxy
+import java.util.Locale
+import kotlinx.coroutines.launch
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,9 +53,12 @@ fun ContentSettings(
     navController: NavController,
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val localeManager = remember { LocaleManager.getInstance(context) }
     val (contentLanguage, onContentLanguageChange) = rememberPreference(
         key = ContentLanguageKey,
-        defaultValue = "system"
+        defaultValue = SYSTEM_DEFAULT
     )
     val (musicProvider, onMusicProviderChange) = rememberPreference(
         key = MusicProviderKey,
@@ -56,7 +66,7 @@ fun ContentSettings(
     )
     val (contentCountry, onContentCountryChange) = rememberPreference(
         key = ContentCountryKey,
-        defaultValue = "system"
+        defaultValue = SYSTEM_DEFAULT
     )
     val (hideExplicit, onHideExplicitChange) = rememberPreference(
         key = HideExplicitKey,
@@ -110,7 +120,7 @@ fun ContentSettings(
             title = stringResource(R.string.general),
             items = listOf(
                 {ListPreference(
-                    title = { Text("Module") },
+                    title = { Text(stringResource(R.string.module)) },
                     icon = { Icon(painterResource(R.drawable.music_note), null) },
                     selectedValue = musicProvider,
                     values = listOf("YT", "JIOSAAVN"),
@@ -127,7 +137,27 @@ fun ContentSettings(
                     valueText = {
                         LanguageCodeToName.getOrElse(it) { stringResource(R.string.system_default) }
                     },
-                    onValueSelected = onContentLanguageChange,
+                    onValueSelected = { selectedLanguage ->
+                        onContentLanguageChange(selectedLanguage)
+                        // The request client reads this value at request time. Updating it
+                        // here makes Content settings take effect immediately, instead of
+                        // waiting for the next full app process restart.
+                        val effectiveLanguage = selectedLanguage
+                            .takeIf { it != SYSTEM_DEFAULT }
+                            ?: Locale.getDefault().language.takeIf { it in LanguageCodeToName }
+                            ?: "en"
+                        YouTube.locale = YouTube.locale.copy(hl = effectiveLanguage)
+
+                        // In AirBeats this is the language control users reach from
+                        // Settings > Content. Apply it to the UI as well so every
+                        // resource-backed screen changes together with the content.
+                        coroutineScope.launch {
+                            localeManager.updateLanguage(
+                                if (selectedLanguage == SYSTEM_DEFAULT) "system_default" else selectedLanguage
+                            )
+                            localeManager.restartApp(context)
+                        }
+                    },
                 )},
                 {ListPreference(
                     title = { Text(stringResource(R.string.content_country)) },
@@ -137,7 +167,14 @@ fun ContentSettings(
                     valueText = {
                         CountryCodeToName.getOrElse(it) { stringResource(R.string.system_default) }
                     },
-                    onValueSelected = onContentCountryChange,
+                    onValueSelected = { selectedCountry ->
+                        onContentCountryChange(selectedCountry)
+                        val effectiveCountry = selectedCountry
+                            .takeIf { it != SYSTEM_DEFAULT }
+                            ?: Locale.getDefault().country.takeIf { it in CountryCodeToName }
+                            ?: "US"
+                        YouTube.locale = YouTube.locale.copy(gl = effectiveCountry)
+                    },
                 )},
 
                 // Hide explicit content

@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.os.Build
 import android.widget.Toast
+import com.darkxvenom.airbeats.ui.component.LocaleAwareApplication
 import android.widget.Toast.LENGTH_SHORT
 import androidx.datastore.preferences.core.edit
 import coil.ImageLoader
@@ -52,7 +53,7 @@ import java.util.Locale
 import javax.inject.Inject
 
 @HiltAndroidApp
-class App : Application(), ImageLoaderFactory {
+class App : LocaleAwareApplication(), ImageLoaderFactory {
     @Inject
     lateinit var database: MusicDatabase
 

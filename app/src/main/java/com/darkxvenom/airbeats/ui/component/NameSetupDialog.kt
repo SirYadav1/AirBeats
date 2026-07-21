@@ -25,9 +25,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.darkxvenom.airbeats.R
 
 @Composable
 fun NameSetupDialog(
@@ -67,8 +69,8 @@ fun NameSetupDialog(
                             nameInput = it
                         }
                     },
-                    label = { Text("Your name") },
-                    placeholder = { Text("Max 9 letters") },
+                    label = { Text(stringResource(R.string.your_name)) },
+                    placeholder = { Text(stringResource(R.string.max_9_letters)) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -114,7 +116,7 @@ fun NameSetupDialog(
                 enabled = isNameValid,
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("Continue")
+                Text(stringResource(R.string.continue_button))
             }
         },
         shape = RoundedCornerShape(16.dp)

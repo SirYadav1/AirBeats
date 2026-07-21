@@ -5,9 +5,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.darkxvenom.airbeats.LocalDatabase
+import com.darkxvenom.airbeats.R
 import com.darkxvenom.airbeats.utils.SpotifyImporter
 import kotlinx.coroutines.launch
 
@@ -15,6 +18,7 @@ import kotlinx.coroutines.launch
 fun SpotifyImportDialog(
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     val database = LocalDatabase.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -29,7 +33,7 @@ fun SpotifyImportDialog(
         onDismissRequest = {
             if (!isImporting) onDismiss()
         },
-        title = { Text(if (isImporting) "Importing Playlist..." else "Import from Spotify") },
+        title = { Text(if (isImporting) stringResource(R.string.importing_playlist) else stringResource(R.string.import_from_spotify)) },
         text = {
             Column {
                 if (resultMessage != null) {
@@ -41,12 +45,12 @@ fun SpotifyImportDialog(
                         progress = { if (total > 0) progress.toFloat() / total.toFloat() else 0f },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                     )
-                    Text("Processing song $progress of $total...")
+                    Text(stringResource(R.string.processing_song, progress, total))
                 } else {
                     OutlinedTextField(
                         value = url,
                         onValueChange = { url = it },
-                        label = { Text("Spotify Playlist URL") },
+                        label = { Text(stringResource(R.string.spotify_playlist_url)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
@@ -57,7 +61,7 @@ fun SpotifyImportDialog(
         confirmButton = {
             if (resultMessage != null || errorMessage != null) {
                 TextButton(onClick = onDismiss) {
-                    Text("OK")
+                    Text(stringResource(android.R.string.ok))
                 }
             } else if (!isImporting) {
                 TextButton(
@@ -75,9 +79,9 @@ fun SpotifyImportDialog(
                                     }
                                 )
                                 result.onSuccess { playlistName ->
-                                    resultMessage = "Successfully imported '$playlistName'!"
+                                    resultMessage = context.getString(R.string.spotify_import_success, playlistName)
                                 }.onFailure { error ->
-                                    errorMessage = "Failed to import: ${error.message}"
+                                    errorMessage = context.getString(R.string.spotify_import_failed, error.message ?: "")
                                 }
                                 isImporting = false
                             }
@@ -85,14 +89,14 @@ fun SpotifyImportDialog(
                     },
                     enabled = url.isNotBlank()
                 ) {
-                    Text("Import")
+                    Text(stringResource(R.string.import_playlist))
                 }
             }
         },
         dismissButton = {
             if (!isImporting && resultMessage == null && errorMessage == null) {
                 TextButton(onClick = onDismiss) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         }

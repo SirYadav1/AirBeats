@@ -424,7 +424,7 @@ class LocaleManager private constructor(private val context: Context) {
             }
 
             val locale = parseLocaleCode(effectiveLanguageCode)
-            applyLocaleToApp(locale)
+            applyLocaleToApp(locale, languageCode == SYSTEM_DEFAULT)
 
             _changeState.value = LanguageChangeState.Success
 
@@ -443,12 +443,27 @@ class LocaleManager private constructor(private val context: Context) {
         _cachedSystemLanguage = null
     }
 
-    private fun applyLocaleToApp(locale: Locale) {
+    private fun applyLocaleToApp(locale: Locale, useSystemLocale: Boolean) {
         try {
             Locale.setDefault(locale)
             val config = Configuration(context.resources.configuration)
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val localeManager = context.getSystemService(android.app.LocaleManager::class.java)
+                // Android 13 keeps its own per-app locale.  It must be cleared when
+                // the user selects "System default"; otherwise the previous language
+                // remains active even after the activity is recreated.
+                if (useSystemLocale) {
+                    localeManager?.applicationLocales = LocaleList.getEmptyLocaleList()
+                } else {
+                    localeManager?.applicationLocales = LocaleList(locale)
+                }
+
+                val localeList = LocaleList(locale)
+                LocaleList.setDefault(localeList)
+                config.setLocales(localeList)
+                config.setLocale(locale)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 val localeList = LocaleList(locale)
                 LocaleList.setDefault(localeList)
                 config.setLocales(localeList)

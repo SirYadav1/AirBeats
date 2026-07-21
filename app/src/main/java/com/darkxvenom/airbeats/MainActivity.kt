@@ -408,7 +408,6 @@ class MainActivity : ComponentActivity() {
                 }
         }
 
-        intent?.let { handlevideoIdIntent(it) }
 
         setContent {
             LaunchedEffect(Unit) {
@@ -817,10 +816,17 @@ class MainActivity : ComponentActivity() {
                                                     navController.navigate("artist/$artistId")
                                                 }
 
+                                            "artist" ->
+                                                uri.getQueryParameter("id")?.let { artistId ->
+                                                    navController.navigate("artist/$artistId")
+                                                }
+
                                             else ->
                                                 when {
                                                     path == "watch" -> uri.getQueryParameter("v")
                                                     uri.host == "youtu.be" -> path
+                                                    uri.host == "play.airbeats.app" && path == "song" -> uri.getQueryParameter("id")
+                                                    uri.host == "play.airbeats.app" -> path
                                                     else -> null
                                                 }?.let { videoId ->
                                                     coroutineScope.launch {
@@ -842,6 +848,7 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                 addOnNewIntentListener(listener)
+                                intent?.let { listener.accept(it) }
                                 onDispose { removeOnNewIntentListener(listener) }
                             }
 
@@ -1563,7 +1570,15 @@ class MainActivity : ComponentActivity() {
         when {
             uri.pathSegments.firstOrNull() == "watch" -> uri.getQueryParameter("v")
             uri.host == "youtu.be" -> uri.pathSegments.firstOrNull()
-            uri.host == "play.airbeats.app" -> uri.pathSegments.firstOrNull()
+            uri.host == "play.airbeats.app" -> {
+                if (uri.pathSegments.firstOrNull() == "song") {
+                    uri.getQueryParameter("id")
+                } else if (uri.pathSegments.firstOrNull() == "artist") {
+                    null
+                } else {
+                    uri.pathSegments.firstOrNull()
+                }
+            }
             else -> null
         }?.let { videoId ->
             lifecycleScope.launch {

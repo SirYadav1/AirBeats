@@ -29,6 +29,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.darkxvenom.airbeats.LocalPlayerConnection
 import com.darkxvenom.airbeats.R
+import androidx.compose.ui.res.stringResource
 import com.darkxvenom.airbeats.extensions.togglePlayPause
 import com.darkxvenom.airbeats.innertube.models.SongItem
 import com.darkxvenom.airbeats.innertube.models.AlbumItem
@@ -82,7 +83,7 @@ fun PlayfulHomeScreen(
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     
-    var selectedTab by remember { mutableStateOf("History") }
+    var selectedTab by remember { mutableStateOf("history") }
 
     val ytGridItem: @Composable (YTItem) -> Unit = { item ->
         YouTubeGridItem(
@@ -170,7 +171,7 @@ fun PlayfulHomeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             val userName = com.darkxvenom.airbeats.ui.component.LocalUserName.current
-                            val displayName = if (userName.isNotEmpty()) userName else "Friend"
+                            val displayName = if (userName.isNotEmpty()) userName else stringResource(R.string.friend)
                             val context = androidx.compose.ui.platform.LocalContext.current
                             val rankPrefMgr = remember { com.darkxvenom.airbeats.ui.component.RankPreferenceManager(context) }
                             val displayedRank by rankPrefMgr.displayedRank.collectAsState(initial = null)
@@ -185,7 +186,7 @@ fun PlayfulHomeScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Hi, ",
+                                    text = stringResource(R.string.greeting_prefix),
                                     fontSize = 36.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = greatVibesFontFamily,
@@ -248,8 +249,13 @@ fun PlayfulHomeScreen(
                                 verticalArrangement = Arrangement.Bottom,
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                val tabs = listOf("History", "Stats", "Liked", "Downloaded")
-                                tabs.reversed().forEach { tab ->
+                                val tabs = listOf(
+                                    "history" to stringResource(R.string.history),
+                                    "stats" to stringResource(R.string.stats),
+                                    "liked" to stringResource(R.string.liked),
+                                    "downloaded" to stringResource(R.string.offline),
+                                )
+                                tabs.reversed().forEach { (tab, label) ->
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -257,16 +263,16 @@ fun PlayfulHomeScreen(
                                             .clickable {
                                                 selectedTab = tab
                                                 when (tab) {
-                                                    "History" -> navController.navigate("history")
-                                                    "Stats" -> navController.navigate("stats")
-                                                    "Liked" -> navController.navigate("auto_playlist/liked")
-                                                    "Downloaded" -> navController.navigate("auto_playlist/downloaded")
+                                                    "history" -> navController.navigate("history")
+                                                    "stats" -> navController.navigate("stats")
+                                                    "liked" -> navController.navigate("auto_playlist/liked")
+                                                    "downloaded" -> navController.navigate("auto_playlist/downloaded")
                                                 }
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = tab,
+                                            text = label,
                                             fontSize = 16.sp,
                                             fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal,
                                             color = if (selectedTab == tab) Color.Black else Color.Black.copy(alpha = 0.5f),

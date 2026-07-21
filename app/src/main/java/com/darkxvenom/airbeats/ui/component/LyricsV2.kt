@@ -859,7 +859,7 @@ fun LyricsV2(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                val songLink = "https://play.airbeats.app/${mediaMetadata?.id}"
+                                val songLink = "https://play.airbeats.app/song?id=${mediaMetadata?.id}"
                                 val shareIntent = Intent().apply {
                                     action = Intent.ACTION_SEND
                                     type = "text/plain"
