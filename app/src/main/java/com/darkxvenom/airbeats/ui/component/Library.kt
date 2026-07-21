@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -163,10 +164,22 @@ fun LibraryPlaylistListItem(
     menuState: MenuState,
     coroutineScope: CoroutineScope,
     playlist: Playlist,
-    modifier: Modifier = Modifier
-) = PlaylistListItem(
-    playlist = playlist,
-    trailingContent = {
+    modifier: Modifier = Modifier,
+    showDragHandle: Boolean = false,
+    dragHandleModifier: Modifier = Modifier,
+) {
+    val trailing: @Composable RowScope.() -> Unit = {
+        if (showDragHandle) {
+            androidx.compose.material3.IconButton(
+                onClick = { },
+                modifier = dragHandleModifier,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.drag_handle),
+                    contentDescription = null,
+                )
+            }
+        }
         androidx.compose.material3.IconButton(
             onClick = {
                 menuState.show {
@@ -212,16 +225,24 @@ fun LibraryPlaylistListItem(
                 contentDescription = null
             )
         }
-    },
-    modifier = modifier
-        .fillMaxWidth()
-        .clickable {
-            if (!playlist.playlist.isEditable && playlist.songCount == 0 && playlist.playlist.remoteSongCount != 0)
-                navController.navigate("online_playlist/${playlist.playlist.browseId}")
-            else
-                navController.navigate("local_playlist/${playlist.id}")
+    }
+
+    val openPlaylist: () -> Unit = {
+        if (!playlist.playlist.isEditable && playlist.songCount == 0 && playlist.playlist.remoteSongCount != 0) {
+            navController.navigate("online_playlist/${playlist.playlist.browseId}")
+        } else {
+            navController.navigate("local_playlist/${playlist.id}")
         }
-)
+    }
+
+    LibraryPlaylistFeatureCard(
+        playlist = playlist,
+        trailingContent = trailing,
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = openPlaylist),
+    )
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

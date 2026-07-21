@@ -69,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -960,7 +961,19 @@ fun LocalPlaylistHeader(
 
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = modifier.padding(12.dp),
+        modifier = modifier
+            .padding(12.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.22f),
+                        Color.Transparent,
+                    ),
+                ),
+            )
+            .padding(12.dp),
     ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),

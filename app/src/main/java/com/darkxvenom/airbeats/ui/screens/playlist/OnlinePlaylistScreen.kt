@@ -57,8 +57,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -218,6 +220,17 @@ fun OnlinePlaylistScreen(
                                     modifier =
                                         Modifier
                                             .padding(12.dp)
+                                            .clip(RoundedCornerShape(28.dp))
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    colors = listOf(
+                                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.22f),
+                                                        Color.Transparent,
+                                                    ),
+                                                ),
+                                            )
+                                            .padding(12.dp)
                                             .animateItem(),
                                 ) {
                                     Row(
@@ -236,6 +249,7 @@ fun OnlinePlaylistScreen(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(ThumbnailCornerRadius)),
+                                                contentScale = ContentScale.Crop,
                                             )
                                         }
 
