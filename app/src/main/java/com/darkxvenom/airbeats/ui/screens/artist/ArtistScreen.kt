@@ -781,10 +781,12 @@ fun ArtistScreen(
                             item {
                                 NavigationTitle(
                                     title = section.title,
-                                    onClick = section.moreEndpoint?.let {
+                                    onClick = section.moreEndpoint?.let { endpoint ->
                                         {
+                                            val encodedBrowseId = endpoint.browseId?.let { android.net.Uri.encode(it) } ?: ""
+                                            val encodedParams = endpoint.params?.let { android.net.Uri.encode(it) } ?: ""
                                             navController.navigate(
-                                                "artist/${viewModel.artistId}/items?browseId=${it.browseId}&params=${it.params}"
+                                                "artist/${viewModel.artistId}/items?browseId=$encodedBrowseId&params=$encodedParams"
                                             )
                                         }
                                     },
