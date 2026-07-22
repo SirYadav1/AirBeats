@@ -235,7 +235,6 @@ fun ArtistScreen(
                     .fillMaxWidth()
                     .fillMaxSize(0.65f)
                     .align(Alignment.TopCenter)
-                    .zIndex(-1f)
                     .drawBehind {
                         val width = size.width
                         val height = size.height

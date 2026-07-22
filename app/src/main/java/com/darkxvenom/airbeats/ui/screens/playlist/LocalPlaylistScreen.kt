@@ -493,7 +493,6 @@ fun LocalPlaylistScreen(
                     .fillMaxWidth()
                     .fillMaxSize(0.55f)
                     .align(Alignment.TopCenter)
-                    .zIndex(-1f)
                     .drawBehind {
                         val width = size.width
                         val height = size.height
