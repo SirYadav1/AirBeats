@@ -28,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +36,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,7 +58,6 @@ fun NewClassicMiniPlayer(
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
-    val currentSong by playerConnection.currentSong.collectAsState(initial = null)
 
     if (mediaMetadata == null) return
 
@@ -138,7 +135,7 @@ fun NewClassicMiniPlayer(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = mediaMetadata?.artist ?: "Unknown Artist",
+                        text = mediaMetadata?.artists?.joinToString { it.name } ?: "Unknown Artist",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Normal,
@@ -147,45 +144,23 @@ fun NewClassicMiniPlayer(
                     )
                 }
 
-                // Controls
-                val isLiked = currentSong?.song?.toggleLike() != null
-                IconButton(
-                    onClick = {
-                        currentSong?.let { song ->
-                            playerConnection.service.coroutineScope.run {
-                                com.darkxvenom.airbeats.db.entities.Song(
-                                    id = song.id,
-                                    title = song.song.title,
-                                    artistsText = song.song.artistsText,
-                                    duration = song.song.duration,
-                                    thumbnailUrl = song.song.thumbnailUrl
-                                ).let {
-                                    playerConnection.database.transaction {
-                                        if (song.song.toggleLike() != null) {
-                                            like(song.id, null)
-                                        } else {
-                                            like(song.id, System.currentTimeMillis())
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(if (isLiked) R.drawable.favorite else R.drawable.favorite_border),
-                        contentDescription = null,
-                        tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
                 val playPauseScale by animateFloatAsState(
                     targetValue = if (isPlaying) 1.05f else 1.0f,
                     animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
                     label = "playPauseScale"
                 )
+
+                IconButton(
+                    onClick = { playerConnection.player.seekToPrevious() },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.skip_previous),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
 
                 IconButton(
                     onClick = { playerConnection.player.togglePlayPause() },
@@ -209,7 +184,7 @@ fun NewClassicMiniPlayer(
                         painter = painterResource(R.drawable.skip_next),
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
