@@ -18,7 +18,6 @@ val DynamicIslandOffsetYKey = intPreferencesKey("dynamicIslandOffsetY")
 val UserNameKey = stringPreferencesKey("user_name")
 
 val PureBlackKey = booleanPreferencesKey("pureBlack")
-val UseSystemFontKey = booleanPreferencesKey("useSystemFont")
 val DefaultOpenTabKey = stringPreferencesKey("defaultOpenTab")
 val SlimNavBarKey = booleanPreferencesKey("slimNavBar")
 val ShowGalaxySliderKey = booleanPreferencesKey("showGalaxySlider")
@@ -149,7 +148,7 @@ val LyricsTextSizeKey = floatPreferencesKey("lyricsTextSizeKey")
 val LyricsLineSpacingKey = floatPreferencesKey("lyricsLineSpacingKey")
 val LyricsRomanizeJapaneseKey = booleanPreferencesKey("lyricsRomanizeJapaneseKey")
 val LyricsRomanizeKoreanKey = booleanPreferencesKey("lyricsRomanizeKoreanKey")
-val UseSystemFontKey = booleanPreferencesKey("useSystemFontKey")
+val UseSystemFontKey = booleanPreferencesKey("useSystemFont")
 
 val DiscordUseDetailsKey = booleanPreferencesKey("discordUseDetails")
 
