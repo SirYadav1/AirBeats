@@ -5,6 +5,8 @@ import android.content.Context
 import android.os.Build
 import android.widget.Toast
 import com.darkxvenom.airbeats.ui.component.LocaleAwareApplication
+import com.darkxvenom.airbeats.utils.dataStore
+import com.darkxvenom.airbeats.utils.initializeCache
 import android.widget.Toast.LENGTH_SHORT
 import androidx.datastore.preferences.core.edit
 import coil.ImageLoader
@@ -63,7 +65,10 @@ class App : LocaleAwareApplication(), ImageLoaderFactory {
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
-        instance = this;
+        instance = this
+        kotlinx.coroutines.runBlocking {
+            runCatching { dataStore.initializeCache() }
+        }
         Timber.plant(com.darkxvenom.airbeats.utils.GlobalLogTree())
 
         try {

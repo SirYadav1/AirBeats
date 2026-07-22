@@ -555,7 +555,7 @@ fun SpotifyLibraryScreen(navController: NavController) {
             val bottom = insets.getBottom(density)
             val left = insets.getLeft(density, layoutDirection)
             val right = insets.getRight(density, layoutDirection)
-            val customInsets = androidx.compose.foundation.layout.WindowInsets(left, 0, right, bottom)
+            val customInsets = androidx.compose.foundation.layout.WindowInsets(left, 0, right, 0)
             
             androidx.compose.runtime.CompositionLocalProvider(
                 com.darkxvenom.airbeats.LocalPlayerAwareWindowInsets provides customInsets
