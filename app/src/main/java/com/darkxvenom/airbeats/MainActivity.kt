@@ -575,6 +575,7 @@ class MainActivity : ComponentActivity() {
                                     NavBarStyle.LIQUID_GLASS -> listOf(Screens.Home, Screens.Explore, Screens.Library)
                                     NavBarStyle.SPOTIFY -> listOf(Screens.Home, Screens.Search, Screens.Explore, Screens.Library)
                                     NavBarStyle.APPLE -> listOf(Screens.Home, Screens.Stats, Screens.Explore, Screens.Library, Screens.Search)
+                                    NavBarStyle.NEW_CLASSIC -> listOf(Screens.Home, Screens.Search, Screens.Explore, Screens.Library)
                                     else -> listOf(Screens.Home, Screens.Explore, Screens.Library)
                                 }
                             }
@@ -1330,7 +1331,18 @@ class MainActivity : ComponentActivity() {
                                                          }
                                                      }
 
-                                                     if (navBarStyle == NavBarStyle.NEON) {
+                                                     if (navBarStyle == NavBarStyle.NEW_CLASSIC) {
+                                                         com.darkxvenom.airbeats.ui.component.NewClassicBottomNavigationBar(
+                                                             items = curvedItems,
+                                                             selectedIndex = selectedIndex,
+                                                             onItemSelected = onItemSelectedAction,
+                                                             modifier = Modifier
+                                                                 .fillMaxSize()
+                                                                 .offset(y = offsetY)
+                                                                 .scale(scale)
+                                                                 .alpha(alpha)
+                                                         )
+                                                     } else if (navBarStyle == NavBarStyle.NEON) {
                                                          com.darkxvenom.airbeats.ui.component.NeonBottomNavigationBar(
                                                              items = curvedItems,
                                                              selectedIndex = selectedIndex,

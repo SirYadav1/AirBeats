@@ -631,6 +631,7 @@ fun AppearanceSettings(
                                     NavBarStyle.SPOTIFY -> "Spotify"
                                     NavBarStyle.APPLE -> "Apple"
                                     NavBarStyle.NEON -> "Neon"
+                                    NavBarStyle.NEW_CLASSIC -> "New Classic"
                                 }
                             },
                         )},

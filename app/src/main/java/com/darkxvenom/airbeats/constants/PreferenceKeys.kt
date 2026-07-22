@@ -41,7 +41,7 @@ enum class HomeScreenStyle {
 }
 
 enum class NavBarStyle {
-    CLASSIC, LIQUID_GLASS, SPOTIFY, APPLE, NEON
+    CLASSIC, LIQUID_GLASS, SPOTIFY, APPLE, NEON, NEW_CLASSIC
 }
 
 enum class PlayerScreenStyle {

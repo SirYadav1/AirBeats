@@ -965,7 +965,13 @@ fun BottomSheetPlayer(
                 com.darkxvenom.airbeats.constants.NavBarStyleKey,
                 defaultValue = com.darkxvenom.airbeats.constants.NavBarStyle.CLASSIC
             )
-            if (navBarStyle == com.darkxvenom.airbeats.constants.NavBarStyle.NEON) {
+            if (navBarStyle == com.darkxvenom.airbeats.constants.NavBarStyle.NEW_CLASSIC) {
+                NewClassicMiniPlayer(
+                    position = position,
+                    duration = duration,
+                    state = state,
+                )
+            } else if (navBarStyle == com.darkxvenom.airbeats.constants.NavBarStyle.NEON) {
                 NeonMiniPlayer(state = state)
             } else if (navBarStyle == com.darkxvenom.airbeats.constants.NavBarStyle.APPLE) {
                 AppleMiniPlayer(
