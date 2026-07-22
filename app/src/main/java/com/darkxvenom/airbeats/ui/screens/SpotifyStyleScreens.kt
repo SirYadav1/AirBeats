@@ -777,8 +777,8 @@ private fun SpotifyHeader(
                             }
                             if (subtitle.startsWith("Good ")) {
                                 val context = androidx.compose.ui.platform.LocalContext.current
-                                val statsViewModel = androidx.hilt.navigation.compose.hiltViewModel<com.darkxvenom.airbeats.viewmodels.StatsViewModel>()
-                                val totalHours by statsViewModel.totalListenHours.collectAsState(initial = 0.0)
+                                val statsViewModel = com.darkxvenom.airbeats.ui.utils.safeHiltViewModel<com.darkxvenom.airbeats.viewmodels.StatsViewModel>()
+                                val totalHours by (statsViewModel?.totalListenHours ?: kotlinx.coroutines.flow.flowOf(0.0)).collectAsState(initial = 0.0)
                                 val currentRank = androidx.compose.runtime.remember(totalHours) {
                                     if (totalHours >= 1.0) com.darkxvenom.airbeats.ui.component.AirBeatsRank.fromHours(totalHours.toInt()) else null
                                 }

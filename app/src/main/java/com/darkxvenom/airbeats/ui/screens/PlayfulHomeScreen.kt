@@ -175,9 +175,9 @@ fun PlayfulHomeScreen(
                             val context = androidx.compose.ui.platform.LocalContext.current
                             val rankPrefMgr = remember { com.darkxvenom.airbeats.ui.component.RankPreferenceManager(context) }
                             val displayedRank by rankPrefMgr.displayedRank.collectAsState(initial = null)
-                            val statsViewModel = hiltViewModel<com.darkxvenom.airbeats.viewmodels.StatsViewModel>()
-                            val currentRank by statsViewModel.currentRank.collectAsState(initial = null)
-                            val totalHours by statsViewModel.totalListenHours.collectAsState(initial = 0.0)
+                            val statsViewModel = com.darkxvenom.airbeats.ui.utils.safeHiltViewModel<com.darkxvenom.airbeats.viewmodels.StatsViewModel>()
+                            val currentRank by (statsViewModel?.currentRank ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(initial = null)
+                            val totalHours by (statsViewModel?.totalListenHours ?: kotlinx.coroutines.flow.flowOf(0.0)).collectAsState(initial = 0.0)
                             val coroutineScope = rememberCoroutineScope()
 
                             val greatVibesFontFamily = androidx.compose.ui.text.font.FontFamily(androidx.compose.ui.text.font.Font(com.darkxvenom.airbeats.R.font.great_vibes))

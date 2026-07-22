@@ -68,14 +68,14 @@ fun NeonHomeScreen(
     val homePage by viewModel.homePage.collectAsState()
     
     val playerConnection = LocalPlayerConnection.current ?: return
-    val statsViewModel = hiltViewModel<StatsViewModel>()
+    val statsViewModel = com.darkxvenom.airbeats.ui.utils.safeHiltViewModel<StatsViewModel>()
     val coroutineScope = rememberCoroutineScope()
     
     val context = LocalContext.current
     val rankPrefMgr = remember { RankPreferenceManager(context) }
     val displayedRank by rankPrefMgr.displayedRank.collectAsState(initial = null)
-    val currentRank by statsViewModel.currentRank.collectAsState(initial = null)
-    val totalHours by statsViewModel.totalListenHours.collectAsState(initial = 0.0)
+    val currentRank by (statsViewModel?.currentRank ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(initial = null)
+    val totalHours by (statsViewModel?.totalListenHours ?: kotlinx.coroutines.flow.flowOf(0.0)).collectAsState(initial = 0.0)
     
     val userName = LocalUserName.current
     val displayName = if (userName.isNotEmpty()) userName else "Friend"

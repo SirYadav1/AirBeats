@@ -42,7 +42,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.zIndex
+import androidx.core.graphics.drawable.toBitmap
+import androidx.palette.graphics.Palette
+import coil.imageLoader
+import coil.request.ImageRequest
+import com.darkxvenom.airbeats.ui.theme.PlayerColorExtractor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -135,9 +148,158 @@ fun CachePlaylistScreen(
 
     val state = rememberLazyListState()
 
+    var gradientColors by remember { mutableStateOf<List<Color>>(emptyList()) }
+    val fallbackColor = MaterialTheme.colorScheme.surface.toArgb()
+
+    LaunchedEffect(filteredSongs.firstOrNull()?.item?.thumbnailUrl) {
+        val thumbnailUrl = filteredSongs.firstOrNull()?.item?.thumbnailUrl
+        if (thumbnailUrl != null) {
+            withContext(Dispatchers.IO) {
+                val request = ImageRequest.Builder(context)
+                    .data(thumbnailUrl)
+                    .size(PlayerColorExtractor.Config.IMAGE_SIZE, PlayerColorExtractor.Config.IMAGE_SIZE)
+                    .allowHardware(false)
+                    .build()
+
+                val result = runCatching {
+                    context.imageLoader.execute(request)
+                }.getOrNull()
+
+                if (result != null && result.drawable != null) {
+                    val rawBitmap = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                        ?: result.drawable?.toBitmap()
+                    val bitmap = rawBitmap?.let {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && it.config == android.graphics.Bitmap.Config.HARDWARE) {
+                            it.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                        } else it
+                    }
+                    if (bitmap != null) {
+                        val palette = Palette.from(bitmap)
+                            .maximumColorCount(PlayerColorExtractor.Config.MAX_COLOR_COUNT)
+                            .resizeBitmapArea(PlayerColorExtractor.Config.BITMAP_AREA)
+                            .generate()
+
+                        val extractedColors = PlayerColorExtractor.extractGradientColors(
+                            palette = palette,
+                            fallbackColor = fallbackColor
+                        )
+                        withContext(Dispatchers.Main) {
+                            gradientColors = extractedColors
+                        }
+                    }
+                }
+            }
+        } else {
+            gradientColors = emptyList()
+        }
+    }
+
+    val gradientAlpha by remember {
+        derivedStateOf {
+            if (state.firstVisibleItemIndex == 0) {
+                val offset = state.firstVisibleItemScrollOffset
+                (1f - (offset / 800f)).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+        }
+    }
+
     Box(
         modifier = Modifier.fillMaxSize(),
     ) {
+        if (gradientColors.isNotEmpty() && gradientAlpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxSize(0.55f)
+                    .align(Alignment.TopCenter)
+                    .zIndex(-1f)
+                    .drawBehind {
+                        val width = size.width
+                        val height = size.height
+
+                        if (gradientColors.size >= 3) {
+                            val c0 = gradientColors[0]
+                            val c1 = gradientColors[1]
+                            val c2 = gradientColors[2]
+                            val c3 = gradientColors.getOrElse(3) { c0 }
+                            val c4 = gradientColors.getOrElse(4) { c1 }
+                            drawRect(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        c0.copy(alpha = gradientAlpha * 0.75f),
+                                        c0.copy(alpha = gradientAlpha * 0.4f),
+                                        Color.Transparent
+                                    ),
+                                    center = Offset(width * 0.5f, height * 0.15f),
+                                    radius = width * 0.8f
+                                )
+                            )
+
+                            drawRect(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        c1.copy(alpha = gradientAlpha * 0.55f),
+                                        c1.copy(alpha = gradientAlpha * 0.3f),
+                                        Color.Transparent
+                                    ),
+                                    center = Offset(width * 0.1f, height * 0.4f),
+                                    radius = width * 0.6f
+                                )
+                            )
+
+                            drawRect(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        c2.copy(alpha = gradientAlpha * 0.5f),
+                                        c2.copy(alpha = gradientAlpha * 0.25f),
+                                        Color.Transparent
+                                    ),
+                                    center = Offset(width * 0.9f, height * 0.35f),
+                                    radius = width * 0.55f
+                                )
+                            )
+
+                            drawRect(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        c3.copy(alpha = gradientAlpha * 0.35f),
+                                        c3.copy(alpha = gradientAlpha * 0.18f),
+                                        Color.Transparent
+                                    ),
+                                    center = Offset(width * 0.25f, height * 0.65f),
+                                    radius = width * 0.75f
+                                )
+                            )
+
+                            drawRect(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        c4.copy(alpha = gradientAlpha * 0.3f),
+                                        c4.copy(alpha = gradientAlpha * 0.15f),
+                                        Color.Transparent
+                                    ),
+                                    center = Offset(width * 0.55f, height * 0.85f),
+                                    radius = width * 0.9f
+                                )
+                            )
+                        } else if (gradientColors.isNotEmpty()) {
+                            drawRect(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        gradientColors[0].copy(alpha = gradientAlpha * 0.7f),
+                                        gradientColors[0].copy(alpha = gradientAlpha * 0.35f),
+                                        Color.Transparent
+                                    ),
+                                    center = Offset(width * 0.5f, height * 0.25f),
+                                    radius = width * 0.85f
+                                )
+                            )
+                        }
+                    }
+            )
+        }
         LazyColumn(
             state = state,
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),

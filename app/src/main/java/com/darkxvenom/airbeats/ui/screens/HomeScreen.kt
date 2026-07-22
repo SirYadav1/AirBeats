@@ -1179,9 +1179,9 @@ fun ModernHomeTopBarInline(
             val context = LocalContext.current
             val rankPrefMgr = remember { RankPreferenceManager(context) }
             val displayedRank by rankPrefMgr.displayedRank.collectAsState(initial = null)
-            val viewModel = hiltViewModel<StatsViewModel>()
-            val currentRank by viewModel.currentRank.collectAsState(initial = null)
-            val totalHours by viewModel.totalListenHours.collectAsState(initial = 0.0)
+            val viewModel = com.darkxvenom.airbeats.ui.utils.safeHiltViewModel<StatsViewModel>()
+            val currentRank by (viewModel?.currentRank ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(initial = null)
+            val totalHours by (viewModel?.totalListenHours ?: kotlinx.coroutines.flow.flowOf(0.0)).collectAsState(initial = 0.0)
             val coroutineScope = rememberCoroutineScope()
 
             currentRank?.let { rank ->

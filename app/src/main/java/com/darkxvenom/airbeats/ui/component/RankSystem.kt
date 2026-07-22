@@ -502,9 +502,9 @@ fun RankBadgeSelector(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val statsViewModel = hiltViewModel<StatsViewModel>()
-    val totalHours by statsViewModel.totalListenHours.collectAsState(initial = 0.0)
-    val currentRank by statsViewModel.currentRank.collectAsState(initial = null)
+    val statsViewModel = com.darkxvenom.airbeats.ui.utils.safeHiltViewModel<StatsViewModel>()
+    val totalHours by (statsViewModel?.totalListenHours ?: kotlinx.coroutines.flow.flowOf(0.0)).collectAsState(initial = 0.0)
+    val currentRank by (statsViewModel?.currentRank ?: kotlinx.coroutines.flow.flowOf(null)).collectAsState(initial = null)
 
     val rankPrefMgr = remember { RankPreferenceManager(context) }
     val displayedRank by rankPrefMgr.displayedRank.collectAsState(initial = null)
