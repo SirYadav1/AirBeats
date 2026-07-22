@@ -45,6 +45,7 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -133,6 +134,49 @@ class App : LocaleAwareApplication(), ImageLoaderFactory {
                 database = database,
                 namePreferenceManager = namePreferenceManager,
             )?.onFailure(::reportException)
+        }
+
+        GlobalScope.launch(Dispatchers.IO) {
+            runCatching {
+                val email = namePreferenceManager.accountEmail.first().ifBlank {
+                    dataStore[AccountEmailKey] ?: ""
+                }
+                val name = namePreferenceManager.userName.first().ifBlank { "AirBeats User" }
+
+                val automaticCloudBackupEnabled = getSharedPreferences("backup_settings", Context.MODE_PRIVATE)
+                    .getBoolean("enable_cloud_upload", true)
+
+                if (automaticCloudBackupEnabled && email.isNotBlank()) {
+                    Timber.i("App launch: Starting automatic cloud backup upload for $email")
+                    val backupViewModel = com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel(com.darkxvenom.airbeats.db.InternalDatabase.newInstance(this@App))
+                    val result = backupViewModel.backupToDrive(this@App, email, name)
+                    if (result is com.darkxvenom.airbeats.utils.DriveResult.Success) {
+                        dataStore.edit { preferences ->
+                            preferences[com.darkxvenom.airbeats.constants.LastBackupTimestampKey] = System.currentTimeMillis()
+                        }
+                        Timber.i("App launch: Cloud backup upload completed successfully for $email")
+                    } else {
+                        Timber.e("App launch: Cloud backup upload failed for $email")
+                    }
+
+                    // Schedule periodic 24-hour backup worker
+                    val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.darkxvenom.airbeats.worker.DailyBackupWorker>(1, java.util.concurrent.TimeUnit.DAYS)
+                        .setConstraints(
+                            androidx.work.Constraints.Builder()
+                                .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                                .build()
+                        )
+                        .build()
+
+                    androidx.work.WorkManager.getInstance(this@App).enqueueUniquePeriodicWork(
+                        "DailyBackupWorker",
+                        androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                        workRequest
+                    )
+                }
+            }.onFailure { e ->
+                Timber.e(e, "App launch: Error during automatic cloud backup")
+            }
         }
 
         GlobalScope.launch {

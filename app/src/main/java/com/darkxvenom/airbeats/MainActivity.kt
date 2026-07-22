@@ -428,21 +428,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            val accountEmail by rememberPreference(com.darkxvenom.airbeats.constants.AccountEmailKey, "")
+            val settingsEmail by rememberPreference(com.darkxvenom.airbeats.constants.AccountEmailKey, "")
+            val managerEmail by namePreferenceManager.accountEmail.collectAsState(initial = "")
+            val effectiveEmail = settingsEmail.ifBlank { managerEmail }
             val (_, setLastBackupTimestamp) = rememberPreference(com.darkxvenom.airbeats.constants.LastBackupTimestampKey, 0L)
-            val backupViewModel: com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+            val backupViewModel = com.darkxvenom.airbeats.ui.utils.safeHiltViewModel<com.darkxvenom.airbeats.viewmodels.BackupRestoreViewModel>()
             val context = androidx.compose.ui.platform.LocalContext.current
             val userName by namePreferenceManager.userName.collectAsState(initial = "AirBeats User")
             
-            LaunchedEffect(accountEmail, userName) {
+            LaunchedEffect(effectiveEmail, userName) {
                 val automaticCloudBackupEnabled = context
                     .getSharedPreferences("backup_settings", android.content.Context.MODE_PRIVATE)
                     .getBoolean("enable_cloud_upload", true)
 
-                if (automaticCloudBackupEnabled && accountEmail.isNotBlank()) {
+                if (automaticCloudBackupEnabled && effectiveEmail.isNotBlank() && backupViewModel != null) {
                     val now = System.currentTimeMillis()
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        val result = backupViewModel.backupToDrive(context, accountEmail, userName)
+                        val result = backupViewModel.backupToDrive(context, effectiveEmail, userName)
                         if (result is com.darkxvenom.airbeats.utils.DriveResult.Success) {
                             setLastBackupTimestamp(now)
                         }
@@ -515,8 +517,8 @@ class MainActivity : ComponentActivity() {
             ) {
                 val rankPrefMgr = remember { RankPreferenceManager(this@MainActivity) }
                 val lastSeenRank by rankPrefMgr.lastSeenRank.collectAsState(initial = null)
-                val statsViewModel = hiltViewModel<StatsViewModel>()
-                val totalHours by statsViewModel.totalListenHours.collectAsState(initial = 0.0)
+                val statsViewModel = com.darkxvenom.airbeats.ui.utils.safeHiltViewModel<StatsViewModel>()
+                val totalHours by (statsViewModel?.totalListenHours ?: kotlinx.coroutines.flow.flowOf(0.0)).collectAsState(initial = 0.0)
                 val currentRank = remember(totalHours) {
                     if (totalHours >= 1.0) AirBeatsRank.fromHours(totalHours.toInt()) else null
                 }
@@ -1991,8 +1993,8 @@ fun ModernHomeTopBar(
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        val statsViewModel = hiltViewModel<StatsViewModel>()
-                        val totalHours by statsViewModel.totalListenHours.collectAsState(initial = 0.0)
+                        val statsViewModel = com.darkxvenom.airbeats.ui.utils.safeHiltViewModel<StatsViewModel>()
+                        val totalHours by (statsViewModel?.totalListenHours ?: kotlinx.coroutines.flow.flowOf(0.0)).collectAsState(initial = 0.0)
                         val currentRank = remember(totalHours) {
                             if (totalHours >= 1.0) AirBeatsRank.fromHours(totalHours.toInt()) else null
                         }
