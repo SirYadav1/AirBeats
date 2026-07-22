@@ -131,7 +131,7 @@ fun ArtistMenu(
                         type = "text/plain"
                         putExtra(
                             Intent.EXTRA_TEXT,
-                            "https://music.youtube.com/channel/${artist.id}"
+                            "https://play.airbeats.app/artist?id=${artist.id}"
                         )
                     }
                 context.startActivity(Intent.createChooser(intent, null))

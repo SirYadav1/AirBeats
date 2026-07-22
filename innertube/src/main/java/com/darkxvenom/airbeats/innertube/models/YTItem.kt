@@ -47,7 +47,7 @@ data class AlbumItem(
     override val explicit: Boolean = false,
 ) : YTItem() {
     override val shareLink: String
-        get() = "https://music.youtube.com/playlist?list=$playlistId"
+        get() = "https://play.airbeats.app/album?id=$browseId"
 }
 
 data class PlaylistItem(
@@ -64,7 +64,7 @@ data class PlaylistItem(
     override val explicit: Boolean
         get() = false
     override val shareLink: String
-        get() = "https://music.youtube.com/playlist?list=$id"
+        get() = "https://play.airbeats.app/playlist?list=$id"
 }
 
 data class ArtistItem(

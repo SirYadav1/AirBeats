@@ -169,40 +169,40 @@
     <string name="skip_duplicates">डुप्लिकेट छोड़ें</string>
     <string name="add_anyway">वैसे भी जोड़ें</string>
     <string name="duplicates_description_single">गीत पहले से ही आपकी प्लेलिस्ट में है</string>
-    <string name="duplicates_description_multiple">%डी गाने पहले से ही आपकी प्लेलिस्ट में हैं</string>
+    <string name="duplicates_description_multiple">%d गाने पहले से ही आपकी प्लेलिस्ट में हैं</string>
 
     <!-- Noun -->
     <plurals name="n_song">
-        <item quantity="one" tools:ignore="ImpliedQuantity">%डी गीत</item>
-        <item quantity="other">%डी गाने</item>
+        <item quantity="one" tools:ignore="ImpliedQuantity">%d गीत</item>
+        <item quantity="other">%d गाने</item>
     </plurals>
     <plurals name="n_artist">
         <item quantity="one">%d कलाकार</item>
-        <item quantity="other">%डी कलाकार</item>
+        <item quantity="other">%d कलाकार</item>
     </plurals>
     <plurals name="n_album">
-        <item quantity="one">%D एल्बम</item>
-        <item quantity="other">%डी एल्बम</item>
+        <item quantity="one">%d एल्बम</item>
+        <item quantity="other">%d एल्बम</item>
     </plurals>
     <plurals name="n_playlist">
-        <item quantity="one" tools:ignore="ImpliedQuantity">%डी प्लेलिस्ट</item>
-        <item quantity="other">%डी प्लेलिस्ट</item>
+        <item quantity="one" tools:ignore="ImpliedQuantity">%d प्लेलिस्ट</item>
+        <item quantity="other">%d प्लेलिस्ट</item>
     </plurals>
     <plurals name="n_week">
-        <item quantity="one" tools:ignore="ImpliedQuantity">%डी सप्ताह</item>
-        <item quantity="other">%डी सप्ताह</item>
+        <item quantity="one" tools:ignore="ImpliedQuantity">%d सप्ताह</item>
+        <item quantity="other">%d सप्ताह</item>
     </plurals>
     <plurals name="n_month">
-        <item quantity="one" tools:ignore="ImpliedQuantity">%डी महीना</item>
-        <item quantity="other">%डी महीने</item>
+        <item quantity="one" tools:ignore="ImpliedQuantity">%d महीना</item>
+        <item quantity="other">%d महीने</item>
     </plurals>
     <plurals name="n_year">
-        <item quantity="one" tools:ignore="ImpliedQuantity">%डी वर्ष</item>
-        <item quantity="other">%डी वर्ष</item>
+        <item quantity="one" tools:ignore="ImpliedQuantity">%d वर्ष</item>
+        <item quantity="other">%d वर्ष</item>
     </plurals>
     <plurals name="n_element">
         <item quantity="one">%d तत्व</item>
-        <item quantity="other">%डी तत्व</item>
+        <item quantity="other">%d तत्व</item>
     </plurals>
     <plurals name="n_time">
         <item quantity="one">%d समय</item>
@@ -438,11 +438,11 @@
     <string name="backup_link_description">आपका बैकअप 14 दिनों के लिए उपलब्ध होगा।</string>
     <string name="copy_link">लिंक की प्रतिलिपि करें</string>
     <string name="customize_thumbnail_corner_radius">थंबनेल कॉर्नर रेडियस कस्टमाइज़ करें</string>
-    <string name="corner_radius_label">कॉर्नर रेडियस: %1 $ s</string>
+    <string name="corner_radius_label">कॉर्नर रेडियस: %1$s</string>
     <string name="unmute">निरंकुशता</string>
     <plurals name="seconds">
         <item quantity="one" tools:ignore="ImpliedQuantity">1 सेकंड</item>
-        <item quantity="other">%डी सेकंड</item>
+        <item quantity="other">%d सेकंड</item>
     </plurals>
     <string name="mute">आवाज़ बंद करना</string>
     <string name="explore">अन्वेषण करना</string>
