@@ -95,6 +95,12 @@ fun Bitmap.extractGradientColors(): List<Color> {
 }
 
 object PlayerColorExtractor {
+    object Config {
+        const val MAX_COLOR_COUNT = 32
+        const val BITMAP_AREA = 8000
+        const val IMAGE_SIZE = 200
+    }
+
     fun extractGradientColors(
         palette: Palette,
         fallbackColor: Int = Color(0xFF595959).toArgb()
