@@ -37,10 +37,15 @@ fun AirBeatsTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     pureBlack: Boolean = false,
     expressive: Boolean = true,
+    useSystemFont: Boolean = false,
     themeColor: Color = DefaultThemeColor,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
+
+    val typography = remember(useSystemFont) {
+        if (useSystemFont) SystemTypography else AppTypography
+    }
 
     val colorScheme = remember(darkTheme, pureBlack, themeColor) {
         if (themeColor == DefaultThemeColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -64,7 +69,7 @@ fun AirBeatsTheme(
 
     MaterialExpressiveTheme(
         colorScheme = colorScheme,
-        typography = MaterialTheme.typography,
+        typography = typography,
         shapes = MaterialTheme.shapes,
         motionScheme = motionScheme,
         content = content

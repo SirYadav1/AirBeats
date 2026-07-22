@@ -514,6 +514,8 @@
     <string name="adjust_radius">Adjust radius</string>
     <string name="cancel">Cancel</string>
     <string name="apply">Apply</string>
+    <string name="use_system_font">Use system font</string>
+    <string name="use_system_font_desc">Use system font instead of the modern custom typography</string>
     <string name="player_buttons_style">Player Buttons style</string>
     <string name="default_style">Default style</string>
     <string name="secondary_color_style">Secondary color style</string>

@@ -168,6 +168,10 @@ fun AppearanceSettings(
         DynamicIslandKey,
         defaultValue = false
     )
+    val (useSystemFont, onUseSystemFontChange) = rememberPreference(
+        UseSystemFontKey,
+        defaultValue = false
+    )
 
     val isSystemInDarkTheme = isSystemInDarkTheme()
     val useDarkTheme =
@@ -722,7 +726,14 @@ fun AppearanceSettings(
                                 },
                                 isEnabled = useDarkTheme && !enableLiquidGlass
                             )
-                        }}
+                        }},
+                        {SwitchPreference(
+                            title = { Text(stringResource(R.string.use_system_font)) },
+                            description = stringResource(R.string.use_system_font_desc),
+                            icon = { Icon(painterResource(R.drawable.tune), null) },
+                            checked = useSystemFont,
+                            onCheckedChange = onUseSystemFontChange
+                        )}
                     )
                 )
 

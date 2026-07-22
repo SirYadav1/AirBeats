@@ -464,6 +464,7 @@ class MainActivity : ComponentActivity() {
             val enableLiquidGlass by rememberPreference(LiquidGlassKey, defaultValue = false)
 
             val pureBlack by rememberPreference(PureBlackKey, defaultValue = false)
+            val useSystemFont by rememberPreference(UseSystemFontKey, defaultValue = false)
             val isPlayful = homeScreenStyle == HomeScreenStyle.PLAYFUL
             val isSystemInDarkTheme = isSystemInDarkTheme()
             val useDarkTheme =
@@ -513,6 +514,7 @@ class MainActivity : ComponentActivity() {
             AirBeatsTheme(
                 darkTheme = useDarkTheme,
                 pureBlack = pureBlack && !enableLiquidGlass && !isPlayful,
+                useSystemFont = useSystemFont,
                 themeColor = themeColor,
             ) {
                 val rankPrefMgr = remember { RankPreferenceManager(this@MainActivity) }
