@@ -1,5 +1,5 @@
 /*
- * OpenTune Project Original (2026)
+ * AirBeats Project Original (2026)
  * Arturo254 (github.com/Arturo254)
  * Licensed Under GPL-3.0 | see git history for contributors
  */
@@ -45,7 +45,7 @@ import java.io.FileOutputStream
 import kotlin.coroutines.resume
 import kotlin.math.max
 
-object OpenTuneComposeToImage {
+object AirBeatsComposeToImage {
 
     // ─────────────────────────────────────────────────────────────────────────
     // Utilidades internas
@@ -357,7 +357,7 @@ object OpenTuneComposeToImage {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Helper: branding OpenTune (igual al original)
+    // Helper: branding AirBeats (igual al original)
     // ─────────────────────────────────────────────────────────────────────────
 
     private fun drawBranding(
@@ -1056,7 +1056,7 @@ object OpenTuneComposeToImage {
             val contentValues = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, "$fileName.png")
                 put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/OpenTune")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/AirBeats")
             }
             val uri = context.contentResolver.insert(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues

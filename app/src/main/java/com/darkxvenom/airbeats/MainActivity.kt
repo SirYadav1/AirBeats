@@ -1186,7 +1186,7 @@ class MainActivity : ComponentActivity() {
                                                             modifier = Modifier.fillMaxSize()
                                                         )
                                                     } else if (enableNewLyricsScreen && playerScreenStyle != PlayerScreenStyle.GALAXY) {
-                                                        com.darkxvenom.airbeats.ui.player.OpenTuneLyricsScreen(
+                                                        com.darkxvenom.airbeats.ui.player.AirBeatsLyricsScreen(
                                                             mediaMetadata = mediaMetadata!!,
                                                             navController = navController,
                                                             onBackClick = {

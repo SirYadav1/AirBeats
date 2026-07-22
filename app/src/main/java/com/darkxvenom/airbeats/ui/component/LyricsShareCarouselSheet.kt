@@ -1,5 +1,5 @@
 /*
- * OpenTune Project Original (2026)
+ * AirBeats Project Original (2026)
  * Arturo254 (github.com/Arturo254)
  * Licensed Under GPL-3.0 | see git history for contributors
  */
@@ -517,7 +517,7 @@ private fun CustomizationPanel(
                     ToggleRow("Mostrar título",    config.showTitle)   { onConfigChange(config.copy(showTitle   = it)) }
                     ToggleRow("Mostrar artista",   config.showArtist)  { onConfigChange(config.copy(showArtist  = it)) }
                     ToggleRow("Mostrar portada",   config.showCoverArt){ onConfigChange(config.copy(showCoverArt = it)) }
-                    ToggleRow("Mostrar OpenTune",  config.showBranding){ onConfigChange(config.copy(showBranding = it)) }
+                    ToggleRow("Mostrar AirBeats",  config.showBranding){ onConfigChange(config.copy(showBranding = it)) }
                 }
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))

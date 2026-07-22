@@ -1,5 +1,5 @@
 /*
- * OpenTune Project Original (2026)
+ * AirBeats Project Original (2026)
  * Arturo254 (github.com/Arturo254)
  * Licensed Under GPL-3.0 | see git history for contributors
  */
@@ -96,7 +96,7 @@ import com.darkxvenom.airbeats.utils.makeTimeString
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OpenTuneLyricsScreen(
+fun AirBeatsLyricsScreen(
     mediaMetadata: MediaMetadata,
     navController: NavController,
     onBackClick: () -> Unit,

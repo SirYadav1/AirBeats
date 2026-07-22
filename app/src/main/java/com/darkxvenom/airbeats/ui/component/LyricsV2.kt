@@ -1,5 +1,5 @@
 /*
- * OpenTune Project Original (2026)
+ * AirBeats Project Original (2026)
  * Arturo254 (github.com/Arturo254) & WTTexe!
  * Licensed Under GPL-3.0 | see git history for contributors
  */
@@ -103,18 +103,18 @@ import com.darkxvenom.airbeats.constants.PlayerBackgroundStyleKey
 import com.darkxvenom.airbeats.constants.UseSystemFontKey
 import com.darkxvenom.airbeats.db.entities.LyricsEntity.Companion.LYRICS_NOT_FOUND
 import com.darkxvenom.airbeats.lyrics.LyricsEntry
-import com.darkxvenom.airbeats.lyrics.OpenTuneLyricsUtils.findCurrentLineIndex
-import com.darkxvenom.airbeats.lyrics.OpenTuneLyricsUtils.isChinese
-import com.darkxvenom.airbeats.lyrics.OpenTuneLyricsUtils.isJapanese
-import com.darkxvenom.airbeats.lyrics.OpenTuneLyricsUtils.isKorean
-import com.darkxvenom.airbeats.lyrics.OpenTuneLyricsUtils.isTtml
-import com.darkxvenom.airbeats.lyrics.OpenTuneLyricsUtils.parseLyrics
-import com.darkxvenom.airbeats.lyrics.OpenTuneLyricsUtils.parseTtml
+import com.darkxvenom.airbeats.lyrics.AirBeatsLyricsUtils.findCurrentLineIndex
+import com.darkxvenom.airbeats.lyrics.AirBeatsLyricsUtils.isChinese
+import com.darkxvenom.airbeats.lyrics.AirBeatsLyricsUtils.isJapanese
+import com.darkxvenom.airbeats.lyrics.AirBeatsLyricsUtils.isKorean
+import com.darkxvenom.airbeats.lyrics.AirBeatsLyricsUtils.isTtml
+import com.darkxvenom.airbeats.lyrics.AirBeatsLyricsUtils.parseLyrics
+import com.darkxvenom.airbeats.lyrics.AirBeatsLyricsUtils.parseTtml
 import com.darkxvenom.airbeats.lyrics.WordTimestamp
 import com.darkxvenom.airbeats.ui.component.shimmer.ShimmerHost
 import com.darkxvenom.airbeats.ui.component.shimmer.TextPlaceholder
 import com.darkxvenom.airbeats.ui.utils.smoothFadingEdge
-import com.darkxvenom.airbeats.utils.OpenTuneComposeToImage
+import com.darkxvenom.airbeats.utils.AirBeatsComposeToImage
 import com.darkxvenom.airbeats.utils.rememberEnumPreference
 import com.darkxvenom.airbeats.utils.rememberPreference
 import kotlinx.coroutines.Dispatchers
@@ -754,7 +754,7 @@ fun LyricsV2(
                                 runCatching {
 
                                     val bitmap =
-                                        OpenTuneComposeToImage.createLyricsImageWithConfig(
+                                        AirBeatsComposeToImage.createLyricsImageWithConfig(
                                             context = context,
                                             coverArtUrl = metadata.thumbnailUrl,
                                             songTitle = title,
@@ -764,7 +764,7 @@ fun LyricsV2(
                                             outputSize = 1080,
                                         )
 
-                                    val uri = OpenTuneComposeToImage.saveBitmapAsFile(
+                                    val uri = AirBeatsComposeToImage.saveBitmapAsFile(
                                         context = context,
                                         bitmap = bitmap,
                                         fileName = "lyrics_${System.currentTimeMillis()}",
@@ -788,7 +788,7 @@ fun LyricsV2(
                                 runCatching {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                                         val bitmap =
-                                            OpenTuneComposeToImage.createLyricsImageWithConfig(
+                                            AirBeatsComposeToImage.createLyricsImageWithConfig(
                                                 context = context,
                                                 coverArtUrl = metadata.thumbnailUrl,
                                                 songTitle = title,
@@ -798,7 +798,7 @@ fun LyricsV2(
                                                 outputSize = 1080,
                                             )
 
-                                        OpenTuneComposeToImage.saveBitmapAsFile(
+                                        AirBeatsComposeToImage.saveBitmapAsFile(
                                             context = context,
                                             bitmap = bitmap,
                                             fileName = "lyrics_saved_${System.currentTimeMillis()}",
@@ -1062,7 +1062,7 @@ fun LyricsV2(
                             scope.launch {
                                 try {
                                     val exportSize = 1080
-                                    val image = OpenTuneComposeToImage.createLyricsImage(
+                                    val image = AirBeatsComposeToImage.createLyricsImage(
                                         context = context,
                                         coverArtUrl = coverUrl,
                                         songTitle = songTitle,
@@ -1074,7 +1074,7 @@ fun LyricsV2(
                                     )
                                     val timestamp = System.currentTimeMillis()
                                     val filename = "lyrics_$timestamp"
-                                    val uri = OpenTuneComposeToImage.saveBitmapAsFile(context, image, filename)
+                                    val uri = AirBeatsComposeToImage.saveBitmapAsFile(context, image, filename)
                                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                         type = "image/png"
                                         putExtra(Intent.EXTRA_STREAM, uri)

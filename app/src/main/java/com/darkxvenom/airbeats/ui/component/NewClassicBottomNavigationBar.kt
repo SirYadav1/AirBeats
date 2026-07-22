@@ -171,7 +171,7 @@ fun NewClassicBottomNavigationBar(
             modifier = Modifier.widthIn(max = 480.dp),
             colors = toolbarColors
         ) {
-            OpenTuneToolbarItemsContainer(
+            AirBeatsToolbarItemsContainer(
                 items = items,
                 selectedIndex = selectedIndex,
                 showSelectedLabels = showSelectedLabels,
@@ -182,7 +182,7 @@ fun NewClassicBottomNavigationBar(
 }
 
 @Composable
-private fun OpenTuneToolbarItemsContainer(
+private fun AirBeatsToolbarItemsContainer(
     items: List<CurvedBottomNavigationItem>,
     selectedIndex: Int,
     showSelectedLabels: Boolean,
@@ -230,7 +230,7 @@ private fun OpenTuneToolbarItemsContainer(
         Row(verticalAlignment = Alignment.CenterVertically) {
             items.forEachIndexed { index, item ->
                 val selected = selectedIndex == index
-                OpenTuneToolbarItem(
+                AirBeatsToolbarItem(
                     item = item,
                     selected = selected,
                     showSelectedLabel = showSelectedLabels,
@@ -246,7 +246,7 @@ private fun OpenTuneToolbarItemsContainer(
 }
 
 @Composable
-private fun OpenTuneToolbarItem(
+private fun AirBeatsToolbarItem(
     item: CurvedBottomNavigationItem,
     selected: Boolean,
     showSelectedLabel: Boolean,

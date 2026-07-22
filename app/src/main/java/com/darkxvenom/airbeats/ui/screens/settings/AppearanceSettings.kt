@@ -959,7 +959,7 @@ fun AppearanceSettings(
                         {SwitchPreference(
                             title = { Text(stringResource(R.string.new_queue_screen)) },
                             icon = { Icon(painterResource(R.drawable.music_note), null) },
-                            description = "Use OpenTune's queue screen",
+                            description = "Use AirBeats's queue screen",
                             checked = enableNewQueueScreen,
                             onCheckedChange = onEnableNewQueueScreenChange
                         )}

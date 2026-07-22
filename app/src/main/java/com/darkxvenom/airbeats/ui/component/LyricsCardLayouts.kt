@@ -1,5 +1,5 @@
 /*
- * OpenTune Project Original (2026)
+ * AirBeats Project Original (2026)
  * Arturo254 (github.com/Arturo254)
  * Licensed Under GPL-3.0 | see git history for contributors
  */
@@ -76,7 +76,7 @@ internal fun rememberArtworkPainter(thumbnailUrl: String?): Painter =
             .build()
     )
 
-/** Fila de marca OpenTune — aparece en el pie de todos los layouts si showBranding=true */
+/** Fila de marca AirBeats — aparece en el pie de todos los layouts si showBranding=true */
 @Composable
 internal fun LyricsBrandingRow(
     secondaryColor: Color,

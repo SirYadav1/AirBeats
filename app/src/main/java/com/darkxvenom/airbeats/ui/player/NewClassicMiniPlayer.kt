@@ -204,7 +204,7 @@ fun NewClassicMiniPlayer(
 
             Spacer(modifier = Modifier.width(4.dp))
 
-            // OpenTune Cookie / Scalloped PlayPause Button
+            // AirBeats Cookie / Scalloped PlayPause Button
             FilledIconButton(
                 onClick = { playerConnection.player.togglePlayPause() },
                 modifier = Modifier.size(44.dp),
