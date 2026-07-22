@@ -44,9 +44,6 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
-import androidx.compose.material3.pulltorefresh.pullToRefresh
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -112,7 +109,6 @@ import com.darkxvenom.airbeats.constants.PlaylistEditLockKey
 import com.darkxvenom.airbeats.constants.PlaylistSongSortDescendingKey
 import com.darkxvenom.airbeats.constants.PlaylistSongSortType
 import com.darkxvenom.airbeats.constants.PlaylistSongSortTypeKey
-import com.darkxvenom.airbeats.constants.SwipeToSongKey
 import com.darkxvenom.airbeats.db.entities.PlaylistSong
 import com.darkxvenom.airbeats.db.entities.PlaylistSongMap
 import com.darkxvenom.airbeats.extensions.move
@@ -124,15 +120,14 @@ import com.darkxvenom.airbeats.innertube.utils.completed
 import com.darkxvenom.airbeats.models.toMediaMetadata
 import com.darkxvenom.airbeats.playback.ExoDownloadService
 import com.darkxvenom.airbeats.playback.queues.ListQueue
-import com.darkxvenom.airbeats.playback.queues.LocalMixQueue
 import com.darkxvenom.airbeats.ui.component.DefaultDialog
 import com.darkxvenom.airbeats.ui.component.DraggableScrollbar
-import com.darkxvenom.airbeats.ui.component.EditPlaylistDialog
 import com.darkxvenom.airbeats.ui.component.EmptyPlaceholder
 import com.darkxvenom.airbeats.ui.component.IconButton
 import com.darkxvenom.airbeats.ui.component.LocalMenuState
 import com.darkxvenom.airbeats.ui.component.SongListItem
 import com.darkxvenom.airbeats.ui.component.SortHeader
+import com.darkxvenom.airbeats.ui.component.TextFieldDialog
 import com.darkxvenom.airbeats.ui.menu.SelectionSongMenu
 import com.darkxvenom.airbeats.ui.menu.SongMenu
 import com.darkxvenom.airbeats.ui.theme.PlayerColorExtractor
@@ -167,7 +162,6 @@ fun LocalPlaylistScreen(
 
     val playlist by viewModel.playlist.collectAsState()
     val songs by viewModel.playlistSongs.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
     val mutableSongs = remember { mutableStateListOf<PlaylistSong>() }
     val playlistLength = remember(songs) {
         songs.fastSumBy { it.song.song.duration }
@@ -181,12 +175,10 @@ fun LocalPlaylistScreen(
         true
     )
     var locked by rememberPreference(PlaylistEditLockKey, defaultValue = true)
-    val swipeToSongEnabled by rememberPreference(SwipeToSongKey, defaultValue = false)
     val (disableBlur) = rememberPreference(DisableBlurKey, false)
 
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val pullRefreshState = rememberPullToRefreshState()
 
     val systemBarsTopPadding = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
 
@@ -262,17 +254,15 @@ fun LocalPlaylistScreen(
 
     if (showEditDialog) {
         playlist?.let { playlistData ->
-            EditPlaylistDialog(
-                initialName = playlistData.playlist.name,
-                initialThumbnailUrl = playlistData.playlist.thumbnailUrl,
-                fallbackThumbnails = playlistData.songThumbnails.filterNotNull(),
-                onDismiss = { showEditDialog = false },
-                onSave = { name, thumbnailUrl ->
+            TextFieldDialog(
+                icon = { Icon(painter = painterResource(R.drawable.edit), contentDescription = null) },
+                title = { Text(text = stringResource(R.string.edit_playlist)) },
+                initialTextFieldValue = TextFieldValue(playlistData.playlist.name),
+                onDone = { name ->
                     database.query {
                         update(
                             playlistData.playlist.copy(
                                 name = name,
-                                thumbnailUrl = thumbnailUrl,
                                 lastUpdateTime = LocalDateTime.now(),
                             )
                         )
@@ -281,6 +271,7 @@ fun LocalPlaylistScreen(
                         playlistData.playlist.browseId?.let { YouTube.renamePlaylist(it, name) }
                     }
                 },
+                onDismiss = { showEditDialog = false }
             )
         }
     }
@@ -294,7 +285,7 @@ fun LocalPlaylistScreen(
                 Text(
                     text = stringResource(
                         R.string.remove_download_playlist_confirm,
-                        playlist?.playlist!!.name
+                        playlist?.playlist?.name.orEmpty()
                     ),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(horizontal = 18.dp),
@@ -339,7 +330,7 @@ fun LocalPlaylistScreen(
                 Text(
                     text = stringResource(
                         R.string.delete_playlist_confirm,
-                        playlist?.playlist!!.name
+                        playlist?.playlist?.name.orEmpty()
                     ),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(horizontal = 18.dp)
@@ -411,7 +402,7 @@ fun LocalPlaylistScreen(
                             YouTube.moveSongPlaylist(
                                 viewModel.playlist.value?.playlist?.browseId!!,
                                 setVideoId,
-                                successorSetVideoId
+                                successorSetVideoId.orEmpty()
                             )
                         }
                     }
@@ -434,32 +425,39 @@ fun LocalPlaylistScreen(
     LaunchedEffect(playlist?.thumbnails) {
         val thumbnailUrl = playlist?.thumbnails?.firstOrNull()
         if (thumbnailUrl != null) {
-            val request = ImageRequest.Builder(context)
-                .data(thumbnailUrl)
-                .size(PlayerColorExtractor.Config.IMAGE_SIZE, PlayerColorExtractor.Config.IMAGE_SIZE)
-                .allowHardware(false)
-                .build()
+            withContext(Dispatchers.IO) {
+                val request = ImageRequest.Builder(context)
+                    .data(thumbnailUrl)
+                    .size(PlayerColorExtractor.Config.IMAGE_SIZE, PlayerColorExtractor.Config.IMAGE_SIZE)
+                    .allowHardware(false)
+                    .build()
 
-            val result = runCatching {
-                context.imageLoader.execute(request)
-            }.getOrNull()
+                val result = runCatching {
+                    context.imageLoader.execute(request)
+                }.getOrNull()
 
-            if (result != null && result.drawable != null) {
-                val bitmap = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                    ?: result.drawable?.toBitmap()
-                if (bitmap != null) {
-                    val palette = withContext(Dispatchers.Default) {
-                        Palette.from(bitmap)
+                if (result != null && result.drawable != null) {
+                    val rawBitmap = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                        ?: result.drawable?.toBitmap()
+                    val bitmap = rawBitmap?.let {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && it.config == android.graphics.Bitmap.Config.HARDWARE) {
+                            it.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                        } else it
+                    }
+                    if (bitmap != null) {
+                        val palette = Palette.from(bitmap)
                             .maximumColorCount(PlayerColorExtractor.Config.MAX_COLOR_COUNT)
                             .resizeBitmapArea(PlayerColorExtractor.Config.BITMAP_AREA)
                             .generate()
-                    }
 
-                    val extractedColors = PlayerColorExtractor.extractGradientColors(
-                        palette = palette,
-                        fallbackColor = fallbackColor
-                    )
-                    gradientColors = extractedColors
+                        val extractedColors = PlayerColorExtractor.extractGradientColors(
+                            palette = palette,
+                            fallbackColor = fallbackColor
+                        )
+                        withContext(Dispatchers.Main) {
+                            gradientColors = extractedColors
+                        }
+                    }
                 }
             }
         } else {
@@ -487,12 +485,7 @@ fun LocalPlaylistScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(surfaceColor)
-            .pullToRefresh(
-                state = pullRefreshState,
-                isRefreshing = isRefreshing,
-                onRefresh = viewModel::refresh
-            ),
+            .background(surfaceColor),
     ) {
         if (!disableBlur && gradientColors.isNotEmpty() && gradientAlpha > 0f) {
             Box(
@@ -721,7 +714,7 @@ fun LocalPlaylistScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     val songCount = if (playlist.songCount == 0 && playlist.playlist.remoteSongCount != null) {
-                                        playlist.playlist.remoteSongCount
+                                        playlist.playlist.remoteSongCount!!
                                     } else {
                                         playlist.songCount
                                     }
@@ -958,36 +951,6 @@ fun LocalPlaylistScreen(
                                     }
                                 }
 
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 20.dp, vertical = 20.dp),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Button(
-                                        onClick = {
-                                            playerConnection.playQueue(
-                                                LocalMixQueue(
-                                                    database = database,
-                                                    playlistId = playlist.id,
-                                                    maxMixSize = 50,
-                                                ),
-                                            )
-                                        },
-                                        shape = RoundedCornerShape(24.dp),
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(48.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.radio),
-                                            contentDescription = "Start Mix",
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                }
-
                                 Spacer(modifier = Modifier.height(24.dp))
                             }
                         }
@@ -1154,7 +1117,7 @@ fun LocalPlaylistScreen(
                             )
                         }
 
-                        if (locked || selection || swipeToSongEnabled) {
+                        if (locked || selection) {
                             content()
                         } else {
                             SwipeToDismissBox(
@@ -1285,7 +1248,7 @@ fun LocalPlaylistScreen(
                             )
                         }
 
-                        if (locked || !editable || swipeToSongEnabled) {
+                        if (locked || !editable) {
                             content()
                         } else {
                             SwipeToDismissBox(
@@ -1445,14 +1408,6 @@ fun LocalPlaylistScreen(
                     }
                 }
             }
-        )
-
-        PullToRefreshDefaults.Indicator(
-            isRefreshing = isRefreshing,
-            state = pullRefreshState,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(LocalPlayerAwareWindowInsets.current.asPaddingValues()),
         )
 
         SnackbarHost(

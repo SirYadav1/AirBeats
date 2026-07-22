@@ -36,6 +36,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -105,8 +106,6 @@ import com.darkxvenom.airbeats.db.entities.PlaylistEntity
 import com.darkxvenom.airbeats.db.entities.PlaylistSongMap
 import com.darkxvenom.airbeats.extensions.toMediaItem
 import com.darkxvenom.airbeats.extensions.togglePlayPause
-import com.darkxvenom.airbeats.innertube.models.PlaylistItem
-import com.darkxvenom.airbeats.innertube.models.SongItem
 import com.darkxvenom.airbeats.models.toMediaMetadata
 import com.darkxvenom.airbeats.playback.ExoDownloadService
 import com.darkxvenom.airbeats.playback.queues.ListQueue
@@ -119,13 +118,12 @@ import com.darkxvenom.airbeats.ui.component.LocalMenuState
 import com.darkxvenom.airbeats.ui.component.YouTubeListItem
 import com.darkxvenom.airbeats.ui.component.shimmer.ListItemPlaceHolder
 import com.darkxvenom.airbeats.ui.component.shimmer.ShimmerHost
-import com.darkxvenom.airbeats.ui.menu.SelectionSongMenu
+import com.darkxvenom.airbeats.ui.menu.SelectionMediaMetadataMenu
 import com.darkxvenom.airbeats.ui.menu.YouTubePlaylistMenu
 import com.darkxvenom.airbeats.ui.menu.YouTubeSongMenu
 import com.darkxvenom.airbeats.ui.theme.PlayerColorExtractor
 import com.darkxvenom.airbeats.ui.utils.ItemWrapper
 import com.darkxvenom.airbeats.ui.utils.backToMain
-import com.darkxvenom.airbeats.ui.utils.formatCompactCount
 import com.darkxvenom.airbeats.ui.utils.resize
 import com.darkxvenom.airbeats.utils.makeTimeString
 import com.darkxvenom.airbeats.utils.rememberPreference
@@ -154,7 +152,6 @@ fun OnlinePlaylistScreen(
     val playlist by viewModel.playlist.collectAsState()
     val songs by viewModel.playlistSongs.collectAsState()
     val dbPlaylist by viewModel.dbPlaylist.collectAsState()
-    val viewCounts by viewModel.viewCounts.collectAsState()
 
     val isLoading by viewModel.isLoading.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
@@ -310,32 +307,39 @@ fun OnlinePlaylistScreen(
     LaunchedEffect(playlist?.thumbnail) {
         val thumbnailUrl = playlist?.thumbnail
         if (thumbnailUrl != null) {
-            val request = ImageRequest.Builder(context)
-                .data(thumbnailUrl)
-                .size(PlayerColorExtractor.Config.IMAGE_SIZE, PlayerColorExtractor.Config.IMAGE_SIZE)
-                .allowHardware(false)
-                .build()
+            withContext(Dispatchers.IO) {
+                val request = ImageRequest.Builder(context)
+                    .data(thumbnailUrl)
+                    .size(PlayerColorExtractor.Config.IMAGE_SIZE, PlayerColorExtractor.Config.IMAGE_SIZE)
+                    .allowHardware(false)
+                    .build()
 
-            val result = runCatching {
-                context.imageLoader.execute(request)
-            }.getOrNull()
+                val result = runCatching {
+                    context.imageLoader.execute(request)
+                }.getOrNull()
 
-            if (result != null && result.drawable != null) {
-                val bitmap = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                    ?: result.drawable?.toBitmap()
-                if (bitmap != null) {
-                    val palette = withContext(Dispatchers.Default) {
-                        Palette.from(bitmap)
+                if (result != null && result.drawable != null) {
+                    val rawBitmap = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                        ?: result.drawable?.toBitmap()
+                    val bitmap = rawBitmap?.let {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && it.config == android.graphics.Bitmap.Config.HARDWARE) {
+                            it.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                        } else it
+                    }
+                    if (bitmap != null) {
+                        val palette = Palette.from(bitmap)
                             .maximumColorCount(PlayerColorExtractor.Config.MAX_COLOR_COUNT)
                             .resizeBitmapArea(PlayerColorExtractor.Config.BITMAP_AREA)
                             .generate()
-                    }
 
-                    val extractedColors = PlayerColorExtractor.extractGradientColors(
-                        palette = palette,
-                        fallbackColor = fallbackColor
-                    )
-                    gradientColors = extractedColors
+                        val extractedColors = PlayerColorExtractor.extractGradientColors(
+                            palette = palette,
+                            fallbackColor = fallbackColor
+                        )
+                        withContext(Dispatchers.Main) {
+                            gradientColors = extractedColors
+                        }
+                    }
                 }
             }
         } else {
@@ -570,11 +574,11 @@ fun OnlinePlaylistScreen(
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val songCount = playlist?.songCount ?: songs.size
-                                if (songCount > 0) {
+                                val songCountText = playlist?.songCountText
+                                if (!songCountText.isNullOrBlank()) {
                                     MetadataChip(
                                         icon = R.drawable.music_note,
-                                        text = pluralStringResource(R.plurals.n_song, songCount, songCount)
+                                        text = songCountText
                                     )
                                 }
 
@@ -610,14 +614,18 @@ fun OnlinePlaylistScreen(
                                                         radioEndpointParams = playlist!!.radioEndpoint?.params
                                                     ).toggleLike()
                                                     insert(playlistEntity)
-                                                    songs.mapIndexed { position, song ->
-                                                        PlaylistSongMap(
-                                                            songId = song.id,
-                                                            playlistId = playlistEntity.id,
-                                                            position = position,
-                                                            setVideoId = song.setVideoId
+                                                    songs.forEachIndexed { position, songItem ->
+                                                        val songMetadata = songItem.toMediaMetadata()
+                                                        insert(songMetadata)
+                                                        insert(
+                                                            PlaylistSongMap(
+                                                                songId = songMetadata.id,
+                                                                playlistId = playlistEntity.id,
+                                                                position = position,
+                                                                setVideoId = songItem.setVideoId
+                                                            )
                                                         )
-                                                    }.forEach(::insert)
+                                                    }
                                                 }
                                             } else {
                                                 database.transaction {
@@ -848,7 +856,6 @@ fun OnlinePlaylistScreen(
                             item = song,
                             isActive = song.id == mediaMetadata?.id,
                             isPlaying = isPlaying,
-                            viewCountText = viewCounts[song.id]?.let { count -> formatCompactCount(count.toLong()) },
                             trailingContent = {
                                 IconButton(
                                     onClick = {
@@ -904,7 +911,6 @@ fun OnlinePlaylistScreen(
                             item = songWrapper.item,
                             isActive = songWrapper.item.id == mediaMetadata?.id,
                             isPlaying = isPlaying,
-                            viewCountText = viewCounts[songWrapper.item.id]?.let { count -> formatCompactCount(count.toLong()) },
                             isSelected = songWrapper.isSelected,
                             trailingContent = {
                                 IconButton(
@@ -1082,9 +1088,11 @@ fun OnlinePlaylistScreen(
 
                     IconButton(
                         onClick = {
+                            val selectedItems = wrappedSongs.filter { it.isSelected }.map { it.item.toMediaMetadata() }
                             menuState.show {
-                                SelectionSongMenu(
-                                    songSelection = wrappedSongs.filter { it.isSelected }.map { it.item },
+                                SelectionMediaMetadataMenu(
+                                    songSelection = selectedItems,
+                                    currentItems = emptyList(),
                                     onDismiss = menuState::dismiss,
                                     clearAction = {
                                         selection = false
