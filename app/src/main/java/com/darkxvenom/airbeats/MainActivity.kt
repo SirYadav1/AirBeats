@@ -1480,7 +1480,7 @@ class MainActivity : ComponentActivity() {
                                             } else {
                                                 fadeOut(spring(dampingRatio = Spring.DampingRatioLowBouncy)) +
                                                         slideOutHorizontally(
-                                                            targetOffsetX = { it / 5 },
+                                                            targetOffsetX = { it },
                                                             animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
                                                         )
                                             }
