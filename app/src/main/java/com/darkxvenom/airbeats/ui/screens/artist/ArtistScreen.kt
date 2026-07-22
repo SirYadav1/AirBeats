@@ -103,7 +103,6 @@ import com.darkxvenom.airbeats.innertube.models.WatchEndpoint
 import com.darkxvenom.airbeats.models.toMediaMetadata
 import com.darkxvenom.airbeats.playback.queues.ListQueue
 import com.darkxvenom.airbeats.playback.queues.YouTubeQueue
-import com.darkxvenom.airbeats.ui.component.AlbumGridItem
 import com.darkxvenom.airbeats.ui.component.HideOnScrollFAB
 import com.darkxvenom.airbeats.ui.component.IconButton
 import com.darkxvenom.airbeats.ui.component.LocalMenuState
@@ -115,7 +114,6 @@ import com.darkxvenom.airbeats.ui.component.shimmer.ButtonPlaceholder
 import com.darkxvenom.airbeats.ui.component.shimmer.ListItemPlaceHolder
 import com.darkxvenom.airbeats.ui.component.shimmer.ShimmerHost
 import com.darkxvenom.airbeats.ui.component.shimmer.TextPlaceholder
-import com.darkxvenom.airbeats.ui.menu.AlbumMenu
 import com.darkxvenom.airbeats.ui.menu.SongMenu
 import com.darkxvenom.airbeats.ui.menu.YouTubeAlbumMenu
 import com.darkxvenom.airbeats.ui.menu.YouTubeArtistMenu
@@ -126,7 +124,6 @@ import com.darkxvenom.airbeats.ui.utils.backToMain
 import com.darkxvenom.airbeats.ui.utils.resize
 import com.darkxvenom.airbeats.utils.rememberPreference
 import com.darkxvenom.airbeats.viewmodels.ArtistViewModel
-import com.valentinilk.shimmer.shimmer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -148,7 +145,6 @@ fun ArtistScreen(
     val artistPage = viewModel.artistPage
     val libraryArtist by viewModel.libraryArtist.collectAsState()
     val librarySongs by viewModel.librarySongs.collectAsState()
-    val libraryAlbums by viewModel.libraryAlbums.collectAsState()
     val hideExplicit by rememberPreference(key = HideExplicitKey, defaultValue = false)
     val (disableBlur) = rememberPreference(DisableBlurKey, false)
 
@@ -167,32 +163,39 @@ fun ArtistScreen(
 
     LaunchedEffect(thumbnail) {
         if (thumbnail != null) {
-            val request = ImageRequest.Builder(context)
-                .data(thumbnail)
-                .size(PlayerColorExtractor.Config.IMAGE_SIZE, PlayerColorExtractor.Config.IMAGE_SIZE)
-                .allowHardware(false)
-                .build()
+            withContext(Dispatchers.IO) {
+                val request = ImageRequest.Builder(context)
+                    .data(thumbnail)
+                    .size(PlayerColorExtractor.Config.IMAGE_SIZE, PlayerColorExtractor.Config.IMAGE_SIZE)
+                    .allowHardware(false)
+                    .build()
 
-            val result = runCatching {
-                context.imageLoader.execute(request)
-            }.getOrNull()
+                val result = runCatching {
+                    context.imageLoader.execute(request)
+                }.getOrNull()
 
-            if (result != null && result.drawable != null) {
-                val bitmap = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                    ?: result.drawable?.toBitmap()
-                if (bitmap != null) {
-                    val palette = withContext(Dispatchers.Default) {
-                        Palette.from(bitmap)
+                if (result != null && result.drawable != null) {
+                    val rawBitmap = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                        ?: result.drawable?.toBitmap()
+                    val bitmap = rawBitmap?.let {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && it.config == android.graphics.Bitmap.Config.HARDWARE) {
+                            it.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                        } else it
+                    }
+                    if (bitmap != null) {
+                        val palette = Palette.from(bitmap)
                             .maximumColorCount(PlayerColorExtractor.Config.MAX_COLOR_COUNT)
                             .resizeBitmapArea(PlayerColorExtractor.Config.BITMAP_AREA)
                             .generate()
-                    }
 
-                    val extractedColors = PlayerColorExtractor.extractGradientColors(
-                        palette = palette,
-                        fallbackColor = fallbackColor
-                    )
-                    gradientColors = extractedColors
+                        val extractedColors = PlayerColorExtractor.extractGradientColors(
+                            palette = palette,
+                            fallbackColor = fallbackColor
+                        )
+                        withContext(Dispatchers.Main) {
+                            gradientColors = extractedColors
+                        }
+                    }
                 }
             }
         } else {
@@ -215,10 +218,6 @@ fun ArtistScreen(
         derivedStateOf {
             lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset < 100
         }
-    }
-
-    LaunchedEffect(libraryArtist) {
-        showLocal = libraryArtist?.artist?.isLocal == true
     }
 
     Box(
@@ -355,7 +354,6 @@ fun ArtistScreen(
                                     .padding(top = 8.dp)
                                     .size(210.dp)
                                     .align(Alignment.CenterHorizontally)
-                                    .shimmer()
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.onSurface)
                             )
@@ -464,7 +462,7 @@ fun ArtistScreen(
                         }
 
                         Text(
-                            text = currentArtistName ?: stringResource(R.string.unknown_artist),
+                            text = currentArtistName ?: "Unknown Artist",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
@@ -503,7 +501,7 @@ fun ArtistScreen(
 
                                 if (!isExpanded && description.length > 100) {
                                     Text(
-                                        text = stringResource(R.string.more),
+                                        text = "More",
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Medium,
@@ -544,13 +542,13 @@ fun ArtistScreen(
                                 section.items.any { it is AlbumItem }
                             }
                             val albumCount = if (showLocal) {
-                                libraryAlbums.size
+                                0
                             } else {
                                 albumSections
                                     ?.flatMap { it.items }
                                     ?.filterIsInstance<AlbumItem>()
                                     ?.distinctBy { it.id }
-                                    ?.size ?: libraryAlbums.size
+                                    ?.size ?: 0
                             }
                             val hasMoreAlbums = !showLocal && albumSections?.any { it.moreEndpoint != null } == true
 
@@ -694,14 +692,8 @@ fun ArtistScreen(
                             )
                         }
 
-                        val filteredLibrarySongs = if (hideExplicit) {
-                            librarySongs.filter { !it.song.explicit }
-                        } else {
-                            librarySongs
-                        }
-
                         itemsIndexed(
-                            items = filteredLibrarySongs.take(5),
+                            items = librarySongs.take(5),
                             key = { index, item -> "local_song_${item.id}_$index" }
                         ) { index, song ->
                             SongListItem(
@@ -756,11 +748,10 @@ fun ArtistScreen(
                                             }
                                         },
                                     )
-                                    .animateItem(),
                             )
                         }
 
-                        if (filteredLibrarySongs.size > 5) {
+                        if (librarySongs.size > 5) {
                             item {
                                 Surface(
                                     onClick = {
@@ -773,66 +764,13 @@ fun ArtistScreen(
                                         .padding(horizontal = 16.dp, vertical = 8.dp)
                                 ) {
                                     Text(
-                                        text = stringResource(R.string.view_all),
+                                        text = "View All",
                                         style = MaterialTheme.typography.labelLarge,
                                         color = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(vertical = 12.dp),
                                         textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    if (libraryAlbums.isNotEmpty()) {
-                        item {
-                            NavigationTitle(
-                                title = stringResource(R.string.albums),
-                                onClick = {
-                                    navController.navigate("artist/${viewModel.artistId}/albums")
-                                }
-                            )
-                        }
-
-                        item {
-                            val filteredLibraryAlbums = if (hideExplicit) {
-                                libraryAlbums.filter { !it.album.explicit }
-                            } else {
-                                libraryAlbums
-                            }
-
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                items(
-                                    items = filteredLibraryAlbums,
-                                    key = { album -> "local_album_${album.id}_${filteredLibraryAlbums.indexOf(album)}" }
-                                ) { album ->
-                                    AlbumGridItem(
-                                        album = album,
-                                        isActive = mediaMetadata?.album?.id == album.id,
-                                        isPlaying = isPlaying,
-                                        coroutineScope = coroutineScope,
-                                        modifier = Modifier
-                                            .combinedClickable(
-                                                onClick = {
-                                                    navController.navigate("album/${album.id}")
-                                                },
-                                                onLongClick = {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    menuState.show {
-                                                        AlbumMenu(
-                                                            originalAlbum = album,
-                                                            navController = navController,
-                                                            onDismiss = menuState::dismiss
-                                                        )
-                                                    }
-                                                }
-                                            )
-                                            .animateItem()
                                     )
                                 }
                             }
@@ -847,7 +785,7 @@ fun ArtistScreen(
                                     onClick = section.moreEndpoint?.let {
                                         {
                                             navController.navigate(
-                                                "artist/${viewModel.artistId}/items?browseId=${it.browseId}&params=${it.params}",
+                                                "artist/${viewModel.artistId}/items?browseId=${it.browseId}&params=${it.params}"
                                             )
                                         }
                                     },
@@ -908,7 +846,6 @@ fun ArtistScreen(
                                                 }
                                             },
                                         )
-                                        .animateItem(),
                                 )
                             }
                         } else {
@@ -997,7 +934,6 @@ fun ArtistScreen(
                                                         }
                                                     },
                                                 )
-                                                .animateItem(),
                                         )
                                     }
                                 }
@@ -1013,12 +949,11 @@ fun ArtistScreen(
         }
 
         HideOnScrollFAB(
-            visible = librarySongs.isNotEmpty() && libraryArtist?.artist?.isLocal != true,
+            visible = librarySongs.isNotEmpty(),
             lazyListState = lazyListState,
             icon = if (showLocal) R.drawable.language else R.drawable.library_music,
             onClick = {
                 showLocal = showLocal.not()
-                if (!showLocal && artistPage == null) viewModel.fetchArtistsFromYTM()
             }
         )
 
