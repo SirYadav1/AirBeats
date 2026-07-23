@@ -124,7 +124,7 @@ fun OnboardingScreen(
             .ifBlank { "Friend" }
     }
 
-    fun saveProfileAndSync(name: String, email: String, photoUrl: String? = null) {
+    fun saveProfileAndSync(name: String, email: String, photoUrl: String? = null, isNewSignup: Boolean = false) {
         coroutineScope.launch {
             if (!namePrefManager.canUseGoogleEmail(email)) {
                 val lockedEmail = namePrefManager.previousGoogleEmail.first().ifBlank { "your previous email" }
@@ -137,7 +137,6 @@ fun OnboardingScreen(
 
             currentUserName = name
             currentUserEmail = email
-            syncState = SyncState.CHECKING
             namePrefManager.saveUserName(name)
             namePrefManager.rememberGoogleLoginEmail(email)
             if (!photoUrl.isNullOrBlank()) {
@@ -150,32 +149,41 @@ fun OnboardingScreen(
                 )
             }
 
-            val backupClient = com.darkxvenom.airbeats.utils.CloudBackupClient()
-            if (backupClient.checkBackupExists(email)) {
-                syncState = SyncState.RESTORING
-                when (backupViewModel.restoreFromDrive(context, email)) {
-                    is com.darkxvenom.airbeats.utils.DriveResult.Success -> {
-                        syncState = SyncState.RESTORED
-                        delay(1500)
-                        context.stopService(android.content.Intent(context, com.darkxvenom.airbeats.playback.MusicService::class.java))
-                        context.startActivity(
-                            android.content.Intent(context, com.darkxvenom.airbeats.MainActivity::class.java).apply {
-                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                            }
-                        )
-                        Runtime.getRuntime().exit(0)
-                    }
-                    else -> {
-                        Toast.makeText(context, "Cloud restore failed. Creating a fresh backup.", Toast.LENGTH_SHORT).show()
-                        syncState = SyncState.CREATING_BACKUP
-                        backupViewModel.backupToDrive(context, email, name)
-                        syncState = SyncState.NEW_USER
-                    }
-                }
-            } else {
+            if (isNewSignup) {
+                // New user sign up -> Skip checking backup, immediately create initial backup!
                 syncState = SyncState.CREATING_BACKUP
                 backupViewModel.backupToDrive(context, email, name)
                 syncState = SyncState.NEW_USER
+            } else {
+                // Existing user login -> Check if backup exists first
+                syncState = SyncState.CHECKING
+                val backupClient = com.darkxvenom.airbeats.utils.CloudBackupClient()
+                if (backupClient.checkBackupExists(email)) {
+                    syncState = SyncState.RESTORING
+                    when (backupViewModel.restoreFromDrive(context, email)) {
+                        is com.darkxvenom.airbeats.utils.DriveResult.Success -> {
+                            syncState = SyncState.RESTORED
+                            delay(1500)
+                            context.stopService(android.content.Intent(context, com.darkxvenom.airbeats.playback.MusicService::class.java))
+                            context.startActivity(
+                                android.content.Intent(context, com.darkxvenom.airbeats.MainActivity::class.java).apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                }
+                            )
+                            Runtime.getRuntime().exit(0)
+                        }
+                        else -> {
+                            Toast.makeText(context, "Cloud restore failed. Creating a fresh backup.", Toast.LENGTH_SHORT).show()
+                            syncState = SyncState.CREATING_BACKUP
+                            backupViewModel.backupToDrive(context, email, name)
+                            syncState = SyncState.NEW_USER
+                        }
+                    }
+                } else {
+                    syncState = SyncState.CREATING_BACKUP
+                    backupViewModel.backupToDrive(context, email, name)
+                    syncState = SyncState.NEW_USER
+                }
             }
         }
     }
@@ -195,7 +203,7 @@ fun OnboardingScreen(
             when (result) {
                 is AuthResult.Success -> {
                     val displayName = result.user.name.ifBlank { displayNameFromEmail(result.user.email) }
-                    saveProfileAndSync(displayName, result.user.email)
+                    saveProfileAndSync(displayName, result.user.email, photoUrl = null, isNewSignup = (authMode == AuthMode.SIGNUP))
                 }
                 is AuthResult.Error -> {
                     Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
@@ -252,7 +260,7 @@ fun OnboardingScreen(
                 ?: displayNameFromEmail(email)
 
             isGoogleSignInOpen = false
-            saveProfileAndSync(name, email, account.photoUrl?.toString())
+            saveProfileAndSync(name, email, account.photoUrl?.toString(), isNewSignup = false)
         } catch (e: ApiException) {
             e.printStackTrace()
             showSignInError(googleSignInErrorMessage(e))
@@ -308,21 +316,27 @@ fun OnboardingScreen(
             }
         )
 
-        // Top Back Button when in Signup mode
-        if (authMode == AuthMode.SIGNUP) {
-            IconButton(
-                onClick = { authMode = AuthMode.LOGIN },
-                modifier = Modifier
-                    .statusBarsPadding()
-                    .padding(16.dp)
-                    .align(Alignment.TopStart)
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.arrow_back),
-                    contentDescription = "Back to Login",
-                    tint = Color.White
-                )
-            }
+        // Top Back Button when in Signup mode or when opened from navigation
+        IconButton(
+            onClick = {
+                if (authMode == AuthMode.SIGNUP) {
+                    authMode = AuthMode.LOGIN
+                } else {
+                    if (!navController.popBackStack()) {
+                        navController.navigate("home")
+                    }
+                }
+            },
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(16.dp)
+                .align(Alignment.TopStart)
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.arrow_back),
+                contentDescription = "Back",
+                tint = Color.White
+            )
         }
 
         // Liquid Glassmorphism Card
