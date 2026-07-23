@@ -47,6 +47,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="false"
+        android:usesCleartextTraffic="false"
         android:theme="@style/Theme.AirBeats"
         android:localeConfig="@xml/locales_config"
         tools:targetApi="tiramisu">
@@ -166,7 +167,9 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
-        <activity android:name=".ui.activities.DebugActivity" />
+        <activity
+            android:name=".ui.activities.DebugActivity"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

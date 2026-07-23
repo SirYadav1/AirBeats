@@ -52,15 +52,14 @@ object CryptoManager {
             val combined = iv + encryptedBytes
             return ENC_PREFIX + Base64.encodeToString(combined, Base64.DEFAULT).trim()
         } catch (e: Exception) {
-            e.printStackTrace()
-            return data // Fallback
+            return ""
         }
     }
 
     fun decrypt(data: String): String {
         try {
             if (data.isEmpty() || !data.startsWith(ENC_PREFIX)) {
-                return data // Raw plaintext for backward compatibility
+                return data
             }
 
             val base64Data = data.removePrefix(ENC_PREFIX)
@@ -77,9 +76,7 @@ object CryptoManager {
             val decryptedBytes = cipher.doFinal(encryptedBytes)
             return String(decryptedBytes, Charsets.UTF_8)
         } catch (e: Exception) {
-            e.printStackTrace()
-            // If decryption fails, fallback to raw string (migration resilience)
-            return data
+            return ""
         }
     }
 }
