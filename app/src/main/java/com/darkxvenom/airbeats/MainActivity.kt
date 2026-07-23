@@ -317,7 +317,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         com.darkxvenom.airbeats.playback.AppForegroundTracker.isForeground = true
-        startService(Intent(this, MusicService::class.java))
+        ContextCompat.startForegroundService(this, Intent(this, MusicService::class.java))
         if (!isServiceBound) {
             bindService(
                 Intent(this, MusicService::class.java),
