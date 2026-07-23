@@ -229,7 +229,7 @@ fun NeonLibraryScreen(
                     modifier = Modifier.weight(1f),
                     title = stringResource(R.string.import_playlist),
                     subtitle = stringResource(R.string.spotify_url),
-                    iconRes = R.drawable.playlist_import,
+                    iconRes = R.drawable.spotify,
                     gradientColors = listOf(Color(0xFF1DB954), Color(0xFF191414)),
                     onClick = { showSpotifyImportDialog = true }
                 )
@@ -347,7 +347,7 @@ fun LibraryBigCard(
                 Icon(
                     painter = painterResource(iconRes),
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = if (iconRes == R.drawable.spotify) Color.Unspecified else Color.White,
                     modifier = Modifier.size(32.dp)
                 )
             }

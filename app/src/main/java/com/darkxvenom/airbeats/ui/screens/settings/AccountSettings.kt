@@ -431,39 +431,76 @@ fun AccountSettings(
                             )
                         },
 
-                        // 🔹 GOOGLE CLOUD ACCOUNT
+                        // 🔹 CLOUD BACKUP ACCOUNT
                         {
-                            PreferenceEntry(
-                                title = {
-                                    Text(
-                                        if (currentGoogleEmail.isNotBlank()) currentGoogleEmail 
-                                        else stringResource(R.string.login_with_google)
-                                    )
-                                },
-                                description = if (currentGoogleEmail.isNotBlank()) {
-                                    stringResource(R.string.cloud_backup_stats_linked)
-                                } else {
-                                    stringResource(R.string.link_account_for_cloud_backups)
-                                },
-                                icon = { Icon(painterResource(R.drawable.google), null, tint = Color.Unspecified) },
-                                trailingContent = {
-                                    if (currentGoogleEmail.isNotBlank()) {
-                                        OutlinedButton(onClick = {
-                                            scope.launch {
-                                                nameManager.saveAccountEmail("")
-                                                Toast.makeText(context, context.getString(R.string.google_account_unlinked), Toast.LENGTH_SHORT).show()
+                            if (isLoggedIn) {
+                                // Google Cloud Account (Legacy/Existing)
+                                PreferenceEntry(
+                                    title = {
+                                        Text(
+                                            if (currentGoogleEmail.isNotBlank()) currentGoogleEmail 
+                                            else stringResource(R.string.login_with_google)
+                                        )
+                                    },
+                                    description = if (currentGoogleEmail.isNotBlank()) {
+                                        stringResource(R.string.cloud_backup_stats_linked)
+                                    } else {
+                                        stringResource(R.string.link_account_for_cloud_backups)
+                                    },
+                                    icon = { Icon(painterResource(R.drawable.google), null, tint = androidx.compose.ui.graphics.Color.Unspecified) },
+                                    trailingContent = {
+                                        if (currentGoogleEmail.isNotBlank()) {
+                                            OutlinedButton(onClick = {
+                                                scope.launch {
+                                                    nameManager.saveAccountEmail("")
+                                                    Toast.makeText(context, context.getString(R.string.google_account_unlinked), Toast.LENGTH_SHORT).show()
+                                                }
+                                            }) {
+                                                Text(stringResource(R.string.logout))
                                             }
-                                        }) {
-                                            Text(stringResource(R.string.logout))
+                                        }
+                                    },
+                                    onClick = {
+                                        if (currentGoogleEmail.isBlank()) {
+                                            requestGoogleSignIn()
                                         }
                                     }
-                                },
-                                onClick = {
-                                    if (currentGoogleEmail.isBlank()) {
-                                        requestGoogleSignIn()
+                                )
+                            } else {
+                                // Email Cloud Account (New)
+                                PreferenceEntry(
+                                    title = {
+                                        Text(
+                                            if (currentGoogleEmail.isNotBlank()) currentGoogleEmail 
+                                            else "Login with Email"
+                                        )
+                                    },
+                                    description = if (currentGoogleEmail.isNotBlank()) {
+                                        stringResource(R.string.cloud_backup_stats_linked)
+                                    } else {
+                                        "Link account for cloud backups"
+                                    },
+                                    icon = { Icon(painterResource(R.drawable.person), null) },
+                                    trailingContent = {
+                                        if (currentGoogleEmail.isNotBlank()) {
+                                            OutlinedButton(onClick = {
+                                                scope.launch {
+                                                    nameManager.saveAccountEmail("")
+                                                    nameManager.saveAccountName("")
+                                                    Toast.makeText(context, "Account unlinked", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }) {
+                                                Text(stringResource(R.string.logout))
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        if (currentGoogleEmail.isBlank()) {
+                                            navController.navigate("login")
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         },
 
                         // 🔹 ADVANCED LOGIN

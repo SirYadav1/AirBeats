@@ -33,6 +33,14 @@ fun SpotifyImportDialog(
         onDismissRequest = {
             if (!isImporting) onDismiss()
         },
+        icon = {
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(R.drawable.spotify),
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = androidx.compose.ui.graphics.Color.Unspecified
+            )
+        },
         title = { Text(if (isImporting) stringResource(R.string.importing_playlist) else stringResource(R.string.import_from_spotify)) },
         text = {
             Column {

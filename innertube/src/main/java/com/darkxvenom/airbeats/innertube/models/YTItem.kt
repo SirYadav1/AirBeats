@@ -64,7 +64,7 @@ data class PlaylistItem(
     override val explicit: Boolean
         get() = false
     override val shareLink: String
-        get() = "https://play.airbeats.app/playlist?list=$id"
+        get() = "https://play.airbeats.app/playlist?id=$id"
 }
 
 data class ArtistItem(

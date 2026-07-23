@@ -22,6 +22,7 @@ val localProperties = Properties().apply {
 val googleApiKey = localProperties.getProperty("google.api.key") ?: ""
 val statsApiKey = localProperties.getProperty("stats.api.key") ?: ""
 val statsBaseUrl = localProperties.getProperty("stats.base.url") ?: ""
+val authBaseUrl = localProperties.getProperty("auth.api.base.url") ?: ""
 
 fun String.asBuildConfigString(): String =
     "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
@@ -41,6 +42,7 @@ android {
         buildConfigField("String", "GOOGLE_API_KEY", googleApiKey.asBuildConfigString())
         buildConfigField("String", "STATS_API_KEY", statsApiKey.asBuildConfigString())
         buildConfigField("String", "STATS_BASE_URL", statsBaseUrl.asBuildConfigString())
+        buildConfigField("String", "AUTH_API_BASE_URL", authBaseUrl.asBuildConfigString())
         
         // Strip out language resources from libraries that the app doesn't support
         resConfigs("en", "af", "ar", "be", "bn", "ca", "cs", "da", "de", "el", "es", "fa", "fr", "hi", "hu", "id", "it", "iw", "ja", "ko", "ml", "ne", "nl", "no", "or", "pa", "pl", "pt", "ro", "ru", "sr", "sv", "tr", "uk", "vi", "zh")

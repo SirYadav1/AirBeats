@@ -216,31 +216,24 @@ class BottomSheetState(
         if (velocity > 250) {
             expand()
         } else if (velocity < -250) {
-            if (value < collapsedBound && onDismiss != null) {
+            if (value <= collapsedBound) {
                 dismiss()
-                onDismiss.invoke()
+                onDismiss?.invoke()
             } else {
                 collapse()
             }
         } else {
             val l0 = dismissedBound
-            val l1 = (collapsedBound - dismissedBound) / 2
-            val l2 = (expandedBound - collapsedBound) / 2
-            val l3 = expandedBound
+            val l1 = (collapsedBound - dismissedBound) / 2 + dismissedBound
+            val l2 = (expandedBound - collapsedBound) / 2 + collapsedBound
 
-            when (value) {
-                in l0..l1 -> {
-                    if (onDismiss != null) {
-                        dismiss()
-                        onDismiss.invoke()
-                    } else {
-                        collapse()
-                    }
+            when {
+                value <= l1 -> {
+                    dismiss()
+                    onDismiss?.invoke()
                 }
-
-                in l1..l2 -> collapse()
-                in l2..l3 -> expand()
-                else -> Unit
+                value <= l2 -> collapse()
+                else -> expand()
             }
         }
     }
@@ -356,6 +349,12 @@ fun Modifier.bottomSheetDraggable(
     state: BottomSheetState,
     onDismiss: (() -> Unit)? = null
 ): Modifier {
+    val playerConnection = com.darkxvenom.airbeats.LocalPlayerConnection.current
+    val actualOnDismiss: () -> Unit = onDismiss ?: {
+        playerConnection?.service?.clearAutomix()
+        playerConnection?.player?.stop()
+        playerConnection?.player?.clearMediaItems()
+    }
     return this.pointerInput(state) {
         val velocityTracker = VelocityTracker()
 
@@ -371,7 +370,7 @@ fun Modifier.bottomSheetDraggable(
             onDragEnd = {
                 val velocity = -velocityTracker.calculateVelocity().y
                 velocityTracker.resetTracking()
-                state.performFling(velocity, onDismiss)
+                state.performFling(velocity, actualOnDismiss)
             }
         )
     }

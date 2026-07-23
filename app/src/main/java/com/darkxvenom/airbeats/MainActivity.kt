@@ -794,7 +794,7 @@ class MainActivity : ComponentActivity() {
                                             ?.toUri() ?: return@Consumer
                                         when (val path = uri.pathSegments.firstOrNull()) {
                                             "playlist" ->
-                                                uri.getQueryParameter("list")?.let { playlistId ->
+                                                (uri.getQueryParameter("id") ?: uri.getQueryParameter("list"))?.let { playlistId ->
                                                     if (playlistId.startsWith("OLAK5uy_")) {
                                                         coroutineScope.launch {
                                                             YouTube
@@ -1339,6 +1339,7 @@ class MainActivity : ComponentActivity() {
                                                              items = curvedItems,
                                                              selectedIndex = selectedIndex,
                                                              onItemSelected = onItemSelectedAction,
+                                                             onNavigateRoute = { route -> navController.navigate(route) },
                                                              modifier = Modifier
                                                                  .fillMaxSize()
                                                                  .offset(y = offsetY)

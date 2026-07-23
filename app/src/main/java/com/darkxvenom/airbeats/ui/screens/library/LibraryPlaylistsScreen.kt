@@ -230,7 +230,7 @@ fun LibraryPlaylistsScreen(
         Triple(cachePlaylist.playlist.name, R.drawable.cached, "cache_playlist/cached"),
         Triple(topPlaylist.playlist.name, R.drawable.trending_up, "top_playlist/$topSize"),
         Triple(localPlaylist.playlist.name, R.drawable.folder, "local"),
-        Triple(importPlaylist.playlist.name, R.drawable.playlist_import, "import"),
+        Triple(importPlaylist.playlist.name, R.drawable.spotify, "import"),
     )
     val summary = pluralStringResource(R.plurals.n_playlist, playlists.size, playlists.size)
     val pullRefreshState = rememberPullToRefreshState()

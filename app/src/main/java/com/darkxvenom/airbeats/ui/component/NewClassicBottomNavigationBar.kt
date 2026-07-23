@@ -77,6 +77,7 @@ fun NewClassicBottomNavigationBar(
     items: List<CurvedBottomNavigationItem>,
     selectedIndex: Int,
     onItemSelected: (Int) -> Unit,
+    onNavigateRoute: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -120,11 +121,55 @@ fun NewClassicBottomNavigationBar(
                         tonalElevation = 6.dp
                     ) {
                         DropdownMenuItem(
+                            text = { Text("Downloads") },
+                            onClick = {
+                                overflowExpanded = false
+                                onNavigateRoute("auto_playlist/downloaded")
+                            },
+                            leadingIcon = {
+                                Surface(
+                                    modifier = Modifier.size(36.dp),
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surfaceVariant
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.download),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Cached") },
+                            onClick = {
+                                overflowExpanded = false
+                                onNavigateRoute("cache_playlist/cached")
+                            },
+                            leadingIcon = {
+                                Surface(
+                                    modifier = Modifier.size(36.dp),
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surfaceVariant
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.cached),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Search") },
                             onClick = {
                                 overflowExpanded = false
                                 val searchIndex = items.indexOfFirst { it.titleId == R.string.search }
-                                if (searchIndex != -1) onItemSelected(searchIndex)
+                                if (searchIndex != -1) onItemSelected(searchIndex) else onNavigateRoute("search")
                             },
                             leadingIcon = {
                                 Surface(
@@ -147,7 +192,7 @@ fun NewClassicBottomNavigationBar(
                             onClick = {
                                 overflowExpanded = false
                                 val libraryIndex = items.indexOfFirst { it.titleId == R.string.library }
-                                if (libraryIndex != -1) onItemSelected(libraryIndex)
+                                if (libraryIndex != -1) onItemSelected(libraryIndex) else onNavigateRoute("library")
                             },
                             leadingIcon = {
                                 Surface(

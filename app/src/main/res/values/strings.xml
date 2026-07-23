@@ -4,6 +4,7 @@
     <string name="songs">Songs</string>
     <string name="artists">Artists</string>
     <string name="albums">Albums</string>
+    <string name="singles">Singles</string>
     <string name="playlists">Playlists</string>
 
     <!-- Top bar -->

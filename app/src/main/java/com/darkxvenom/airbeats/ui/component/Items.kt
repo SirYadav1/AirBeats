@@ -1345,7 +1345,7 @@ fun LibraryHeroFavoriteTile(
                 Icon(
                     painter = painterResource(iconRes),
                     contentDescription = null,
-                    tint = animatedColor,
+                    tint = if (iconRes == R.drawable.spotify) Color.Unspecified else animatedColor,
                     modifier = Modifier.size(32.dp)
                 )
             }
@@ -1455,7 +1455,7 @@ fun LibraryPinnedCollectionTile(
                 Icon(
                     painter = painterResource(iconRes),
                     contentDescription = null,
-                    tint = animatedColor,
+                    tint = if (iconRes == R.drawable.spotify) Color.Unspecified else animatedColor,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -1509,12 +1509,12 @@ fun PlaylistListItem(
                 stringResource(R.string.offline) -> R.drawable.offline
                 stringResource(R.string.cached_playlist) -> R.drawable.cached
                 stringResource(R.string.filter_local) -> R.drawable.folder
+                "Import Playlist", stringResource(R.string.import_playlist) -> R.drawable.spotify
                 else -> {
                     if (autoPlaylist) {
                         R.drawable.trending_up
                     } else {
                         R.drawable.queue_music
-
                     }
                 }
             }
@@ -1530,6 +1530,7 @@ fun PlaylistListItem(
                     Icon(
                         painter = painterResource(painter),
                         contentDescription = null,
+                        tint = if (painter == R.drawable.spotify) Color.Unspecified else LocalContentColor.current,
                         modifier = Modifier
                             .size(ListThumbnailSize / 2)
                             .align(Alignment.Center)
