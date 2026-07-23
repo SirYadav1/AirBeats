@@ -151,6 +151,8 @@ dependencies {
     implementation(projects.materialColorUtilities)
 
     implementation(libs.coil)
+    implementation("io.coil-kt:coil-svg:2.7.0")
+    implementation("com.github.jeziellago:compose-markdown:0.5.4")
     implementation(libs.shimmer)
 
     implementation(libs.media3)

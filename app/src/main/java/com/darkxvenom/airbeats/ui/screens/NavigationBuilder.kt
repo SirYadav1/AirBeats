@@ -392,6 +392,10 @@ fun NavGraphBuilder.navigationBuilder(
     composable("login") {
         LoginScreen(navController)
     }
+    composable("contributor/{username}") { backStackEntry ->
+        val username = backStackEntry.arguments?.getString("username") ?: return@composable
+        ContributorProfileScreen(navController, username)
+    }
     dialog(
         route = "always_on_display",
         dialogProperties = DialogProperties(

@@ -637,7 +637,7 @@ fun AboutScreen(
                             instagramUrl = "https://instagram.com/dark__336",
                             websiteUrl = "https://darkboy.pro",
                             modifier = Modifier.weight(1f),
-                            onClick = { uriHandler.openUri("https://darkboy.pro") }
+                            onClick = { navController.navigate("contributor/d0x-dev") }
                         )
 
                         UserCard(
@@ -647,10 +647,63 @@ fun AboutScreen(
                             githubUrl = "https://github.com/drkvenom786",
                             websiteUrl = "https://venomx.pro",
                             modifier = Modifier.weight(1f),
-                            onClick = { uriHandler.openUri("https://drkvenom786.github.io/webpage/") }
+                            onClick = { navController.navigate("contributor/drkvenom786") }
                         )
                     }
                     Spacer(Modifier.height(24.dp))
+                    
+                    // Dynamic Contributors Section
+                    val client = remember { com.darkxvenom.airbeats.utils.GitHubApiClient() }
+                    var contributors by remember { mutableStateOf<List<com.darkxvenom.airbeats.utils.GitHubContributor>>(emptyList()) }
+                    var isLoadingContributors by remember { mutableStateOf(true) }
+
+                    LaunchedEffect(Unit) {
+                        val fetched = client.getContributors("d0x-dev", "AirBeats")
+                        // Exclude the main ones already displayed
+                        contributors = fetched.filter { it.login != "d0x-dev" && it.login != "drkvenom786" }
+                        isLoadingContributors = false
+                    }
+
+                    if (isLoadingContributors) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(16.dp),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else if (contributors.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(painterResource(R.drawable.github), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Other Contributors",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        contributors.chunked(2).forEach { rowContributors ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                for (contributor in rowContributors) {
+                                    UserCard(
+                                        imageUrl = contributor.avatar_url,
+                                        name = contributor.login,
+                                        role = "${contributor.contributions} Commits",
+                                        githubUrl = contributor.html_url,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = { navController.navigate("contributor/${contributor.login}") }
+                                    )
+                                }
+                                if (rowContributors.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                            Spacer(Modifier.height(16.dp))
+                        }
+                    }
                 }
             }
         }
