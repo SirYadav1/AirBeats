@@ -486,7 +486,6 @@ fun AccountSettings(
                                             OutlinedButton(onClick = {
                                                 scope.launch {
                                                     nameManager.saveAccountEmail("")
-                                                    nameManager.saveAccountName("")
                                                     Toast.makeText(context, "Account unlinked", Toast.LENGTH_SHORT).show()
                                                 }
                                             }) {
