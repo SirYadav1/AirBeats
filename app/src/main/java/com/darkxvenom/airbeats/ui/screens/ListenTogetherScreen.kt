@@ -1,6 +1,7 @@
 package com.darkxvenom.airbeats.ui.screens
 
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -574,7 +575,7 @@ fun ListenTogetherScreen(
                         }
                     }
 
-                    if (isLan) {
+                    if (currentConnectionMode == ListenTogetherConnectionMode.LAN) {
                         OutlinedButton(
                             onClick = {
                                 runCatching {
