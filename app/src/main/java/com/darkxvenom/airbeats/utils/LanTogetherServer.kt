@@ -29,6 +29,7 @@ class LanTogetherServer(
     val sessionId: String = UUID.randomUUID().toString().take(8).uppercase(),
     val hostDisplayName: String,
     var audioStreamResolver: (suspend (songId: String) -> ResolvedCastStream?)? = null,
+    var onPlaybackCommand: ((action: String, positionMs: Long?) -> Unit)? = null,
 ) : NanoHTTPD(port) {
 
     private val participants = ConcurrentHashMap<String, ListenTogetherParticipant>()
@@ -41,6 +42,9 @@ class LanTogetherServer(
 
     @Volatile
     var controllerId: String = "host"
+
+    @Volatile
+    var lastActionTime: Long = 0L
 
     @Volatile
     private var cachedResolvedStream: Pair<String, ResolvedCastStream>? = null
@@ -118,6 +122,50 @@ class LanTogetherServer(
                         stateVersion++
                     }
                     val reqParticipantId = body.optString("participantId").ifBlank { "host" }
+                    val currentSession = buildSessionSnapshot(participantId = reqParticipantId)
+                    jsonResponse(currentSession.toJson())
+                }
+
+                uri == "/together/action" && method == Method.POST -> {
+                    val body = parseBodyJson(session)
+                    val action = body.optString("action")
+                    val positionMs = if (body.has("positionMs")) body.optLong("positionMs") else null
+                    val reqParticipantId = body.optString("participantId").ifBlank { "guest" }
+
+                    if (action.isNotBlank()) {
+                        lastActionTime = System.currentTimeMillis()
+                        playbackState?.let { current ->
+                            when (action) {
+                                "play", "resume" -> {
+                                    playbackState = current.copy(
+                                        isPlaying = true,
+                                        positionMs = positionMs ?: current.positionMs,
+                                        updatedAt = System.currentTimeMillis()
+                                    )
+                                    stateVersion++
+                                }
+                                "pause" -> {
+                                    playbackState = current.copy(
+                                        isPlaying = false,
+                                        positionMs = positionMs ?: current.positionMs,
+                                        updatedAt = System.currentTimeMillis()
+                                    )
+                                    stateVersion++
+                                }
+                                "seek" -> {
+                                    if (positionMs != null) {
+                                        playbackState = current.copy(
+                                            positionMs = positionMs,
+                                            updatedAt = System.currentTimeMillis()
+                                        )
+                                        stateVersion++
+                                    }
+                                }
+                            }
+                        }
+                        onPlaybackCommand?.invoke(action, positionMs)
+                    }
+
                     val currentSession = buildSessionSnapshot(participantId = reqParticipantId)
                     jsonResponse(currentSession.toJson())
                 }
@@ -1230,16 +1278,50 @@ class LanTogetherServer(
       document.documentElement.setAttribute('data-theme', savedTheme);
     }
 
+    var lastUserActionTime = 0;
+
+    function sendPlaybackAction(action, positionMs) {
+      lastUserActionTime = Date.now();
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/together/action', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      var payload = {
+        action: action,
+        participantId: clientPid
+      };
+      if (positionMs !== undefined && positionMs !== null) {
+        payload.positionMs = Math.round(positionMs);
+      }
+      xhr.onload = function() {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            var json = JSON.parse(xhr.responseText);
+            updateUi(json);
+          } catch (e) {}
+        }
+      };
+      xhr.send(JSON.stringify(payload));
+    }
+
     function togglePlayback() {
       if (!isAudioActivated) {
         activateAudio();
+        if (lastServerState && !lastServerState.isPlaying) {
+          sendPlaybackAction('play', Math.round((audio.currentTime || 0) * 1000));
+        }
       } else {
         if (audio.paused) {
           isUserPaused = false;
+          lastUserActionTime = Date.now();
+          if (lastServerState) lastServerState.isPlaying = true;
           audio.play().catch(function(e) { console.warn('Play error:', e); });
+          sendPlaybackAction('play', Math.round((audio.currentTime || 0) * 1000));
         } else {
           isUserPaused = true;
+          lastUserActionTime = Date.now();
+          if (lastServerState) lastServerState.isPlaying = false;
           audio.pause();
+          sendPlaybackAction('pause', Math.round((audio.currentTime || 0) * 1000));
         }
         updatePlayPauseUi();
       }
@@ -1279,7 +1361,8 @@ class LanTogetherServer(
         }
       };
 
-      if (!isUserPaused && state.isPlaying) {
+      var shouldPlay = !isUserPaused && (state.isPlaying || (Date.now() - lastUserActionTime < 4000));
+      if (shouldPlay) {
         audio.play().catch(function(e) { console.warn('Audio play error:', e); });
       }
       updatePlayPauseUi();
@@ -1378,7 +1461,9 @@ class LanTogetherServer(
           durSec = audio.duration;
         }
         if (audio && durSec > 0) {
-          audio.currentTime = (pct / 100) * durSec;
+          var targetSec = (pct / 100) * durSec;
+          audio.currentTime = targetSec;
+          sendPlaybackAction('seek', targetSec * 1000);
         }
         isSeeking = false;
       };
@@ -1483,13 +1568,16 @@ class LanTogetherServer(
             currentSongId = state.songId;
           }
         } else if (isAudioActivated && !isUserPaused) {
-          if (state.isPlaying && audio.paused) {
-            audio.play().catch(function(){});
-          } else if (!state.isPlaying && !audio.paused) {
-            audio.pause();
+          var timeSinceUserAction = Date.now() - lastUserActionTime;
+          if (timeSinceUserAction > 4000) {
+            if (state.isPlaying && audio.paused) {
+              audio.play().catch(function(){});
+            } else if (!state.isPlaying && !audio.paused) {
+              audio.pause();
+            }
           }
 
-          if (state.isPlaying && !isSeeking) {
+          if (state.isPlaying && !isSeeking && timeSinceUserAction > 4000) {
             var elapsedMs = Math.max(0, Date.now() - (state.updatedAt || Date.now()));
             var expectedSec = ((state.positionMs || 0) + elapsedMs) / 1000;
             if (audio.duration && expectedSec < audio.duration) {

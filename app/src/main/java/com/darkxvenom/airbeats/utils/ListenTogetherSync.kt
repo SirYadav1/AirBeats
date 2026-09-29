@@ -218,6 +218,28 @@ object ListenTogetherSync {
                     isPlaying = connection.player.playWhenReady,
                     durationMs = connection.player.duration.takeIf { it > 0 } ?: (metadata.duration.toLong() * 1000L).coerceAtLeast(0L),
                 )
+                server.onPlaybackCommand = { action, positionMs ->
+                    scope.launch(Dispatchers.Main) {
+                        val player = connection.player
+                        when (action) {
+                            "play", "resume" -> {
+                                if (!player.playWhenReady) {
+                                    player.play()
+                                }
+                            }
+                            "pause" -> {
+                                if (player.playWhenReady) {
+                                    player.pause()
+                                }
+                            }
+                            "seek" -> {
+                                if (positionMs != null && positionMs >= 0) {
+                                    player.seekTo(positionMs)
+                                }
+                            }
+                        }
+                    }
+                }
                 server.start(30000, true)
                 lanServer = server
                 lanHostAddress = "$localIp:$port"
@@ -339,10 +361,13 @@ object ListenTogetherSync {
                 val current = server.playbackState
                 val isPlaying = connection.player.playWhenReady
                 val pos = connection.player.currentPosition
-                val needsUpdate = current == null ||
+                val timeSinceAction = System.currentTimeMillis() - server.lastActionTime
+                val isActionPending = timeSinceAction < 2000L && current?.isPlaying != isPlaying
+
+                val needsUpdate = !isActionPending && (current == null ||
                     current.songId != metadata.id ||
                     current.isPlaying != isPlaying ||
-                    abs(pos - current.positionMs) > 1000L
+                    abs(pos - current.positionMs) > 1000L)
 
                 if (needsUpdate) {
                     server.playbackState = ListenTogetherPlaybackState(
