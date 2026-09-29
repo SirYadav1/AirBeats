@@ -332,172 +332,393 @@ class LanTogetherServer(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AirBeats - Listen Together</title>
+  <link rel="icon" href="https://raw.githubusercontent.com/drkvenom786/Airbeats/refs/heads/main/icon2.png" type="image/png">
   <style>
     :root {
-      --bg: #090a10;
-      --card: rgba(22, 24, 38, 0.85);
-      --card-border: rgba(255, 255, 255, 0.08);
-      --primary: #8b5cf6;
-      --primary-hover: #7c3aed;
-      --primary-grad: linear-gradient(135deg, #7c3aed 0%, #ec4899 100%);
-      --text: #f9fafb;
-      --text-dim: #9ca3af;
+      --bg: #ffffff;
+      --card-bg: #ffffff;
+      --text: #050505;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --pill-bg: #f3f4f6;
+      --btn-primary: #050505;
+      --btn-text: #ffffff;
+      --accent: #8b5cf6;
+      --accent-grad: linear-gradient(135deg, #7c3aed 0%, #ec4899 100%);
+      --track-bg: #e5e7eb;
+      --track-fill: #050505;
+      --thumb-color: #050505;
       --success: #10b981;
-      --surface: rgba(255, 255, 255, 0.05);
-      --surface-border: rgba(255, 255, 255, 0.08);
+      --circle-btn: #ffffff;
+      --circle-btn-border: #e5e7eb;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #090a10;
+        --card-bg: #12131c;
+        --text: #f9fafb;
+        --text-muted: #9ca3af;
+        --border: rgba(255, 255, 255, 0.08);
+        --pill-bg: rgba(255, 255, 255, 0.06);
+        --btn-primary: #ffffff;
+        --btn-text: #000000;
+        --track-bg: rgba(255, 255, 255, 0.12);
+        --track-fill: #a855f7;
+        --thumb-color: #ffffff;
+        --circle-btn: #181926;
+        --circle-btn-border: rgba(255, 255, 255, 0.12);
+      }
+    }
+
+    [data-theme="light"] {
+      --bg: #ffffff;
+      --card-bg: #ffffff;
+      --text: #050505;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --pill-bg: #f3f4f6;
+      --btn-primary: #050505;
+      --btn-text: #ffffff;
+      --track-bg: #e5e7eb;
+      --track-fill: #050505;
+      --thumb-color: #050505;
+      --circle-btn: #ffffff;
+      --circle-btn-border: #e5e7eb;
+    }
+
+    [data-theme="dark"] {
+      --bg: #090a10;
+      --card-bg: #12131c;
+      --text: #f9fafb;
+      --text-muted: #9ca3af;
+      --border: rgba(255, 255, 255, 0.08);
+      --pill-bg: rgba(255, 255, 255, 0.06);
+      --btn-primary: #ffffff;
+      --btn-text: #000000;
+      --track-bg: rgba(255, 255, 255, 0.12);
+      --track-fill: #a855f7;
+      --thumb-color: #ffffff;
+      --circle-btn: #181926;
+      --circle-btn-border: rgba(255, 255, 255, 0.12);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
     body {
       background: var(--bg);
-      background-image: 
-        radial-gradient(circle at 10% 20%, rgba(124, 58, 237, 0.22) 0%, transparent 45%),
-        radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.16) 0%, transparent 45%);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
       min-height: 100vh;
       display: flex;
-      flex-direction: column;
-      align-items: center;
       justify-content: center;
-      padding: 16px;
+      padding: 0;
+      overflow-x: hidden;
+      transition: background-color 0.2s ease, color 0.2s ease;
     }
-    .player-card {
-      background: var(--card);
-      backdrop-filter: blur(32px);
-      -webkit-backdrop-filter: blur(32px);
-      border: 1px solid var(--card-border);
-      border-radius: 28px;
-      padding: 26px 22px;
+
+    .app-container {
       width: 100%;
-      max-width: 440px;
-      box-shadow: 0 25px 65px rgba(0, 0, 0, 0.65);
-      text-align: center;
+      max-width: 480px;
+      min-height: 100vh;
+      background: var(--card-bg);
+      padding: 16px 20px 32px;
+      display: flex;
+      flex-direction: column;
       position: relative;
     }
-    .header {
+
+    /* Top Bar Header */
+    .top-bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 20px;
+      height: 52px;
+      margin-bottom: 12px;
     }
-    .brand {
+
+    .brand-wrap {
       display: flex;
       align-items: center;
-      gap: 9px;
-      font-weight: 800;
-      font-size: 1.15rem;
-      letter-spacing: -0.3px;
+      gap: 12px;
     }
+
     .brand-icon {
-      width: 30px;
-      height: 30px;
-      border-radius: 9px;
-      background: var(--primary-grad);
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #000;
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
     }
-    .brand-icon svg {
-      width: 18px;
-      height: 18px;
-      fill: #fff;
+
+    .brand-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
-    .live-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      border-radius: 20px;
-      font-size: 0.7rem;
-      font-weight: 700;
-      color: var(--success);
+
+    .brand-name {
+      font-size: 1.25rem;
+      font-weight: 800;
       letter-spacing: 0.5px;
+      color: var(--text);
     }
-    .live-dot {
-      width: 7px;
-      height: 7px;
-      background: var(--success);
+
+    .circle-btn {
+      width: 42px;
+      height: 42px;
       border-radius: 50%;
-      box-shadow: 0 0 8px var(--success);
-      animation: pulse 1.8s infinite;
+      background: var(--circle-btn);
+      border: 1px solid var(--circle-btn-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text);
+      transition: transform 0.15s ease, background 0.15s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
     }
-    @keyframes pulse {
-      0% { transform: scale(0.9); opacity: 0.7; }
-      50% { transform: scale(1.25); opacity: 1; }
-      100% { transform: scale(0.9); opacity: 0.7; }
+
+    .circle-btn:active {
+      transform: scale(0.92);
     }
+
+    .circle-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+
+    /* Dropdown Menu */
+    .menu-dropdown {
+      position: absolute;
+      top: 66px;
+      right: 20px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 16px 36px rgba(0,0,0,0.18);
+      padding: 8px;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 100;
+      min-width: 210px;
+    }
+
+    .menu-dropdown.show { display: flex; }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      text-align: left;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+
+    .menu-item:hover {
+      background: var(--pill-bg);
+    }
+
+    /* Artwork Container */
     .art-container {
       position: relative;
-      width: 220px;
-      height: 220px;
-      margin: 0 auto 18px;
-      border-radius: 22px;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 28px;
       overflow: hidden;
-      box-shadow: 0 16px 36px rgba(0,0,0,0.6);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
       background: #151622;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      margin-bottom: 20px;
     }
+
     .art-img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: none;
     }
+
     .art-placeholder {
+      width: 100%;
+      height: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 100%;
-      height: 100%;
-      color: var(--text-dim);
+      color: var(--text-muted);
     }
+
     .art-placeholder svg {
-      width: 64px;
-      height: 64px;
+      width: 72px;
+      height: 72px;
       fill: currentColor;
-      opacity: 0.25;
+      opacity: 0.3;
     }
-    .track-title {
-      font-size: 1.25rem;
+
+    .live-badge-float {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      padding: 5px 12px;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 20px;
+      font-size: 0.72rem;
       font-weight: 700;
-      margin-bottom: 5px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      padding: 0 4px;
+      color: #10b981;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-    .track-artist {
-      font-size: 0.9rem;
-      color: var(--text-dim);
-      margin-bottom: 14px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      padding: 0 4px;
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulse 1.8s infinite;
     }
-    .status-tag {
+
+    @keyframes pulse {
+      0% { transform: scale(0.9); opacity: 0.7; }
+      50% { transform: scale(1.3); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.7; }
+    }
+
+    /* Artist Row */
+    .artist-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .artist-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--pill-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+    }
+
+    .artist-avatar svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    .artist-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .artist-chevron {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      line-height: 1;
+    }
+
+    /* Song Title */
+    .track-title {
+      font-size: 1.7rem;
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: -0.4px;
+      color: var(--text);
+      margin-bottom: 12px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+    }
+
+    /* Meta & Badges */
+    .meta-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .listener-pill {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 5px 12px;
-      border-radius: 12px;
-      background: var(--surface);
-      border: 1px solid var(--surface-border);
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: var(--text-dim);
-      margin-bottom: 16px;
     }
+
+    .listener-pill svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    .genre-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 12px;
+      background: var(--pill-bg);
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+      width: fit-content;
+    }
+
+    .genre-tag svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+
+    .track-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 18px;
+      line-height: 1.4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Visualizer wave */
     .wave-anim {
       display: none;
       align-items: flex-end;
       gap: 2px;
       height: 12px;
+      margin-left: 6px;
     }
+
     .wave-anim span {
       display: block;
       width: 3px;
@@ -508,19 +729,89 @@ class LanTogetherServer(
     .wave-anim span:nth-child(1) { height: 50%; animation-delay: 0.1s; }
     .wave-anim span:nth-child(2) { height: 100%; animation-delay: 0.3s; }
     .wave-anim span:nth-child(3) { height: 40%; animation-delay: 0.2s; }
-    @keyframes wave {
-      0% { height: 25%; }
-      100% { height: 100%; }
+    @keyframes wave { 0% { height: 25%; } 100% { height: 100%; } }
+
+    /* SEEK BAR PROGRESS (FIXED TO PROPERLY FILL VISUALLY) */
+    .progress-section {
+      width: 100%;
+      margin-bottom: 16px;
     }
 
-    /* Hero Audio Button */
+    .progress-bar-wrap {
+      position: relative;
+      width: 100%;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .progress-track {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 6px;
+      transform: translateY(-50%);
+      background: var(--track-bg);
+      border-radius: 99px;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--track-fill);
+      border-radius: 99px;
+      transition: width 0.1s linear;
+      pointer-events: none;
+    }
+
+    .progress-thumb {
+      position: absolute;
+      top: 50%;
+      left: 0%;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--thumb-color);
+      transform: translate(-50%, -50%);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+      pointer-events: none;
+      transition: left 0.1s linear;
+    }
+
+    .seek-slider {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      margin: 0;
+      cursor: pointer;
+      z-index: 5;
+    }
+
+    .time-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 2px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* HERO AUDIO BUTTON */
     .hero-btn {
       width: 100%;
-      padding: 14px 20px;
+      padding: 13px 20px;
       border-radius: 16px;
-      background: var(--primary-grad);
+      background: var(--accent-grad);
       color: #fff;
-      font-size: 0.98rem;
+      font-size: 0.95rem;
       font-weight: 700;
       border: none;
       cursor: pointer;
@@ -528,95 +819,56 @@ class LanTogetherServer(
       align-items: center;
       justify-content: center;
       gap: 10px;
-      margin-bottom: 18px;
-      box-shadow: 0 8px 24px rgba(124, 58, 237, 0.4);
+      margin-bottom: 14px;
+      box-shadow: 0 6px 20px rgba(124, 58, 237, 0.35);
       transition: all 0.2s ease;
     }
-    .hero-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 28px rgba(124, 58, 237, 0.5);
-    }
+
     .hero-btn:active {
-      transform: translateY(1px);
+      transform: scale(0.98);
     }
 
-    /* Player Controls Bar */
-    .player-controls {
-      background: rgba(0, 0, 0, 0.28);
-      border: 1px solid var(--surface-border);
-      border-radius: 18px;
-      padding: 14px 16px;
-      margin-bottom: 16px;
-    }
-    .seek-slider {
-      width: 100%;
-      height: 6px;
-      -webkit-appearance: none;
-      appearance: none;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 6px;
-      outline: none;
-      cursor: pointer;
-    }
-    .seek-slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #ec4899;
-      cursor: pointer;
-      box-shadow: 0 0 8px rgba(236, 72, 153, 0.7);
-    }
-    .seek-slider::-moz-range-thumb {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #ec4899;
-      cursor: pointer;
-      box-shadow: 0 0 8px rgba(236, 72, 153, 0.7);
-    }
-    .time-row {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 6px;
-      font-size: 0.72rem;
-      color: var(--text-dim);
-      font-variant-numeric: tabular-nums;
-    }
-    .control-row {
+    /* Volume & Live Sync Row */
+    .controls-sub-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-top: 12px;
       gap: 12px;
+      margin-bottom: 20px;
+      padding: 0 2px;
     }
+
     .vol-wrap {
       display: flex;
       align-items: center;
       gap: 8px;
       flex: 1;
+      max-width: 220px;
     }
+
     .vol-btn {
       background: transparent;
       border: none;
-      color: var(--text-dim);
-      font-size: 1.1rem;
+      color: var(--text-muted);
+      font-size: 1rem;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 4px;
     }
+
     .vol-slider {
       width: 100%;
       height: 5px;
       -webkit-appearance: none;
       appearance: none;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--track-bg);
       border-radius: 4px;
       outline: none;
       cursor: pointer;
     }
+
     .vol-slider::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
@@ -626,88 +878,114 @@ class LanTogetherServer(
       background: var(--text);
       cursor: pointer;
     }
-    .btn-sync {
+
+    .btn-sync-live {
       padding: 6px 12px;
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      background: var(--pill-bg);
+      border: 1px solid var(--border);
       color: var(--text);
-      font-size: 0.76rem;
-      font-weight: 600;
+      font-size: 0.78rem;
+      font-weight: 700;
       cursor: pointer;
       white-space: nowrap;
-      transition: all 0.2s ease;
-    }
-    .btn-sync:hover {
-      background: rgba(255, 255, 255, 0.15);
+      transition: background 0.15s ease;
     }
 
-    .session-box {
-      background: rgba(0, 0, 0, 0.22);
-      border: 1px solid var(--surface-border);
-      border-radius: 16px;
-      padding: 10px 14px;
-      margin-bottom: 16px;
+    .btn-sync-live:hover {
+      background: var(--border);
+    }
+
+    /* BOTTOM ACTION BAR (MATCHING SCREENSHOT) */
+    .bottom-actions {
       display: flex;
-      justify-content: space-around;
-      font-size: 0.74rem;
-      color: var(--text-dim);
+      align-items: center;
+      gap: 12px;
+      margin-top: auto;
+      padding-top: 12px;
     }
-    .session-box strong {
-      color: var(--text);
-      display: block;
-      margin-top: 2px;
-      font-size: 0.82rem;
-    }
-    .actions {
-      display: flex;
-      flex-direction: column;
-      gap: 9px;
-    }
-    .btn {
+
+    .btn-open-app {
+      flex: 1;
+      height: 54px;
+      border-radius: 27px;
+      background: var(--btn-primary);
+      color: var(--btn-text);
+      font-size: 1rem;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      padding: 11px 16px;
-      border-radius: 14px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
+      gap: 10px;
       text-decoration: none;
-      transition: all 0.2s ease;
-      border: none;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+      transition: transform 0.15s ease, opacity 0.15s ease;
     }
-    .btn-app {
-      background: rgba(124, 58, 237, 0.18);
-      border: 1px solid rgba(124, 58, 237, 0.4);
-      color: #c4b5fd;
+
+    .btn-open-app:active {
+      transform: scale(0.98);
+      opacity: 0.92;
     }
-    .btn-app:hover {
-      background: rgba(124, 58, 237, 0.28);
+
+    .btn-open-app img {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
     }
-    .btn-outline {
-      background: transparent;
-      color: var(--text-dim);
-      border: 1px solid var(--surface-border);
-    }
-    .btn-outline:hover {
+
+    .bottom-circle-btn {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--circle-btn);
+      border: 1px solid var(--circle-btn-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
       color: var(--text);
-      border-color: rgba(255, 255, 255, 0.22);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      transition: transform 0.15s ease;
+      flex-shrink: 0;
     }
+
+    .bottom-circle-btn:active {
+      transform: scale(0.92);
+    }
+
+    .bottom-circle-btn svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+    }
+
+    .footer-caption {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 14px;
+      font-weight: 500;
+    }
+
+    /* Toast */
     .toast {
       position: fixed;
       bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
       background: #10b981;
       color: white;
       padding: 8px 18px;
       border-radius: 20px;
-      font-size: 0.8rem;
-      font-weight: 600;
+      font-size: 0.82rem;
+      font-weight: 700;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.3s ease;
-      z-index: 100;
+      transition: opacity 0.25s ease;
+      z-index: 200;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.18);
     }
     .toast.show { opacity: 1; }
   </style>
@@ -715,35 +993,95 @@ class LanTogetherServer(
 <body>
   <audio id="audioElement" preload="auto" playsinline></audio>
 
-  <div class="player-card">
-    <div class="header">
-      <div class="brand">
+  <div class="app-container">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <div class="brand-wrap">
         <div class="brand-icon">
-          <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          <img src="https://raw.githubusercontent.com/drkvenom786/Airbeats/refs/heads/main/icon2.png" alt="AirBeats" />
         </div>
-        <span>AirBeats</span>
+        <span class="brand-name">AIRBEATS</span>
       </div>
-      <div class="live-badge">
-        <span class="live-dot"></span>
-        <span>LAN LIVE</span>
+
+      <button class="circle-btn" onclick="toggleMenu()" aria-label="Menu">
+        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+      </button>
+
+      <!-- Dropdown Menu -->
+      <div id="menuDropdown" class="menu-dropdown">
+        <button class="menu-item" onclick="syncWithHost()">
+          ⚡ Sync with Host
+        </button>
+        <button class="menu-item" onclick="copyStreamLink()">
+          🎵 Copy Direct Stream URL
+        </button>
+        <button class="menu-item" onclick="toggleTheme()">
+          🌓 Toggle Light / Dark Mode
+        </button>
+        <a id="menuAppDeepLink" href="airbeats://together?host=$hostIp&port=$port&sid=$sessionId" class="menu-item">
+          🎧 Open in AirBeats App
+        </a>
       </div>
     </div>
 
+    <!-- Album Artwork Card -->
     <div class="art-container">
       <img id="artImg" class="art-img" alt="Artwork" />
       <div id="artPlaceholder" class="art-placeholder">
         <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
       </div>
+      <div class="live-badge-float">
+        <span class="live-dot"></span>
+        <span>LAN LIVE</span>
+      </div>
     </div>
 
-    <h1 id="trackTitle" class="track-title">AirBeats Session</h1>
-    <p id="trackArtist" class="track-artist">Waiting for host to play music...</p>
+    <!-- Artist Row -->
+    <div class="artist-row">
+      <div class="artist-avatar">
+        <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      </div>
+      <span id="trackArtist" class="artist-name">AirBeats</span>
+      <span class="artist-chevron">›</span>
+    </div>
 
-    <div class="status-tag">
-      <span id="waveAnim" class="wave-anim">
+    <!-- Track Title -->
+    <h1 id="trackTitle" class="track-title">AirBeats Session</h1>
+
+    <!-- Meta / Badges Row -->
+    <div class="meta-row">
+      <div class="listener-pill">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+        <span id="participantCount">1 listener</span>
+      </div>
+      <span id="statusTag">Connecting...</span>
+      <div id="waveAnim" class="wave-anim">
         <span></span><span></span><span></span>
-      </span>
-      <span id="statusText">Connecting...</span>
+      </div>
+    </div>
+
+    <!-- Genre / Source Badge -->
+    <div class="genre-tag">
+      <svg viewBox="0 0 24 24"><path d="M10 20h4V4h-4v16zm-6 0h4v-8H4v8zM16 9v11h4V9h-4z"/></svg>
+      <span id="genreLabel">AirBeats LAN</span>
+    </div>
+
+    <!-- Track Description -->
+    <p id="trackDesc" class="track-desc">Streaming live over LAN • Host: $hostDisplayName</p>
+
+    <!-- SEEK BAR WITH VISIBLE PROGRESS FILL -->
+    <div class="progress-section">
+      <div class="progress-bar-wrap" id="progressBarWrap">
+        <div class="progress-track">
+          <div id="progressFill" class="progress-fill" style="width: 0%;"></div>
+        </div>
+        <div id="progressThumb" class="progress-thumb" style="left: 0%;"></div>
+        <input type="range" id="seekSlider" class="seek-slider" min="0" max="100" value="0" step="0.1" />
+      </div>
+      <div class="time-row">
+        <span id="curTime">00:00</span>
+        <span id="durTime">--:--</span>
+      </div>
     </div>
 
     <!-- Hero Play / Listen Button -->
@@ -752,52 +1090,36 @@ class LanTogetherServer(
       <span id="heroPlayText">Start Listening (Play Audio)</span>
     </button>
 
-    <!-- Player Controls Bar -->
-    <div class="player-controls">
-      <input type="range" id="seekSlider" class="seek-slider" min="0" max="100" value="0" step="0.1" onchange="onSeekChange(this.value)" oninput="onSeekInput(this.value)" />
-      <div class="time-row">
-        <span id="curTime">00:00</span>
-        <span id="durTime">--:--</span>
-      </div>
-      <div class="control-row">
-        <div class="vol-wrap">
-          <button class="vol-btn" onclick="toggleMute()" title="Mute/Unmute">
-            <span id="volIcon">🔊</span>
-          </button>
-          <input type="range" id="volSlider" class="vol-slider" min="0" max="1" step="0.02" value="1" oninput="onVolumeChange(this.value)" title="Volume" />
-        </div>
-        <button class="btn-sync" onclick="syncWithHost()" title="Re-sync with Host">
-          ⚡ Sync Live
+    <!-- Volume & Live Sync Row -->
+    <div class="controls-sub-row">
+      <div class="vol-wrap">
+        <button class="vol-btn" onclick="toggleMute()" title="Mute/Unmute">
+          <span id="volIcon">🔊</span>
         </button>
+        <input type="range" id="volSlider" class="vol-slider" min="0" max="1" step="0.02" value="1" oninput="onVolumeChange(this.value)" title="Volume" />
       </div>
+      <button class="btn-sync-live" onclick="syncWithHost()" title="Re-sync with Host">
+        ⚡ Sync Live
+      </button>
     </div>
 
-    <div class="session-box">
-      <div>
-        <span>Host</span>
-        <strong id="hostName">$hostDisplayName</strong>
-      </div>
-      <div>
-        <span>Session ID</span>
-        <strong>$sessionId</strong>
-      </div>
-      <div>
-        <span>Connected</span>
-        <strong id="participantCount">1 Listener</strong>
-      </div>
-    </div>
-
-    <div class="actions">
-      <a id="appDeepLink" href="airbeats://together?host=$hostIp&port=$port&sid=$sessionId" class="btn btn-app">
-        🎧 Open in AirBeats App
+    <!-- Bottom Actions Row -->
+    <div class="bottom-actions">
+      <a id="appDeepLink" href="airbeats://together?host=$hostIp&port=$port&sid=$sessionId" class="btn-open-app">
+        <img src="https://raw.githubusercontent.com/drkvenom786/Airbeats/refs/heads/main/icon2.png" alt="Logo" />
+        <span>Open in AirBeats</span>
       </a>
-      <button onclick="copyLink()" class="btn btn-outline">
-        📋 Copy Browser Link
+
+      <button class="bottom-circle-btn" onclick="copyLink()" title="Share Link">
+        <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
       </button>
-      <button onclick="copyStreamLink()" class="btn btn-outline" style="font-size:0.78rem;">
-        🎵 Copy Direct Stream URL (/stream)
+
+      <button class="bottom-circle-btn" onclick="toggleMenu()" title="More Options">
+        <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
       </button>
     </div>
+
+    <p class="footer-caption">Free high-res audio streaming on AirBeats App</p>
   </div>
 
   <div id="toast" class="toast"></div>
@@ -810,10 +1132,13 @@ class LanTogetherServer(
     var curTimeEl = document.getElementById('curTime');
     var durTimeEl = document.getElementById('durTime');
     var seekSlider = document.getElementById('seekSlider');
+    var progressFill = document.getElementById('progressFill');
+    var progressThumb = document.getElementById('progressThumb');
     var volSlider = document.getElementById('volSlider');
     var volIcon = document.getElementById('volIcon');
     var waveAnim = document.getElementById('waveAnim');
-    var statusText = document.getElementById('statusText');
+    var statusTag = document.getElementById('statusTag');
+    var menuDropdown = document.getElementById('menuDropdown');
 
     var isAudioActivated = false;
     var isUserPaused = false;
@@ -828,6 +1153,33 @@ class LanTogetherServer(
       var m = Math.floor(sec / 60);
       var s = sec % 60;
       return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function toggleMenu() {
+      if (!menuDropdown) return;
+      menuDropdown.classList.toggle('show');
+    }
+
+    document.addEventListener('click', function(e) {
+      if (menuDropdown && menuDropdown.classList.contains('show')) {
+        if (!e.target.closest('.circle-btn') && !e.target.closest('.bottom-circle-btn') && !e.target.closest('.menu-dropdown')) {
+          menuDropdown.classList.remove('show');
+        }
+      }
+    });
+
+    function toggleTheme() {
+      var current = document.documentElement.getAttribute('data-theme');
+      var next = (current === 'dark') ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('airbeats_theme', next);
+      showToast('Switched to ' + next + ' theme');
+      if (menuDropdown) menuDropdown.classList.remove('show');
+    }
+
+    var savedTheme = localStorage.getItem('airbeats_theme');
+    if (savedTheme) {
+      document.documentElement.setAttribute('data-theme', savedTheme);
     }
 
     function togglePlayback() {
@@ -893,16 +1245,17 @@ class LanTogetherServer(
         if (heroPlayIcon) heroPlayIcon.innerText = '▶';
         if (heroPlayText) heroPlayText.innerText = 'Resume Audio';
         if (waveAnim) waveAnim.style.display = 'none';
-        if (statusText) statusText.innerText = isUserPaused ? 'Paused Locally' : 'Paused by Host';
+        if (statusTag) statusTag.innerText = isUserPaused ? 'Paused Locally' : 'Paused by Host';
       } else {
         if (heroPlayIcon) heroPlayIcon.innerText = '⏸';
         if (heroPlayText) heroPlayText.innerText = 'Listening Live (Tap to Pause)';
         if (waveAnim) waveAnim.style.display = 'inline-flex';
-        if (statusText) statusText.innerText = 'Playing';
+        if (statusTag) statusTag.innerText = 'Playing';
       }
     }
 
     function syncWithHost() {
+      if (menuDropdown) menuDropdown.classList.remove('show');
       if (!lastServerState) return;
       var posMs = lastServerState.positionMs || 0;
       if (lastServerState.isPlaying && lastServerState.updatedAt) {
@@ -940,27 +1293,37 @@ class LanTogetherServer(
       }
     }
 
-    function onSeekInput(val) {
-      isSeeking = true;
-      if (audio && audio.duration) {
-        var sec = (parseFloat(val) / 100) * audio.duration;
-        if (curTimeEl) curTimeEl.innerText = formatTime(sec);
-      }
-    }
+    /* SEEK BAR PROGRESS FILL INTERACTION */
+    if (seekSlider) {
+      seekSlider.oninput = function() {
+        isSeeking = true;
+        var pct = parseFloat(this.value);
+        if (progressFill) progressFill.style.width = pct + '%';
+        if (progressThumb) progressThumb.style.left = pct + '%';
+        if (audio && audio.duration && !isNaN(audio.duration)) {
+          var sec = (pct / 100) * audio.duration;
+          if (curTimeEl) curTimeEl.innerText = formatTime(sec);
+        }
+      };
 
-    function onSeekChange(val) {
-      if (audio && audio.duration) {
-        var sec = (parseFloat(val) / 100) * audio.duration;
-        audio.currentTime = sec;
-      }
-      isSeeking = false;
+      seekSlider.onchange = function() {
+        var pct = parseFloat(this.value);
+        if (progressFill) progressFill.style.width = pct + '%';
+        if (progressThumb) progressThumb.style.left = pct + '%';
+        if (audio && audio.duration && !isNaN(audio.duration)) {
+          audio.currentTime = (pct / 100) * audio.duration;
+        }
+        isSeeking = false;
+      };
     }
 
     if (audio) {
       audio.ontimeupdate = function() {
         if (!isSeeking && audio.duration && !isNaN(audio.duration)) {
-          var pct = (audio.currentTime / audio.duration) * 100;
+          var pct = Math.min(100, Math.max(0, (audio.currentTime / audio.duration) * 100));
           if (seekSlider) seekSlider.value = pct;
+          if (progressFill) progressFill.style.width = pct + '%';
+          if (progressThumb) progressThumb.style.left = pct + '%';
           if (curTimeEl) curTimeEl.innerText = formatTime(audio.currentTime);
           if (durTimeEl) durTimeEl.innerText = formatTime(audio.duration);
         }
@@ -970,7 +1333,7 @@ class LanTogetherServer(
       audio.onpause = function() { updatePlayPauseUi(); };
       audio.onended = function() {
         if (waveAnim) waveAnim.style.display = 'none';
-        if (statusText) statusText.innerText = 'Track Ended';
+        if (statusTag) statusTag.innerText = 'Track Ended';
       };
     }
 
@@ -981,19 +1344,18 @@ class LanTogetherServer(
 
       var count = data.participants || 1;
       var countEl = document.getElementById('participantCount');
-      if (countEl) countEl.innerText = count + (count === 1 ? ' Listener' : ' Listeners');
-      var hostEl = document.getElementById('hostName');
-      if (hostEl) hostEl.innerText = data.hostName || 'AirBeats Host';
+      if (countEl) countEl.innerText = count + (count === 1 ? ' listener' : ' listeners');
 
       var titleEl = document.getElementById('trackTitle');
       var artistEl = document.getElementById('trackArtist');
       var artImg = document.getElementById('artImg');
       var artPlaceholder = document.getElementById('artPlaceholder');
+      var descEl = document.getElementById('trackDesc');
 
       if (!state || !state.title) {
         if (titleEl) titleEl.innerText = 'AirBeats Session';
-        if (artistEl) artistEl.innerText = 'Waiting for host to play music...';
-        if (statusText) statusText.innerText = 'Idle';
+        if (artistEl) artistEl.innerText = 'AirBeats';
+        if (statusTag) statusTag.innerText = 'Idle';
         if (waveAnim) waveAnim.style.display = 'none';
         if (artImg) artImg.style.display = 'none';
         if (artPlaceholder) artPlaceholder.style.display = 'flex';
@@ -1003,6 +1365,7 @@ class LanTogetherServer(
       if (titleEl) titleEl.innerText = state.title;
       var artistStr = (state.artists && state.artists.length) ? state.artists.join(', ') : 'AirBeats';
       if (artistEl) artistEl.innerText = artistStr;
+      if (descEl) descEl.innerText = 'Streaming live over LAN • Host: ' + (data.hostName || 'AirBeats');
       document.title = (state.isPlaying ? '\u25B6 ' : '\u23F8 ') + state.title + ' \u2022 AirBeats';
 
       if (state.thumbnailUrl) {
@@ -1056,7 +1419,7 @@ class LanTogetherServer(
         }
       };
       xhr.onerror = function() {
-        if (statusText) statusText.innerText = 'Reconnecting...';
+        if (statusTag) statusTag.innerText = 'Reconnecting...';
         if (waveAnim) waveAnim.style.display = 'none';
       };
       xhr.send();
@@ -1069,7 +1432,7 @@ class LanTogetherServer(
       var url = window.location.href;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(url).then(function() {
-          showToast('Browser link copied!');
+          showToast('Join link copied!');
         }).catch(function() {
           showToast('Copied: ' + url);
         });
@@ -1080,6 +1443,7 @@ class LanTogetherServer(
 
     function copyStreamLink() {
       var streamUrl = window.location.origin + '/stream';
+      if (menuDropdown) menuDropdown.classList.remove('show');
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(streamUrl).then(function() {
           showToast('Stream URL copied: ' + streamUrl);
