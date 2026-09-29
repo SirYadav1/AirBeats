@@ -147,6 +147,7 @@ object ListenTogetherSync {
                             thumbnailUrl = metadata.thumbnailUrl,
                             positionMs = connection.player.currentPosition,
                             isPlaying = connection.player.playWhenReady,
+                            durationMs = connection.player.duration.takeIf { it > 0 } ?: (metadata.duration.toLong() * 1000L).coerceAtLeast(0L),
                         )
                 )
             }.onSuccess {
@@ -215,6 +216,7 @@ object ListenTogetherSync {
                     thumbnailUrl = metadata.thumbnailUrl,
                     positionMs = connection.player.currentPosition,
                     isPlaying = connection.player.playWhenReady,
+                    durationMs = connection.player.duration.takeIf { it > 0 } ?: (metadata.duration.toLong() * 1000L).coerceAtLeast(0L),
                 )
                 server.start(30000, true)
                 lanServer = server
@@ -350,6 +352,7 @@ object ListenTogetherSync {
                         thumbnailUrl = metadata.thumbnailUrl,
                         positionMs = pos,
                         isPlaying = isPlaying,
+                        durationMs = connection.player.duration.takeIf { it > 0 } ?: (metadata.duration.toLong() * 1000L).coerceAtLeast(0L),
                         updatedAt = System.currentTimeMillis()
                     )
                     server.stateVersion++

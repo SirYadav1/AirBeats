@@ -194,6 +194,7 @@ data class ListenTogetherPlaybackState(
     val thumbnailUrl: String?,
     val positionMs: Long,
     val isPlaying: Boolean,
+    val durationMs: Long = 0L,
     val updatedAt: Long = System.currentTimeMillis(),
 ) {
     fun toMediaMetadata() =
@@ -201,7 +202,7 @@ data class ListenTogetherPlaybackState(
             id = songId,
             title = title,
             artists = artists.map { MediaMetadata.Artist(id = null, name = it) },
-            duration = -1,
+            duration = if (durationMs > 0) (durationMs / 1000).toInt() else -1,
             thumbnailUrl = thumbnailUrl,
         )
 
@@ -213,6 +214,7 @@ data class ListenTogetherPlaybackState(
             .put("thumbnailUrl", thumbnailUrl)
             .put("positionMs", positionMs)
             .put("isPlaying", isPlaying)
+            .put("durationMs", durationMs)
             .put("updatedAt", updatedAt)
 
     companion object {
@@ -227,6 +229,7 @@ data class ListenTogetherPlaybackState(
                 thumbnailUrl = json.optString("thumbnailUrl").takeIf { it.isNotBlank() },
                 positionMs = json.optLong("positionMs"),
                 isPlaying = json.optBoolean("isPlaying"),
+                durationMs = json.optLong("durationMs", 0L),
                 updatedAt = json.optLong("updatedAt"),
             )
     }

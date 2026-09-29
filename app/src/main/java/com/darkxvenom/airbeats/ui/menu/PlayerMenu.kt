@@ -950,7 +950,9 @@ fun PlayerMenu(
                             leadingContent = { Icon(painterResource(R.drawable.group), contentDescription = null) },
                             colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent),
                             modifier = Modifier.clickable {
-                                showListenTogetherSheet = true
+                                navController.navigate("listen_together")
+                                playerBottomSheetState.collapseSoft()
+                                onDismiss()
                             }
                         )
                     }

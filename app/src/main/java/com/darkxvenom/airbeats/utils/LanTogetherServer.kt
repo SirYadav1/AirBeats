@@ -344,7 +344,6 @@ class LanTogetherServer(
       --btn-primary: #050505;
       --btn-text: #ffffff;
       --accent: #8b5cf6;
-      --accent-grad: linear-gradient(135deg, #7c3aed 0%, #ec4899 100%);
       --track-bg: #e5e7eb;
       --track-fill: #050505;
       --thumb-color: #050505;
@@ -362,9 +361,9 @@ class LanTogetherServer(
         --border: rgba(255, 255, 255, 0.08);
         --pill-bg: rgba(255, 255, 255, 0.06);
         --btn-primary: #ffffff;
-        --btn-text: #000000;
+        --btn-text: #050505;
         --track-bg: rgba(255, 255, 255, 0.12);
-        --track-fill: #a855f7;
+        --track-fill: #ffffff;
         --thumb-color: #ffffff;
         --circle-btn: #181926;
         --circle-btn-border: rgba(255, 255, 255, 0.12);
@@ -395,9 +394,9 @@ class LanTogetherServer(
       --border: rgba(255, 255, 255, 0.08);
       --pill-bg: rgba(255, 255, 255, 0.06);
       --btn-primary: #ffffff;
-      --btn-text: #000000;
+      --btn-text: #050505;
       --track-bg: rgba(255, 255, 255, 0.12);
-      --track-fill: #a855f7;
+      --track-fill: #ffffff;
       --thumb-color: #ffffff;
       --circle-btn: #181926;
       --circle-btn-border: rgba(255, 255, 255, 0.12);
@@ -531,6 +530,13 @@ class LanTogetherServer(
 
     .menu-item:hover {
       background: var(--pill-bg);
+    }
+
+    .menu-item svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+      flex-shrink: 0;
     }
 
     /* Artwork Container */
@@ -731,7 +737,7 @@ class LanTogetherServer(
     .wave-anim span:nth-child(3) { height: 40%; animation-delay: 0.2s; }
     @keyframes wave { 0% { height: 25%; } 100% { height: 100%; } }
 
-    /* SEEK BAR PROGRESS (FIXED TO PROPERLY FILL VISUALLY) */
+    /* DYNAMIC LIVE SEEK BAR */
     .progress-section {
       width: 100%;
       margin-bottom: 16px;
@@ -764,7 +770,7 @@ class LanTogetherServer(
       width: 0%;
       background: var(--track-fill);
       border-radius: 99px;
-      transition: width 0.1s linear;
+      transition: width 0.08s linear;
       pointer-events: none;
     }
 
@@ -779,7 +785,7 @@ class LanTogetherServer(
       transform: translate(-50%, -50%);
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
       pointer-events: none;
-      transition: left 0.1s linear;
+      transition: left 0.08s linear;
     }
 
     .seek-slider {
@@ -804,28 +810,41 @@ class LanTogetherServer(
       font-variant-numeric: tabular-nums;
     }
 
-    /* HERO AUDIO BUTTON */
+    /* HERO AUDIO BUTTON (MATCHES THEME BLACK & WHITE) */
     .hero-btn {
       width: 100%;
-      padding: 13px 20px;
-      border-radius: 16px;
-      background: var(--accent-grad);
-      color: #fff;
-      font-size: 0.95rem;
+      height: 54px;
+      border-radius: 27px;
+      background: var(--btn-primary);
+      color: var(--btn-text);
+      font-size: 1rem;
       font-weight: 700;
-      border: none;
+      border: 1px solid var(--border);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
       margin-bottom: 14px;
-      box-shadow: 0 6px 20px rgba(124, 58, 237, 0.35);
-      transition: all 0.2s ease;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+      transition: transform 0.15s ease, opacity 0.15s ease;
     }
 
     .hero-btn:active {
       transform: scale(0.98);
+      opacity: 0.92;
+    }
+
+    .hero-btn svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+    }
+
+    .btn-icon-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     /* Volume & Live Sync Row */
@@ -849,13 +868,18 @@ class LanTogetherServer(
     .vol-btn {
       background: transparent;
       border: none;
-      color: var(--text-muted);
-      font-size: 1rem;
+      color: var(--text);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 4px;
+    }
+
+    .vol-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
     }
 
     .vol-slider {
@@ -880,20 +904,29 @@ class LanTogetherServer(
     }
 
     .btn-sync-live {
-      padding: 6px 12px;
-      border-radius: 12px;
+      padding: 7px 14px;
+      border-radius: 14px;
       background: var(--pill-bg);
       border: 1px solid var(--border);
       color: var(--text);
-      font-size: 0.78rem;
+      font-size: 0.8rem;
       font-weight: 700;
       cursor: pointer;
       white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       transition: background 0.15s ease;
     }
 
     .btn-sync-live:hover {
       background: var(--border);
+    }
+
+    .btn-sync-live svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
     }
 
     /* BOTTOM ACTION BAR (MATCHING SCREENSHOT) */
@@ -1010,16 +1043,20 @@ class LanTogetherServer(
       <!-- Dropdown Menu -->
       <div id="menuDropdown" class="menu-dropdown">
         <button class="menu-item" onclick="syncWithHost()">
-          ⚡ Sync with Host
+          <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+          <span>Sync with Host</span>
         </button>
         <button class="menu-item" onclick="copyStreamLink()">
-          🎵 Copy Direct Stream URL
+          <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
+          <span>Copy Direct Stream URL</span>
         </button>
         <button class="menu-item" onclick="toggleTheme()">
-          🌓 Toggle Light / Dark Mode
+          <svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+          <span>Toggle Light / Dark Mode</span>
         </button>
         <a id="menuAppDeepLink" href="airbeats://together?host=$hostIp&port=$port&sid=$sessionId" class="menu-item">
-          🎧 Open in AirBeats App
+          <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          <span>Open in AirBeats App</span>
         </a>
       </div>
     </div>
@@ -1069,7 +1106,7 @@ class LanTogetherServer(
     <!-- Track Description -->
     <p id="trackDesc" class="track-desc">Streaming live over LAN • Host: $hostDisplayName</p>
 
-    <!-- SEEK BAR WITH VISIBLE PROGRESS FILL -->
+    <!-- LIVE SEEK BAR WITH CONTINUOUS FILL -->
     <div class="progress-section">
       <div class="progress-bar-wrap" id="progressBarWrap">
         <div class="progress-track">
@@ -1084,26 +1121,31 @@ class LanTogetherServer(
       </div>
     </div>
 
-    <!-- Hero Play / Listen Button -->
+    <!-- Hero Play / Listen Button (Black & White Theme, SVG Icons) -->
     <button id="heroPlayBtn" class="hero-btn" onclick="togglePlayback()">
-      <span id="heroPlayIcon">▶</span>
-      <span id="heroPlayText">Start Listening (Play Audio)</span>
+      <span id="heroPlayIcon" class="btn-icon-wrap">
+        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      </span>
+      <span id="heroPlayText">Start Listening</span>
     </button>
 
-    <!-- Volume & Live Sync Row -->
+    <!-- Volume & Live Sync Row (SVG Icons) -->
     <div class="controls-sub-row">
       <div class="vol-wrap">
         <button class="vol-btn" onclick="toggleMute()" title="Mute/Unmute">
-          <span id="volIcon">🔊</span>
+          <span id="volIcon">
+            <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+          </span>
         </button>
         <input type="range" id="volSlider" class="vol-slider" min="0" max="1" step="0.02" value="1" oninput="onVolumeChange(this.value)" title="Volume" />
       </div>
       <button class="btn-sync-live" onclick="syncWithHost()" title="Re-sync with Host">
-        ⚡ Sync Live
+        <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+        <span>Sync Live</span>
       </button>
     </div>
 
-    <!-- Bottom Actions Row -->
+    <!-- Bottom Actions Row (Matching Reference Screenshot) -->
     <div class="bottom-actions">
       <a id="appDeepLink" href="airbeats://together?host=$hostIp&port=$port&sid=$sessionId" class="btn-open-app">
         <img src="https://raw.githubusercontent.com/drkvenom786/Airbeats/refs/heads/main/icon2.png" alt="Logo" />
@@ -1139,6 +1181,12 @@ class LanTogetherServer(
     var waveAnim = document.getElementById('waveAnim');
     var statusTag = document.getElementById('statusTag');
     var menuDropdown = document.getElementById('menuDropdown');
+
+    var playSvg = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+    var pauseSvg = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+    var volHighSvg = '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+    var volLowSvg = '<svg viewBox="0 0 24 24"><path d="M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg>';
+    var volMuteSvg = '<svg viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>';
 
     var isAudioActivated = false;
     var isUserPaused = false;
@@ -1225,8 +1273,9 @@ class LanTogetherServer(
         if (startSec > 0 && audio.duration && startSec < audio.duration) {
           audio.currentTime = startSec;
         }
-        if (durTimeEl && audio.duration && !isNaN(audio.duration)) {
-          durTimeEl.innerText = formatTime(audio.duration);
+        var totalDurMs = (state.durationMs > 0) ? state.durationMs : (audio.duration * 1000);
+        if (durTimeEl && totalDurMs > 0) {
+          durTimeEl.innerText = formatTime(totalDurMs / 1000);
         }
       };
 
@@ -1238,17 +1287,17 @@ class LanTogetherServer(
 
     function updatePlayPauseUi() {
       if (!isAudioActivated) {
-        if (heroPlayIcon) heroPlayIcon.innerText = '▶';
-        if (heroPlayText) heroPlayText.innerText = 'Start Listening (Play Audio)';
+        if (heroPlayIcon) heroPlayIcon.innerHTML = playSvg;
+        if (heroPlayText) heroPlayText.innerText = 'Start Listening';
         if (waveAnim) waveAnim.style.display = 'none';
       } else if (audio.paused) {
-        if (heroPlayIcon) heroPlayIcon.innerText = '▶';
+        if (heroPlayIcon) heroPlayIcon.innerHTML = playSvg;
         if (heroPlayText) heroPlayText.innerText = 'Resume Audio';
         if (waveAnim) waveAnim.style.display = 'none';
         if (statusTag) statusTag.innerText = isUserPaused ? 'Paused Locally' : 'Paused by Host';
       } else {
-        if (heroPlayIcon) heroPlayIcon.innerText = '⏸';
-        if (heroPlayText) heroPlayText.innerText = 'Listening Live (Tap to Pause)';
+        if (heroPlayIcon) heroPlayIcon.innerHTML = pauseSvg;
+        if (heroPlayText) heroPlayText.innerText = 'Listening Live';
         if (waveAnim) waveAnim.style.display = 'inline-flex';
         if (statusTag) statusTag.innerText = 'Playing';
       }
@@ -1262,7 +1311,7 @@ class LanTogetherServer(
         posMs += Math.max(0, Date.now() - lastServerState.updatedAt);
       }
       var targetSec = Math.max(0, posMs / 1000);
-      if (audio && audio.duration && targetSec < audio.duration) {
+      if (audio && audio.duration && isFinite(audio.duration) && targetSec < audio.duration) {
         audio.currentTime = targetSec;
       }
       if (!isUserPaused && lastServerState.isPlaying && audio.paused) {
@@ -1276,33 +1325,45 @@ class LanTogetherServer(
         audio.volume = parseFloat(val);
         audio.muted = (audio.volume === 0);
       }
-      if (volIcon) {
-        volIcon.innerText = (audio.volume === 0 || audio.muted) ? '🔇' : (audio.volume < 0.5 ? '🔉' : '🔊');
-      }
+      updateVolumeUi();
     }
 
     function toggleMute() {
       if (!audio) return;
       audio.muted = !audio.muted;
-      if (volIcon) {
-        volIcon.innerText = audio.muted ? '🔇' : (audio.volume < 0.5 ? '🔉' : '🔊');
-      }
+      updateVolumeUi();
       if (volSlider && !audio.muted && audio.volume === 0) {
         audio.volume = 0.5;
         volSlider.value = 0.5;
       }
     }
 
-    /* SEEK BAR PROGRESS FILL INTERACTION */
+    function updateVolumeUi() {
+      if (!volIcon || !audio) return;
+      if (audio.muted || audio.volume === 0) {
+        volIcon.innerHTML = volMuteSvg;
+      } else if (audio.volume < 0.5) {
+        volIcon.innerHTML = volLowSvg;
+      } else {
+        volIcon.innerHTML = volHighSvg;
+      }
+    }
+
+    /* SEEK BAR PROGRESS FILL & INTERACTION */
     if (seekSlider) {
       seekSlider.oninput = function() {
         isSeeking = true;
         var pct = parseFloat(this.value);
         if (progressFill) progressFill.style.width = pct + '%';
         if (progressThumb) progressThumb.style.left = pct + '%';
-        if (audio && audio.duration && !isNaN(audio.duration)) {
-          var sec = (pct / 100) * audio.duration;
-          if (curTimeEl) curTimeEl.innerText = formatTime(sec);
+        var durSec = 0;
+        if (lastServerState && lastServerState.durationMs > 0) {
+          durSec = lastServerState.durationMs / 1000;
+        } else if (audio && audio.duration && !isNaN(audio.duration)) {
+          durSec = audio.duration;
+        }
+        if (durSec > 0 && curTimeEl) {
+          curTimeEl.innerText = formatTime((pct / 100) * durSec);
         }
       };
 
@@ -1310,25 +1371,62 @@ class LanTogetherServer(
         var pct = parseFloat(this.value);
         if (progressFill) progressFill.style.width = pct + '%';
         if (progressThumb) progressThumb.style.left = pct + '%';
-        if (audio && audio.duration && !isNaN(audio.duration)) {
-          audio.currentTime = (pct / 100) * audio.duration;
+        var durSec = 0;
+        if (lastServerState && lastServerState.durationMs > 0) {
+          durSec = lastServerState.durationMs / 1000;
+        } else if (audio && audio.duration && !isNaN(audio.duration)) {
+          durSec = audio.duration;
+        }
+        if (audio && durSec > 0) {
+          audio.currentTime = (pct / 100) * durSec;
         }
         isSeeking = false;
       };
     }
 
-    if (audio) {
-      audio.ontimeupdate = function() {
-        if (!isSeeking && audio.duration && !isNaN(audio.duration)) {
-          var pct = Math.min(100, Math.max(0, (audio.currentTime / audio.duration) * 100));
-          if (seekSlider) seekSlider.value = pct;
-          if (progressFill) progressFill.style.width = pct + '%';
-          if (progressThumb) progressThumb.style.left = pct + '%';
-          if (curTimeEl) curTimeEl.innerText = formatTime(audio.currentTime);
-          if (durTimeEl) durTimeEl.innerText = formatTime(audio.duration);
-        }
-      };
+    /* CONTINUOUS LIVE TIMELINE TICK LOOP (UPDATES AUTOMATICALLY IN REAL TIME) */
+    function tickTimeline() {
+      if (!lastServerState) return;
+      if (isSeeking) return;
 
+      var durationMs = 0;
+      if (lastServerState.durationMs && lastServerState.durationMs > 0) {
+        durationMs = lastServerState.durationMs;
+      } else if (audio && audio.duration && !isNaN(audio.duration) && isFinite(audio.duration) && audio.duration > 0) {
+        durationMs = audio.duration * 1000;
+      }
+
+      var currentMs = 0;
+      if (isAudioActivated && audio && !audio.paused && !isNaN(audio.currentTime)) {
+        currentMs = audio.currentTime * 1000;
+      } else {
+        var elapsed = (lastServerState.isPlaying && lastServerState.updatedAt)
+          ? Math.max(0, Date.now() - lastServerState.updatedAt)
+          : 0;
+        currentMs = (lastServerState.positionMs || 0) + elapsed;
+        if (durationMs > 0 && currentMs > durationMs) {
+          currentMs = durationMs;
+        }
+      }
+
+      if (curTimeEl) {
+        curTimeEl.innerText = formatTime(currentMs / 1000);
+      }
+      if (durTimeEl) {
+        durTimeEl.innerText = (durationMs > 0) ? formatTime(durationMs / 1000) : '--:--';
+      }
+
+      if (durationMs > 0) {
+        var pct = Math.min(100, Math.max(0, (currentMs / durationMs) * 100));
+        if (seekSlider) seekSlider.value = pct;
+        if (progressFill) progressFill.style.width = pct + '%';
+        if (progressThumb) progressThumb.style.left = pct + '%';
+      }
+    }
+
+    setInterval(tickTimeline, 100);
+
+    if (audio) {
       audio.onplay = function() { updatePlayPauseUi(); };
       audio.onpause = function() { updatePlayPauseUi(); };
       audio.onended = function() {
@@ -1404,6 +1502,7 @@ class LanTogetherServer(
         }
       }
       updatePlayPauseUi();
+      tickTimeline();
     }
 
     function fetchState() {
