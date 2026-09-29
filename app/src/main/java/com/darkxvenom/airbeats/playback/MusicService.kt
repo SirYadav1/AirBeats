@@ -2648,7 +2648,7 @@ class MusicService :
 
         // Under no circumstances should the player skip to the next song when loading takes time or errors occur.
         // It must keep loading the current track.
-        if (!isNetworkConnected.value) {
+        if (!isNetworkConnected.value && error.message?.contains("partially cached") != true) {
             waitOnNetworkError()
             return
         }
@@ -2717,14 +2717,25 @@ class MusicService :
                 Timber.w("Missing local source for online song $mediaId; resolving a fresh stream instead")
             }
 
-            // If offline, and we have cached data for this song, return a safe pseudo-HTTP URI
-            // so CacheDataSource serves cached spans, and DefaultDataSource won't route to FileDataSource ENOENT
-            if (!isNetworkConnected.value && (downloadCache.keys.contains(mediaId) || playerCache.keys.contains(mediaId))) {
-                scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                val contentLength = runBlocking(Dispatchers.IO) {
-                    database.format(mediaId).first()?.contentLength
-                }
-                return@Factory dataSpec.withStreamUrl("https://cached.airbeats.local/$mediaId", contentLength)
+            val cachedContentLength = runBlocking(Dispatchers.IO) {
+                database.format(mediaId).first()?.contentLength?.takeIf { it > 0L }
+            }
+            val cachedBytes = maxOf(
+                downloadCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE),
+                playerCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE),
+            )
+            val isFullyCached = cachedContentLength != null && cachedBytes >= cachedContentLength
+
+            if (isFullyCached) {
+                return@Factory dataSpec.withStreamUrl("https://cached.airbeats.local/$mediaId", cachedContentLength)
+            }
+
+            if (!isNetworkConnected.value && cachedBytes > 0L) {
+                throw PlaybackException(
+                    "This song is only partially cached. Connect to the internet once to finish loading it.",
+                    null,
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                )
             }
 
             songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
