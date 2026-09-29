@@ -1552,9 +1552,17 @@ class LanTogetherServer(
       document.title = (state.isPlaying ? '\u25B6 ' : '\u23F8 ') + state.title + ' \u2022 AirBeats';
 
       if (state.thumbnailUrl) {
-        if (artImg && artImg.src !== state.thumbnailUrl) artImg.src = state.thumbnailUrl;
-        if (artImg) artImg.style.display = 'block';
-        if (artPlaceholder) artPlaceholder.style.display = 'none';
+        if (artImg) {
+          if (artImg.src !== state.thumbnailUrl) artImg.src = state.thumbnailUrl;
+          artImg.onerror = function() {
+            artImg.style.display = 'none';
+            if (artPlaceholder) artPlaceholder.style.display = 'flex';
+          };
+          artImg.onload = function() {
+            artImg.style.display = 'block';
+            if (artPlaceholder) artPlaceholder.style.display = 'none';
+          };
+        }
       } else {
         if (artImg) artImg.style.display = 'none';
         if (artPlaceholder) artPlaceholder.style.display = 'flex';

@@ -3448,6 +3448,42 @@ class MusicService :
             )
         }
 
+        // Check if the song is available locally in downloadCache or playerCache (offline playback)
+        val candidateIds = if (mediaId.startsWith("sp:")) {
+            listOfNotNull(mediaId, spotifyMatchCache[mediaId])
+        } else {
+            listOf(mediaId)
+        }
+        for (candidateId in candidateIds) {
+            val cachedAudio = withContext(Dispatchers.IO) {
+                com.darkxvenom.airbeats.utils.SaveToStorageUtil.getCachedAudioBytes(this@MusicService, candidateId)
+            }
+            if (cachedAudio != null) {
+                val (bytes, ext) = cachedAudio
+                val mimeType = when (ext) {
+                    "m4a", "mp4" -> "audio/mp4"
+                    "opus", "ogg" -> "audio/ogg"
+                    "flac" -> "audio/flac"
+                    "wav" -> "audio/wav"
+                    else -> "audio/mpeg"
+                }
+                val streamCacheDir = java.io.File(cacheDir, "lan_stream").apply { mkdirs() }
+                val safeFileName = candidateId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+                val tempFile = java.io.File(streamCacheDir, "cached_${safeFileName}.$ext")
+                runCatching {
+                    if (!tempFile.exists() || tempFile.length() != bytes.size.toLong()) {
+                        tempFile.outputStream().use { it.write(bytes) }
+                    }
+                }
+                if (tempFile.exists() && tempFile.length() > 0) {
+                    return ResolvedCastStream(
+                        url = android.net.Uri.fromFile(tempFile).toString(),
+                        mimeType = mimeType
+                    )
+                }
+            }
+        }
+
         songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let { cached ->
             return ResolvedCastStream(
                 url = cached.url,
