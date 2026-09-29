@@ -3427,15 +3427,24 @@ class MusicService :
             player.mediaItems.find { it.mediaId == mediaId }?.localConfiguration?.uri
         }
         if (localUri != null && (localUri.scheme == "content" || localUri.scheme == "file")) {
+            val detectedMime = runCatching {
+                if (localUri.scheme == "content") contentResolver.getType(localUri)
+                else null
+            }.getOrNull()?.takeIf { it.isNotBlank() } ?: "audio/mpeg"
             return ResolvedCastStream(
                 url = localUri.toString(),
-                mimeType = "audio/mp4"
+                mimeType = detectedMime
             )
         }
         if (mediaId.startsWith("content://") || mediaId.startsWith("file://")) {
+            val uri = android.net.Uri.parse(mediaId)
+            val detectedMime = runCatching {
+                if (uri.scheme == "content") contentResolver.getType(uri)
+                else null
+            }.getOrNull()?.takeIf { it.isNotBlank() } ?: "audio/mpeg"
             return ResolvedCastStream(
                 url = mediaId,
-                mimeType = "audio/mp4"
+                mimeType = detectedMime
             )
         }
 

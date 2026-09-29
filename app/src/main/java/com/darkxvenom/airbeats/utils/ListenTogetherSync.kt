@@ -200,9 +200,13 @@ object ListenTogetherSync {
             try {
                 lanServer?.stop()
                 val server = LanTogetherServer(
+                    context = context,
                     hostIp = localIp,
                     port = port,
-                    hostDisplayName = _displayName.value
+                    hostDisplayName = _displayName.value,
+                    audioStreamResolver = { songId ->
+                        playerConnection?.service?.resolveAudioStreamForCast(songId)
+                    }
                 )
                 server.playbackState = ListenTogetherPlaybackState(
                     songId = metadata.id,
