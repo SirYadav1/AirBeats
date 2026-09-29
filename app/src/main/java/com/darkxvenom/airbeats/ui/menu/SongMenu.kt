@@ -144,6 +144,10 @@ fun SongMenu(
         mutableStateOf(false)
     }
 
+    var showSnippetStudioDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+
     if (showEditDialog) {
         TextFieldDialog(
             icon = { Icon(painter = painterResource(R.drawable.edit), contentDescription = null) },
@@ -586,6 +590,21 @@ fun SongMenu(
         }
         item {
             ListItem(
+                headlineContent = { Text(text = stringResource(R.string.ringtone_studio)) },
+                supportingContent = { Text(text = stringResource(R.string.ringtone_studio_desc)) },
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.content_cut),
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.clickable {
+                    showSnippetStudioDialog = true
+                }
+            )
+        }
+        item {
+            ListItem(
                 headlineContent = { Text(text = stringResource(R.string.view_artist)) },
                 leadingContent = {
                     Icon(
@@ -708,5 +727,14 @@ fun SongMenu(
                 }
             )
         }
+    }
+
+    if (showSnippetStudioDialog) {
+        com.darkxvenom.airbeats.ui.component.SongSnippetStudioDialog(
+            mediaMetadata = song.toMediaMetadata(),
+            onDismiss = {
+                showSnippetStudioDialog = false
+            }
+        )
     }
 }

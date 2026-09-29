@@ -14,6 +14,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
+enum class ListenTogetherConnectionMode {
+    ONLINE,
+    LAN
+}
+
 object ListenTogetherSync {
     private const val SYNC_MS = 260L
     private const val CONTROLLER_PUBLISH_MS = 520L
@@ -35,11 +40,17 @@ object ListenTogetherSync {
     private val _isHost = MutableStateFlow(false)
     val isHost = _isHost.asStateFlow()
 
+    private val _connectionMode = MutableStateFlow(ListenTogetherConnectionMode.ONLINE)
+    val connectionMode = _connectionMode.asStateFlow()
+
     private val _message = MutableStateFlow<String?>(null)
     val message = _message.asStateFlow()
 
     private val _displayName = MutableStateFlow(ListenTogetherStore.defaultName())
     val displayName = _displayName.asStateFlow()
+
+    private var lanServer: LanTogetherServer? = null
+    private var lanHostAddress: String? = null
 
     fun start(
         context: Context,
@@ -51,9 +62,23 @@ object ListenTogetherSync {
         if (saved != null && _session.value == null) {
             _displayName.value = saved.displayName
             _isHost.value = saved.isHost
+            _connectionMode.value = if (saved.isLan) ListenTogetherConnectionMode.LAN else ListenTogetherConnectionMode.ONLINE
+            lanHostAddress = saved.hostAddress
             scope.launch {
                 runCatching {
-                    ListenTogetherClient.getSession(saved.code).copy(participantId = saved.participantId)
+                    if (saved.isLan) {
+                        if (saved.isHost) {
+                            val localIp = LanTogetherServer.getLocalIpAddress(context) ?: "127.0.0.1"
+                            val port = saved.code.substringAfterLast(":").toIntOrNull() ?: 8765
+                            startLanHost(port)
+                            return@launch
+                        } else {
+                            val host = saved.hostAddress ?: saved.code
+                            LanTogetherClient.getSession(host, saved.participantId)
+                        }
+                    } else {
+                        ListenTogetherClient.getSession(saved.code).copy(participantId = saved.participantId)
+                    }
                 }.onSuccess {
                     _session.value = it
                     lastAppliedVersion = it.stateVersion
@@ -72,18 +97,33 @@ object ListenTogetherSync {
         _displayName.value = name.ifBlank { ListenTogetherStore.defaultName() }
     }
 
+    fun setConnectionMode(mode: ListenTogetherConnectionMode) {
+        _connectionMode.value = mode
+    }
+
     fun adoptSession(
         context: Context,
         session: ListenTogetherSession,
         displayName: String,
         isHost: Boolean,
+        isLan: Boolean = false,
+        hostAddress: String? = null,
     ) {
         _displayName.value = displayName.ifBlank { ListenTogetherStore.defaultName() }
         _session.value = session
         _isHost.value = isHost
+        _connectionMode.value = if (isLan) ListenTogetherConnectionMode.LAN else ListenTogetherConnectionMode.ONLINE
+        lanHostAddress = hostAddress
         appContext = context.applicationContext
         lastAppliedVersion = session.stateVersion
-        ListenTogetherStore.save(context.applicationContext, session, _displayName.value, isHost)
+        ListenTogetherStore.save(
+            context = context.applicationContext,
+            session = session,
+            displayName = _displayName.value,
+            isHost = isHost,
+            isLan = isLan,
+            hostAddress = hostAddress
+        )
         restartSync()
     }
 
@@ -107,13 +147,15 @@ object ListenTogetherSync {
                             thumbnailUrl = metadata.thumbnailUrl,
                             positionMs = connection.player.currentPosition,
                             isPlaying = connection.player.playWhenReady,
+                            durationMs = connection.player.duration.takeIf { it > 0 } ?: (metadata.duration.toLong() * 1000L).coerceAtLeast(0L),
                         )
                 )
             }.onSuccess {
                 _session.value = it
                 _isHost.value = true
+                _connectionMode.value = ListenTogetherConnectionMode.ONLINE
                 lastAppliedVersion = it.stateVersion
-                ListenTogetherStore.save(context, it, _displayName.value, true)
+                ListenTogetherStore.save(context, it, _displayName.value, true, isLan = false)
                 _message.value = "Session created"
                 restartSync()
             }.onFailure {
@@ -130,8 +172,9 @@ object ListenTogetherSync {
             }.onSuccess {
                 _session.value = it
                 _isHost.value = false
+                _connectionMode.value = ListenTogetherConnectionMode.ONLINE
                 lastAppliedVersion = 0L
-                ListenTogetherStore.save(context, it, _displayName.value, false)
+                ListenTogetherStore.save(context, it, _displayName.value, false, isLan = false)
                 _message.value = "Joined session"
                 restartSync()
             }.onFailure {
@@ -140,15 +183,141 @@ object ListenTogetherSync {
         }
     }
 
+    fun startLanHost(port: Int = 8765) {
+        val context = appContext ?: return
+        val connection = playerConnection ?: return
+        val metadata = connection.mediaMetadata.value ?: run {
+            _message.value = "Play a song first"
+            return
+        }
+
+        val localIp = LanTogetherServer.getLocalIpAddress(context)
+        if (localIp.isNullOrBlank()) {
+            _message.value = "Connect to Wi-Fi or enable Hotspot first"
+            return
+        }
+
+        scope.launch {
+            try {
+                lanServer?.stop()
+                val server = LanTogetherServer(
+                    context = context,
+                    hostIp = localIp,
+                    port = port,
+                    hostDisplayName = _displayName.value,
+                    audioStreamResolver = { songId ->
+                        playerConnection?.service?.resolveAudioStreamForCast(songId)
+                    }
+                )
+                server.playbackState = ListenTogetherPlaybackState(
+                    songId = metadata.id,
+                    title = metadata.title,
+                    artists = metadata.artists.map { it.name },
+                    thumbnailUrl = metadata.thumbnailUrl,
+                    positionMs = connection.player.currentPosition,
+                    isPlaying = connection.player.playWhenReady,
+                    durationMs = connection.player.duration.takeIf { it > 0 } ?: (metadata.duration.toLong() * 1000L).coerceAtLeast(0L),
+                )
+                server.onPlaybackCommand = { action, positionMs ->
+                    scope.launch(Dispatchers.Main) {
+                        val player = connection.player
+                        when (action) {
+                            "play", "resume" -> {
+                                if (!player.playWhenReady) {
+                                    player.play()
+                                }
+                            }
+                            "pause" -> {
+                                if (player.playWhenReady) {
+                                    player.pause()
+                                }
+                            }
+                            "seek" -> {
+                                if (positionMs != null && positionMs >= 0) {
+                                    player.seekTo(positionMs)
+                                }
+                            }
+                        }
+                    }
+                }
+                server.start(30000, true)
+                lanServer = server
+                lanHostAddress = "$localIp:$port"
+                _connectionMode.value = ListenTogetherConnectionMode.LAN
+
+                val initialSession = server.buildSessionSnapshot("host")
+                _session.value = initialSession
+                _isHost.value = true
+                lastAppliedVersion = initialSession.stateVersion
+
+                ListenTogetherStore.save(
+                    context = context,
+                    session = initialSession,
+                    displayName = _displayName.value,
+                    isHost = true,
+                    isLan = true,
+                    hostAddress = "$localIp:$port"
+                )
+                _message.value = "LAN host started on $localIp:$port"
+                restartSync()
+            } catch (e: Exception) {
+                _message.value = "Failed to start LAN host: ${e.message}"
+            }
+        }
+    }
+
+    fun joinLanSession(hostAddress: String) {
+        val context = appContext ?: return
+        scope.launch {
+            runCatching {
+                val cleanAddress = LanTogetherClient.normalizeHostAddress(hostAddress)
+                val newSession = LanTogetherClient.joinSession(cleanAddress, _displayName.value)
+                cleanAddress to newSession
+            }.onSuccess { (cleanAddress, newSession) ->
+                lanHostAddress = cleanAddress
+                _connectionMode.value = ListenTogetherConnectionMode.LAN
+                _session.value = newSession
+                _isHost.value = false
+                lastAppliedVersion = 0L
+                ListenTogetherStore.save(
+                    context = context,
+                    session = newSession,
+                    displayName = _displayName.value,
+                    isHost = false,
+                    isLan = true,
+                    hostAddress = cleanAddress
+                )
+                _message.value = "Joined LAN session"
+                restartSync()
+            }.onFailure {
+                _message.value = it.message ?: "Failed to connect to LAN host"
+            }
+        }
+    }
+
     fun leaveSession() {
         val context = appContext
         val activeSession = _session.value
+        val isLan = _connectionMode.value == ListenTogetherConnectionMode.LAN
+        val hostAddr = lanHostAddress
         scope.launch {
             if (activeSession != null) {
-                runCatching {
-                    ListenTogetherClient.leaveSession(activeSession.code, activeSession.participantId)
+                if (isLan) {
+                    if (_isHost.value) {
+                        runCatching { lanServer?.stop() }
+                        lanServer = null
+                    } else if (!hostAddr.isNullOrBlank()) {
+                        runCatching { LanTogetherClient.leaveSession(hostAddr, activeSession.participantId) }
+                    }
+                } else {
+                    runCatching {
+                        ListenTogetherClient.leaveSession(activeSession.code, activeSession.participantId)
+                    }
                 }
             }
+            lanServer?.stop()
+            lanServer = null
+            lanHostAddress = null
             if (context != null) ListenTogetherStore.clear(context)
             _session.value = null
             _isHost.value = false
@@ -174,6 +343,108 @@ object ListenTogetherSync {
         connection: PlayerConnection,
         session: ListenTogetherSession,
     ) {
+        if (_connectionMode.value == ListenTogetherConnectionMode.LAN) {
+            syncOnceLan(connection, session)
+        } else {
+            syncOnceOnline(connection, session)
+        }
+    }
+
+    private fun syncOnceLan(
+        connection: PlayerConnection,
+        session: ListenTogetherSession,
+    ) {
+        val server = lanServer
+        if (_isHost.value && server != null) {
+            val metadata = connection.mediaMetadata.value
+            if (metadata != null) {
+                val current = server.playbackState
+                val isPlaying = connection.player.playWhenReady
+                val pos = connection.player.currentPosition
+                val timeSinceAction = System.currentTimeMillis() - server.lastActionTime
+                val isActionPending = timeSinceAction < 2000L && current?.isPlaying != isPlaying
+
+                val needsUpdate = !isActionPending && (current == null ||
+                    current.songId != metadata.id ||
+                    current.isPlaying != isPlaying ||
+                    abs(pos - current.positionMs) > 1000L)
+
+                if (needsUpdate) {
+                    server.playbackState = ListenTogetherPlaybackState(
+                        songId = metadata.id,
+                        title = metadata.title,
+                        artists = metadata.artists.map { it.name },
+                        thumbnailUrl = metadata.thumbnailUrl,
+                        positionMs = pos,
+                        isPlaying = isPlaying,
+                        durationMs = connection.player.duration.takeIf { it > 0 } ?: (metadata.duration.toLong() * 1000L).coerceAtLeast(0L),
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    server.stateVersion++
+                }
+            }
+            _session.value = server.buildSessionSnapshot("host")
+            return
+        }
+
+        val host = lanHostAddress ?: return
+        scope.launch {
+            runCatching {
+                LanTogetherClient.getSession(host, session.participantId)
+            }.onSuccess { remoteSession ->
+                val keptSession = remoteSession.copy(participantId = session.participantId)
+                _session.value = keptSession
+                val remoteState = remoteSession.state ?: return@onSuccess
+                val now = System.currentTimeMillis()
+
+                if (remoteSession.stateVersion > lastAppliedVersion) {
+                    applyRemoteState(connection, remoteSession)
+                    lastAppliedVersion = remoteSession.stateVersion
+                    return@onSuccess
+                }
+
+                if (now > suppressLocalPublishUntil && localUserChangedPlayback(connection, remoteSession)) {
+                    publishLocalStateLan(connection, host, keptSession)
+                } else {
+                    softCorrectPosition(connection, remoteSession)
+                }
+            }.onFailure {
+                _message.value = it.message
+            }
+        }
+    }
+
+    private suspend fun publishLocalStateLan(
+        connection: PlayerConnection,
+        hostAddress: String,
+        session: ListenTogetherSession,
+    ) {
+        val metadata = connection.mediaMetadata.value ?: return
+        runCatching {
+            LanTogetherClient.updateState(
+                hostAddress = hostAddress,
+                participantId = session.participantId,
+                state = ListenTogetherPlaybackState(
+                    songId = metadata.id,
+                    title = metadata.title,
+                    artists = metadata.artists.map { it.name },
+                    thumbnailUrl = metadata.thumbnailUrl,
+                    positionMs = connection.player.currentPosition,
+                    isPlaying = connection.player.playWhenReady,
+                )
+            )
+        }.onSuccess {
+            _session.value = it.copy(participantId = session.participantId)
+            lastAppliedVersion = it.stateVersion
+        }.onFailure {
+            _message.value = it.message
+        }
+    }
+
+    private suspend fun syncOnceOnline(
+        connection: PlayerConnection,
+        session: ListenTogetherSession,
+    ) {
         runCatching {
             ListenTogetherClient.getSession(session.code)
         }.onSuccess { remoteSession ->
@@ -190,13 +461,13 @@ object ListenTogetherSync {
             }
 
             if (isController && now - lastControllerPublishAt >= CONTROLLER_PUBLISH_MS) {
-                publishLocalState(connection, keptSession)
+                publishLocalStateOnline(connection, keptSession)
                 lastControllerPublishAt = now
                 return@onSuccess
             }
 
             if (now > suppressLocalPublishUntil && localUserChangedPlayback(connection, remoteSession)) {
-                publishLocalState(connection, keptSession)
+                publishLocalStateOnline(connection, keptSession)
             } else if (!isController) {
                 softCorrectPosition(connection, remoteSession)
             }
@@ -216,7 +487,7 @@ object ListenTogetherSync {
         return abs(connection.player.currentPosition - expectedPosition(remoteSession)) > USER_SEEK_TOLERANCE_MS
     }
 
-    private suspend fun publishLocalState(
+    private suspend fun publishLocalStateOnline(
         connection: PlayerConnection,
         session: ListenTogetherSession,
     ) {

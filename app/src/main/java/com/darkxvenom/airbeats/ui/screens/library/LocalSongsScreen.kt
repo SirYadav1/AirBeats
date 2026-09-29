@@ -42,6 +42,7 @@ import com.darkxvenom.airbeats.LocalPlayerAwareWindowInsets
 import com.darkxvenom.airbeats.LocalPlayerConnection
 import com.darkxvenom.airbeats.R
 import com.darkxvenom.airbeats.models.LocalSong
+import com.darkxvenom.airbeats.playback.queues.ListQueue
 import com.darkxvenom.airbeats.viewmodels.LocalSongsViewModel
 
 @Composable
@@ -211,9 +212,13 @@ fun LocalSongsScreen(
                                 onClick = {
                                     playerConnection?.let { pc ->
                                         val mediaItems = songs.map { it.toMediaItem() }
-                                        pc.player.setMediaItems(mediaItems, index, 0L)
-                                        pc.player.prepare()
-                                        pc.player.play()
+                                        pc.playQueue(
+                                            ListQueue(
+                                                title = "Local Songs",
+                                                items = mediaItems,
+                                                startIndex = index,
+                                            )
+                                        )
                                     }
                                 },
                             )
@@ -475,8 +480,9 @@ private fun EmptyState(
 // ── Extension: LocalSong → MediaItem ─────────────────────────────────────────
 fun LocalSong.toMediaItem(): MediaItem =
     MediaItem.Builder()
-        .setMediaId(uri.toString()) // ✅ FIXED
+        .setMediaId(uri.toString())
         .setUri(uri)
+        .setCustomCacheKey(uri.toString())
         .setTag(
             com.darkxvenom.airbeats.models.MediaMetadata(
                 id = uri.toString(),

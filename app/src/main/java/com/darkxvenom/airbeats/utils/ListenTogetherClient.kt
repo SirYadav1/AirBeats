@@ -129,6 +129,20 @@ data class ListenTogetherSession(
     val serverNow: Long,
     val state: ListenTogetherPlaybackState?,
 ) {
+    fun toJson(): JSONObject =
+        JSONObject()
+            .put("code", code)
+            .put("participantId", participantId)
+            .put("joinUrl", joinUrl)
+            .put("participants", participants)
+            .put("participantList", JSONArray().apply { participantList.forEach { put(it.toJson()) } })
+            .put("hostName", hostName)
+            .put("controllerId", controllerId)
+            .put("controllerName", controllerName)
+            .put("stateVersion", stateVersion)
+            .put("serverNow", serverNow)
+            .put("state", state?.toJson())
+
     companion object {
         fun fromJson(json: JSONObject): ListenTogetherSession =
             ListenTogetherSession(
@@ -157,6 +171,12 @@ data class ListenTogetherParticipant(
     val name: String,
     val isHost: Boolean,
 ) {
+    fun toJson(): JSONObject =
+        JSONObject()
+            .put("id", id)
+            .put("name", name)
+            .put("isHost", isHost)
+
     companion object {
         fun fromJson(json: JSONObject) =
             ListenTogetherParticipant(
@@ -174,6 +194,7 @@ data class ListenTogetherPlaybackState(
     val thumbnailUrl: String?,
     val positionMs: Long,
     val isPlaying: Boolean,
+    val durationMs: Long = 0L,
     val updatedAt: Long = System.currentTimeMillis(),
 ) {
     fun toMediaMetadata() =
@@ -181,7 +202,7 @@ data class ListenTogetherPlaybackState(
             id = songId,
             title = title,
             artists = artists.map { MediaMetadata.Artist(id = null, name = it) },
-            duration = -1,
+            duration = if (durationMs > 0) (durationMs / 1000).toInt() else -1,
             thumbnailUrl = thumbnailUrl,
         )
 
@@ -193,6 +214,7 @@ data class ListenTogetherPlaybackState(
             .put("thumbnailUrl", thumbnailUrl)
             .put("positionMs", positionMs)
             .put("isPlaying", isPlaying)
+            .put("durationMs", durationMs)
             .put("updatedAt", updatedAt)
 
     companion object {
@@ -207,6 +229,7 @@ data class ListenTogetherPlaybackState(
                 thumbnailUrl = json.optString("thumbnailUrl").takeIf { it.isNotBlank() },
                 positionMs = json.optLong("positionMs"),
                 isPlaying = json.optBoolean("isPlaying"),
+                durationMs = json.optLong("durationMs", 0L),
                 updatedAt = json.optLong("updatedAt"),
             )
     }

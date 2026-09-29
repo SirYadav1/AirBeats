@@ -92,7 +92,7 @@ object SaveToStorageUtil {
         return "m4a"
     }
 
-    private fun getCachedAudioBytes(context: Context, mediaId: String): Pair<ByteArray, String>? {
+    fun getCachedAudioBytes(context: Context, mediaId: String): Pair<ByteArray, String>? {
         try {
             val downloadCache = PlayerConnection.instance?.service?.downloadCache
                 ?: MusicService.instance?.downloadCache

@@ -290,6 +290,14 @@ fun PlayerMenu(
         mutableStateOf(false)
     }
     var showSleepTimerDialog by rememberSaveable { mutableStateOf(false) }
+    var showSnippetStudioDialog by rememberSaveable { mutableStateOf(false) }
+
+    if (showSnippetStudioDialog) {
+        com.darkxvenom.airbeats.ui.component.SongSnippetStudioDialog(
+            mediaMetadata = mediaMetadata,
+            onDismiss = { showSnippetStudioDialog = false }
+        )
+    }
 
     if (showSleepTimerDialog) {
         com.darkxvenom.airbeats.ui.player.SleepTimerDialog(
@@ -572,7 +580,11 @@ fun PlayerMenu(
                                 },
                                 colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent),
                                 modifier = Modifier.clickable {
-                                    mediaRouteButtonRef.value?.performClick()
+                                    runCatching {
+                                        mediaRouteButtonRef.value?.performClick()
+                                    }.onFailure { e ->
+                                        timber.log.Timber.w(e, "Failed to launch MediaRouteButton chooser")
+                                    }
                                 }
                             )
                         }
@@ -761,6 +773,16 @@ fun PlayerMenu(
                     }
 
                     item {
+                        androidx.compose.material3.ListItem(
+                            headlineContent = { Text(stringResource(R.string.ringtone_studio)) },
+                            supportingContent = { Text(stringResource(R.string.ringtone_studio_desc)) },
+                            leadingContent = { Icon(painterResource(R.drawable.content_cut), contentDescription = null) },
+                            colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.clickable { showSnippetStudioDialog = true }
+                        )
+                    }
+
+                    item {
                         val service = playerConnection.service
                         val audioBoostEnabled by service.audioBoostEnabled.collectAsState()
                         val audioBoostPercent by service.audioBoostPercent.collectAsState()
@@ -928,7 +950,9 @@ fun PlayerMenu(
                             leadingContent = { Icon(painterResource(R.drawable.group), contentDescription = null) },
                             colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent),
                             modifier = Modifier.clickable {
-                                showListenTogetherSheet = true
+                                navController.navigate("listen_together")
+                                playerBottomSheetState.collapseSoft()
+                                onDismiss()
                             }
                         )
                     }

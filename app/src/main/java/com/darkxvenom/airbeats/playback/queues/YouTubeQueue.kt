@@ -72,10 +72,31 @@ class YouTubeQueue(
             }
         endpoint = nextResult.endpoint
         continuation = nextResult.continuation
+
+        val targetId = endpoint.videoId ?: preloadItem?.id
+        val rawItems = nextResult.items.map { it.toMediaItem() }
+
+        val targetIndex = if (targetId != null) {
+            rawItems.indexOfFirst { it.mediaId == targetId }
+        } else -1
+
+        val (finalItems, finalIndex) = when {
+            targetIndex != -1 -> {
+                rawItems to targetIndex
+            }
+            preloadItem != null -> {
+                val prepended = listOf(preloadItem.toMediaItem()) + rawItems.filter { it.mediaId != preloadItem.id }
+                prepended to 0
+            }
+            else -> {
+                rawItems to (nextResult.currentIndex ?: 0).coerceIn(0, (rawItems.size - 1).coerceAtLeast(0))
+            }
+        }
+
         return Queue.Status(
-            title = nextResult.title,
-            items = nextResult.items.map { it.toMediaItem() },
-            mediaItemIndex = nextResult.currentIndex ?: 0,
+            title = nextResult.title ?: preloadItem?.title,
+            items = finalItems,
+            mediaItemIndex = finalIndex,
         )
     }
 

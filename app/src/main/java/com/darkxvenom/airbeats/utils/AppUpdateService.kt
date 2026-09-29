@@ -201,9 +201,18 @@ class AppUpdateService : Service() {
             .setProgress(100, progress, ongoing)
             .build()
 
+    private fun canInstallPackages(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            runCatching { context.packageManager.canRequestPackageInstalls() }.getOrDefault(false)
+        } else {
+            true
+        }
+    }
+
     private fun showReadyNotification(apk: File) {
         val uri = FileProvider.getUriForFile(this, "$packageName.provider", apk)
-        val contentIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+        val canInstall = canInstallPackages(this)
+        val contentIntent = if (!canInstall && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val settingsIntent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                 data = Uri.parse("package:$packageName")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -227,7 +236,7 @@ class AppUpdateService : Service() {
             )
         }
 
-        val message = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+        val message = if (!canInstall && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             "Tap to allow 'Install unknown apps', then install the update."
         } else {
             "Download complete. Tap to install the latest version."
@@ -293,7 +302,12 @@ class AppUpdateService : Service() {
 
         fun openInstaller(context: Context, apk: File) {
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", apk)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+            val canInstall = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                runCatching { context.packageManager.canRequestPackageInstalls() }.getOrDefault(false)
+            } else {
+                true
+            }
+            if (!canInstall && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val intent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                     data = Uri.parse("package:${context.packageName}")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

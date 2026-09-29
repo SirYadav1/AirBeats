@@ -54,7 +54,11 @@ fun PlayerCastMenuRow(
 
     Surface(
         onClick = {
-            buttonRef.value?.performClick()
+            runCatching {
+                buttonRef.value?.performClick()
+            }.onFailure { e ->
+                Timber.w(e, "Failed to launch MediaRouteButton chooser")
+            }
         },
         shape = RoundedCornerShape(14.dp),
         color = if (isCasting) {
@@ -153,7 +157,13 @@ fun PlayerCastIconButton(
         modifier = modifier
             .size(36.dp)
             .clip(CircleShape)
-            .clickable { buttonRef.value?.performClick() },
+            .clickable {
+                runCatching {
+                    buttonRef.value?.performClick()
+                }.onFailure { e ->
+                    Timber.w(e, "Failed to launch MediaRouteButton chooser")
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         AndroidView(
