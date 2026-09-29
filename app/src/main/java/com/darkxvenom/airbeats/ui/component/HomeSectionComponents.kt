@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.darkxvenom.airbeats.LocalDatabase
+import com.darkxvenom.airbeats.db.entities.LocalItem
 import com.darkxvenom.airbeats.db.entities.Song
 import com.darkxvenom.airbeats.innertube.YouTube
 import com.darkxvenom.airbeats.innertube.models.SongItem
@@ -92,13 +93,13 @@ object InfiniteRadioHelper {
         currentSongId: String?,
         quickPicks: List<Song>?,
         forgottenFavorites: List<Song>? = null,
-        keepListening: List<Song>? = null,
+        keepListening: List<LocalItem>? = null,
         homeSongs: List<SongItem>? = null,
     ) {
         val pool = mutableListOf<MediaMetadata>()
         quickPicks?.forEach { pool.add(it.toMediaMetadata()) }
         forgottenFavorites?.forEach { pool.add(it.toMediaMetadata()) }
-        keepListening?.forEach { pool.add(it.toMediaMetadata()) }
+        keepListening?.filterIsInstance<Song>()?.forEach { pool.add(it.toMediaMetadata()) }
         homeSongs?.forEach { pool.add(it.toMediaMetadata()) }
 
         if (pool.isEmpty()) return

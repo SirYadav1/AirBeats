@@ -8,6 +8,7 @@ import com.darkxvenom.airbeats.innertube.models.WatchEndpoint
 import com.darkxvenom.airbeats.playback.PlayerConnection
 import com.darkxvenom.airbeats.playback.queues.ListQueue
 import com.darkxvenom.airbeats.playback.queues.YouTubeQueue
+import com.darkxvenom.airbeats.media.LinkMediaResolver
 import com.darkxvenom.airbeats.providers.ProviderSong
 import com.darkxvenom.airbeats.share.SharedContent
 import com.darkxvenom.airbeats.usecases.IdentificationOutcome

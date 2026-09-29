@@ -913,7 +913,7 @@ private fun InstagramManualDownloadContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(20.dp),
-                        verticalAlignment = Alignment.CenterVertizontally,
+                        verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
                         CircularProgressIndicator(
