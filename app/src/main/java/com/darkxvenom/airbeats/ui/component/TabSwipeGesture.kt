@@ -24,7 +24,7 @@ fun Modifier.tabSwipeGesture(
 
     return this.pointerInput(currentRoute, enabled, navigationItems) {
         awaitEachGesture {
-            val down = awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
+            val down = awaitFirstDown(pass = PointerEventPass.Main, requireUnconsumed = false)
             // If touch starts near edge, let back gesture or system edge gesture handle it
             if (down.position.x <= edgeExcludePx) return@awaitEachGesture
 
@@ -34,29 +34,37 @@ fun Modifier.tabSwipeGesture(
             var isHorizontalClaimed = false
 
             while (true) {
-                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                val event = awaitPointerEvent(pass = PointerEventPass.Main)
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
 
                 if (!change.pressed) break
+
+                // If any child (e.g. Quick Picks, Keep Listening, Carousel, horizontal slider)
+                // has already consumed the drag, do NOT hijack or intercept!
+                if (!isHorizontalClaimed && change.isConsumed) {
+                    break
+                }
 
                 val positionChange = change.positionChange()
                 totalDragX += positionChange.x
                 totalDragY += positionChange.y
 
                 if (!isHorizontalClaimed) {
-                    if (abs(totalDragX) > 24f && abs(totalDragX) > abs(totalDragY) * 1.25f) {
+                    // Vertical gesture dominant -> let vertical list handle it
+                    if (abs(totalDragY) > 24f && abs(totalDragY) > abs(totalDragX)) {
+                        break
+                    }
+                    // Requires intentional horizontal drag and no child claimed it
+                    if (abs(totalDragX) > 48f && abs(totalDragX) > abs(totalDragY) * 2.0f) {
                         isHorizontalClaimed = true
                         change.consume()
-                    } else if (abs(totalDragY) > 28f && abs(totalDragY) > abs(totalDragX)) {
-                        // Vertical scroll dominant -> let child list handle it
-                        break
                     }
                 }
 
                 if (isHorizontalClaimed) {
                     change.consume()
 
-                    if (!hasTriggered && abs(totalDragX) > 55f) {
+                    if (!hasTriggered && abs(totalDragX) > 130f) {
                         hasTriggered = true
                         val currentIndex = navigationItems.indexOfFirst { screen ->
                             screen.route == currentRoute || 
@@ -72,6 +80,7 @@ fun Modifier.tabSwipeGesture(
                                 onNavigateToRoute(navigationItems[currentIndex - 1].route)
                             }
                         }
+                        break
                     }
                 }
             }

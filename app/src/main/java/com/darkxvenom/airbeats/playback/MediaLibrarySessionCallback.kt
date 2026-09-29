@@ -1,4 +1,4 @@
-﻿/*
+/*
  * AirBeats Project (2026)
  * Arturo254 (github.com/Arturo254)
  * Licensed Under GPL-3.0 | see git history for contributors
@@ -733,14 +733,23 @@ constructor(
 
                 else -> {
                     val query = firstItem.requestMetadata.searchQuery?.trim().orEmpty()
-                    if (query.isBlank()) return@future defaultResult
+                    if (query.isNotBlank()) {
+                        val matchedSongs = database.searchSongs(query, previewSize = 50).first()
+                        val songId = matchedSongs.firstOrNull()?.id
+                        if (songId != null) {
+                            val allSongs = database.songsByCreateDateAsc().first()
+                            return@future MediaSession.MediaItemsWithStartPosition(
+                                allSongs.map { it.toMediaItem() },
+                                allSongs.indexOfFirst { it.id == songId }.takeIf { it != -1 } ?: 0,
+                                startPositionMs,
+                            )
+                        }
+                    }
 
-                    val matchedSongs = database.searchSongs(query, previewSize = 50).first()
-                    val songId = matchedSongs.firstOrNull()?.id ?: return@future defaultResult
-                    val allSongs = database.songsByCreateDateAsc().first()
+                    // Return the media items that were actually passed in by the app/controller
                     MediaSession.MediaItemsWithStartPosition(
-                        allSongs.map { it.toMediaItem() },
-                        allSongs.indexOfFirst { it.id == songId }.takeIf { it != -1 } ?: 0,
+                        mediaItems,
+                        startIndex.coerceIn(0, (mediaItems.size - 1).coerceAtLeast(0)),
                         startPositionMs,
                     )
                 }

@@ -1330,7 +1330,10 @@ class MusicService :
         currentQueue = queue
         queueTitle = null
         val isPermanentShuffle = dataStore.get(PermanentShuffleKey, false)
-        player.shuffleModeEnabled = isPermanentShuffle
+        val hadShuffle = player.shuffleModeEnabled || isPermanentShuffle
+        // Temporarily disable shuffle so setMediaItems plays the clicked song, not a random shuffle item
+        player.shuffleModeEnabled = false
+
         if (queue.preloadItem != null) {
             player.setMediaItem(queue.preloadItem!!.toMediaItem())
             player.prepare()
@@ -1353,43 +1356,44 @@ class MusicService :
                 queueTitle = initialStatus.title
             }
             if (initialStatus.items.isEmpty()) return@launch
-            if (queue.preloadItem != null) {
-                player.addMediaItems(
-                    0,
-                    initialStatus.items.subList(0, initialStatus.mediaItemIndex)
-                )
-                player.addMediaItems(
-                    initialStatus.items.subList(
-                        initialStatus.mediaItemIndex + 1,
-                        initialStatus.items.size
-                    )
-                )
+
+            val targetSongId = queue.preloadItem?.id
+            val targetIndex = if (targetSongId != null) {
+                val found = initialStatus.items.indexOfFirst { it.mediaId == targetSongId }
+                if (found != -1) found else initialStatus.mediaItemIndex.coerceIn(0, initialStatus.items.lastIndex)
             } else {
-                player.setMediaItems(
-                    initialStatus.items,
-                    if (initialStatus.mediaItemIndex >
-                        0
-                    ) {
-                        initialStatus.mediaItemIndex
-                    } else {
-                        0
-                    },
-                    initialStatus.position,
-                )
-                player.prepare()
-                player.playWhenReady = playWhenReady
+                initialStatus.mediaItemIndex.coerceIn(0, initialStatus.items.lastIndex)
             }
-            if (isPermanentShuffle && player.mediaItemCount > 1) {
+
+            val startPos = if (queue.preloadItem != null && player.playbackState != STATE_IDLE && player.currentMediaItem?.mediaId == initialStatus.items.getOrNull(targetIndex)?.mediaId) {
+                player.currentPosition
+            } else {
+                initialStatus.position
+            }
+
+            player.setMediaItems(
+                initialStatus.items,
+                targetIndex,
+                startPos,
+            )
+            player.prepare()
+            player.playWhenReady = playWhenReady
+
+            if (hadShuffle && player.mediaItemCount > 1) {
                 val shuffledIndices = IntArray(player.mediaItemCount) { it }
                 shuffledIndices.shuffle()
-                val currentIdx = player.currentMediaItemIndex
+                val currentIdx = targetIndex
                 val currentPosInShuffled = shuffledIndices.indexOf(currentIdx)
                 if (currentPosInShuffled != -1) {
                     shuffledIndices[currentPosInShuffled] = shuffledIndices[0]
                     shuffledIndices[0] = currentIdx
                 }
                 player.setShuffleOrder(DefaultShuffleOrder(shuffledIndices, System.currentTimeMillis()))
+                player.shuffleModeEnabled = true
+            } else {
+                player.shuffleModeEnabled = isPermanentShuffle
             }
+
             // Si la cola tiene 1 sola canción y Endless Queue está activo, precargar canciones relacionadas
             if (dataStore.get(AutoLoadMoreKey, true) && !currentQueue.hasNextPage() && player.mediaItemCount <= 1) {
                 val seedId = player.currentMediaItem?.mediaId
@@ -2697,10 +2701,11 @@ class MusicService :
         }
 
         return ResolvingDataSource.Factory(createCacheDataSource()) { dataSpec ->
-            val mediaId = dataSpec.key ?: error("No media id")
             if (dataSpec.uri.scheme == "content") {
                 return@Factory dataSpec
             }
+
+            val mediaId = dataSpec.key ?: dataSpec.uri.toString()
 
             if (dataSpec.uri.scheme == "file") {
                 val fileExists = dataSpec.uri.path?.let { path -> java.io.File(path).isFile } == true

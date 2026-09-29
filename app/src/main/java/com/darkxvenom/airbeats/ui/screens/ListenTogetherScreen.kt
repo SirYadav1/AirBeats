@@ -308,7 +308,7 @@ fun ListenTogetherScreen(
                                 OutlinedButton(
                                     enabled = session?.joinUrl?.isNotBlank() == true,
                                     onClick = {
-                                        val shareText = "${session?.joinUrl}\n$listenTogetherCodeLabel: ${session?.code}"
+                                        val shareText = session?.joinUrl?.takeIf { it.isNotBlank() } ?: session?.code.orEmpty()
                                         context.startActivity(
                                             Intent.createChooser(
                                                 Intent(Intent.ACTION_SEND).apply {
@@ -453,7 +453,7 @@ fun ListenTogetherScreen(
                                 OutlinedButton(
                                     enabled = session?.joinUrl?.isNotBlank() == true,
                                     onClick = {
-                                        val shareText = "Listen Together on LAN:\nJoin link: ${session?.joinUrl}\nHost: ${session?.code}"
+                                        val shareText = "http://${session?.code}"
                                         context.startActivity(
                                             Intent.createChooser(
                                                 Intent(Intent.ACTION_SEND).apply {
@@ -571,6 +571,22 @@ fun ListenTogetherScreen(
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(stringResource(R.string.leave_session))
+                        }
+                    }
+
+                    if (isLan) {
+                        OutlinedButton(
+                            onClick = {
+                                runCatching {
+                                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("http://${activeSession.code}"))
+                                    context.startActivity(browserIntent)
+                                }.onFailure {
+                                    message = "Could not open browser: ${it.message}"
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Open Web Player (http://${activeSession.code})")
                         }
                     }
 
@@ -696,6 +712,16 @@ private fun CurrentSessionCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (isLan && session != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Web Browser: http://${session.code}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

@@ -19,14 +19,17 @@ interface Queue {
         val mediaItemIndex: Int,
         val position: Long = 0L,
     ) {
-        fun filterExplicit(enabled: Boolean = true) =
-            if (enabled) {
-                copy(
-                    items = items.filterExplicit(),
-                )
+        fun filterExplicit(enabled: Boolean = true): Status {
+            if (!enabled) return this
+            val currentItem = items.getOrNull(mediaItemIndex)
+            val filtered = items.filterExplicit()
+            val newIndex = if (currentItem != null) {
+                filtered.indexOfFirst { it.mediaId == currentItem.mediaId }.takeIf { it >= 0 } ?: 0
             } else {
-                this
+                0
             }
+            return copy(items = filtered, mediaItemIndex = newIndex)
+        }
     }
 }
 
