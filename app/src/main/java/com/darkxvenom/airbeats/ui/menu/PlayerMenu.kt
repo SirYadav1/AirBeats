@@ -93,9 +93,7 @@ import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.mediarouter.app.MediaRouteButton
-import com.google.android.gms.cast.framework.CastButtonFactory
-import android.view.ContextThemeWrapper
+import com.darkxvenom.airbeats.ui.component.createCastRouteButton
 import com.darkxvenom.airbeats.ui.component.isFrostedGlassUiEnabled
 import com.darkxvenom.airbeats.ui.component.LocalBackdrop
 import com.darkxvenom.airbeats.ui.component.drawBackdropCustomShape
@@ -551,15 +549,8 @@ fun PlayerMenu(
                         Box(modifier = Modifier.fillMaxWidth()) {
                             AndroidView(
                                 factory = { ctx ->
-                                    val themeContext = ContextThemeWrapper(ctx, androidx.appcompat.R.style.Theme_AppCompat_NoActionBar)
-                                    MediaRouteButton(themeContext).apply {
-                                        try {
-                                            CastButtonFactory.setUpMediaRouteButton(ctx, this)
-                                        } catch (e: Exception) {
-                                            timber.log.Timber.w(e, "CastButtonFactory setup failed")
-                                        }
-                                        mediaRouteButtonRef.value = this
-                                    }
+                                    createCastRouteButton(ctx)?.also { mediaRouteButtonRef.value = it }
+                                        ?: android.widget.FrameLayout(ctx)
                                 },
                                 modifier = Modifier.size(1.dp).alpha(0f)
                             )

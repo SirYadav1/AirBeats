@@ -3655,7 +3655,13 @@ class MusicService :
     }
 
     override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
-        val requiresForeground = if (isCasting.value) false else startInForegroundRequired
+        // Android 12+ rejects a foreground-service promotion which originates
+        // from the background. Media3 can request one while creating an idle
+        // session (for example after an async controller/Firebase callback),
+        // even though there is no media to play. Do not promote an idle service;
+        // active playback still receives its normal media notification.
+        val hasPlaybackToPromote = player.currentMediaItem != null && player.playWhenReady
+        val requiresForeground = !isCasting.value && startInForegroundRequired && hasPlaybackToPromote
         try {
             super.onUpdateNotification(session, requiresForeground)
         } catch (e: Exception) {

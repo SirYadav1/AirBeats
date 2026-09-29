@@ -1,8 +1,10 @@
 package com.darkxvenom.airbeats.ui.component
 
-import android.view.ContextThemeWrapper
+import android.content.Context
+import android.content.ContextWrapper
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +43,25 @@ import com.darkxvenom.airbeats.R
 import com.google.android.gms.cast.framework.CastButtonFactory
 import timber.log.Timber
 
+/**
+ * MediaRouteButton opens its chooser with a FragmentManager.  Compose can hand
+ * AndroidView a themed ContextWrapper (especially inside a bottom sheet), which
+ * is not itself a FragmentActivity and crashes when the chooser is tapped.
+ */
+fun Context.fragmentActivityOrNull(): FragmentActivity? = when (this) {
+    is FragmentActivity -> this
+    is ContextWrapper -> baseContext.fragmentActivityOrNull()
+    else -> null
+}
+
+fun createCastRouteButton(context: Context): MediaRouteButton? {
+    val activity = context.fragmentActivityOrNull() ?: return null
+    return MediaRouteButton(activity).apply {
+        runCatching { CastButtonFactory.setUpMediaRouteButton(activity, this) }
+            .onFailure { Timber.w(it, "CastButtonFactory setup failed") }
+    }
+}
+
 @Composable
 fun PlayerCastMenuRow(
     modifier: Modifier = Modifier,
@@ -74,15 +95,8 @@ fun PlayerCastMenuRow(
             // Hidden MediaRouteButton that handles Google Cast dialog and pairing
             AndroidView(
                 factory = { ctx ->
-                    val themeContext = ContextThemeWrapper(ctx, androidx.appcompat.R.style.Theme_AppCompat_NoActionBar)
-                    MediaRouteButton(themeContext).apply {
-                        try {
-                            CastButtonFactory.setUpMediaRouteButton(ctx, this)
-                        } catch (e: Exception) {
-                            Timber.w(e, "CastButtonFactory setup failed")
-                        }
-                        buttonRef.value = this
-                    }
+                    createCastRouteButton(ctx)?.also { buttonRef.value = it }
+                        ?: FrameLayout(ctx)
                 },
                 modifier = Modifier
                     .size(1.dp)
@@ -168,15 +182,8 @@ fun PlayerCastIconButton(
     ) {
         AndroidView(
             factory = { ctx ->
-                val themeContext = ContextThemeWrapper(ctx, androidx.appcompat.R.style.Theme_AppCompat_NoActionBar)
-                MediaRouteButton(themeContext).apply {
-                    try {
-                        CastButtonFactory.setUpMediaRouteButton(ctx, this)
-                    } catch (e: Exception) {
-                        Timber.w(e, "CastButtonFactory setup failed")
-                    }
-                    buttonRef.value = this
-                }
+                createCastRouteButton(ctx)?.also { buttonRef.value = it }
+                    ?: FrameLayout(ctx)
             },
             modifier = Modifier
                 .size(1.dp)
