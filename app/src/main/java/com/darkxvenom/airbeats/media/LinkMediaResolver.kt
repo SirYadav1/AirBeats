@@ -200,7 +200,7 @@ class LinkMediaResolver(
 
     private suspend fun resolveInstagramMedia(url: String): File? {
         val cleanUrl = url.trim()
-        GlobalLog.append(Log.INFO, TAG, "Starting Instagram resolution for: $cleanUrl")
+        GlobalLog.append(Log.INFO, TAG, "Starting Instagram local WebView resolution for: $cleanUrl")
         var shortcode = IG_SHORTCODE_REGEX.find(cleanUrl)?.groupValues?.getOrNull(1)
 
         if (shortcode.isNullOrBlank()) {
@@ -209,47 +209,7 @@ class LinkMediaResolver(
         }
         GlobalLog.append(Log.INFO, TAG, "Instagram shortcode: $shortcode")
 
-        // Strategy 1 (Primary): Direct Media Resolver
-        try {
-            val b64Endpoint = "aHR0cHM6Ly9pbnN0YWdyYW0tZG93bmxvYWRlci1hcGkuY3liZXJzaGllbGQ0Ny53b3JrZXJzLmRldi9hcGkvZG93bmxvYWQ/dXJsPQ=="
-            val endpoint = String(android.util.Base64.decode(b64Endpoint, android.util.Base64.NO_WRAP), Charsets.UTF_8)
-            val apiUrl = endpoint + URLEncoder.encode(cleanUrl, "UTF-8")
-            GlobalLog.append(Log.INFO, TAG, "Resolving Instagram media stream...")
-            val request = Request.Builder()
-                .url(apiUrl)
-                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .build()
-
-            okHttpClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string().orEmpty()
-                    val json = JSONObject(body)
-                    if (json.optString("status") == "success") {
-                        val dataObj = json.optJSONObject("data")
-                        val videoUrl = dataObj?.optString("videoUrl")?.takeIf { it.isNotBlank() }
-                            ?: dataObj?.optString("downloadUrl")?.takeIf { it.isNotBlank() }
-
-                        if (!videoUrl.isNullOrBlank()) {
-                            GlobalLog.append(Log.INFO, TAG, "Instagram media stream resolved, downloading...")
-                            val targetFile = tempManager.createTempFile("mp4")
-                            if (downloadMediaChunk(videoUrl, targetFile)) {
-                                GlobalLog.append(Log.INFO, TAG, "Instagram media download succeeded (${targetFile.length()} bytes)")
-                                return targetFile
-                            }
-                            tempManager.cleanup(targetFile)
-                        }
-                    } else {
-                        GlobalLog.append(Log.WARN, TAG, "Primary resolver did not find video in payload, trying fallback...")
-                    }
-                } else {
-                    GlobalLog.append(Log.WARN, TAG, "Primary resolver returned HTTP ${response.code}, trying fallback...")
-                }
-            }
-        } catch (e: Exception) {
-            GlobalLog.append(Log.WARN, TAG, "Primary resolver error: ${e.message}")
-        }
-
-        // Strategy 2: Headless Android WebView resolving original URL first (preserving tokens) then embed
+        // Pure local WebView extraction method
         try {
             val mediaUrl = resolveInstagramViaWebView(cleanUrl, shortcode ?: "")
             if (!mediaUrl.isNullOrBlank()) {
@@ -265,70 +225,7 @@ class LinkMediaResolver(
             GlobalLog.append(Log.WARN, TAG, "Instagram WebView resolution error: ${e.message}")
         }
 
-        // Strategy 3: Check Instagram embed captioned page / mobile API via direct HTTP
-        if (!shortcode.isNullOrBlank()) {
-            try {
-                val apiUrls = listOf(
-                    "https://www.instagram.com/reel/$shortcode/?__a=1&__d=1",
-                    "https://www.instagram.com/p/$shortcode/?__a=1&__d=1",
-                    "https://www.instagram.com/p/$shortcode/embed/captioned/"
-                )
-                for (apiEndpoint in apiUrls) {
-                    GlobalLog.append(Log.INFO, TAG, "Checking Instagram endpoint: $apiEndpoint")
-                    val request = Request.Builder()
-                        .url(apiEndpoint)
-                        .addHeader("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1")
-                        .addHeader("X-IG-App-ID", "936619743392459")
-                        .addHeader("Accept", "*/*")
-                        .build()
-
-                    okHttpClient.newCall(request).execute().use { response ->
-                        if (response.isSuccessful) {
-                            val html = response.body?.string().orEmpty()
-                            val mediaUrl = extractMediaUrlFromHtml(html)
-                            if (!mediaUrl.isNullOrBlank()) {
-                                GlobalLog.append(Log.INFO, TAG, "Found media URL from $apiEndpoint: $mediaUrl")
-                                val targetFile = tempManager.createTempFile("mp4")
-                                if (downloadMediaChunk(mediaUrl, targetFile)) {
-                                    return targetFile
-                                }
-                                tempManager.cleanup(targetFile)
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                GlobalLog.append(Log.WARN, TAG, "Instagram HTTP API check failed: ${e.message}")
-            }
-        }
-
-        // Strategy 4: Bot User-Agent OpenGraph scrape
-        try {
-            GlobalLog.append(Log.INFO, TAG, "Trying bot OpenGraph scrape for $cleanUrl")
-            val request = Request.Builder()
-                .url(cleanUrl)
-                .addHeader("User-Agent", "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)")
-                .build()
-
-            okHttpClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val html = response.body?.string().orEmpty()
-                    val mediaUrl = extractMediaUrlFromHtml(html)
-                    if (!mediaUrl.isNullOrBlank()) {
-                        GlobalLog.append(Log.INFO, TAG, "Found media URL via OpenGraph: $mediaUrl")
-                        val targetFile = tempManager.createTempFile("mp4")
-                        if (downloadMediaChunk(mediaUrl, targetFile)) {
-                            return targetFile
-                        }
-                        tempManager.cleanup(targetFile)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            GlobalLog.append(Log.WARN, TAG, "Instagram OpenGraph resolution failed: ${e.message}")
-        }
-
-        GlobalLog.append(Log.WARN, TAG, "All Instagram resolution strategies failed for: $cleanUrl")
+        GlobalLog.append(Log.WARN, TAG, "Instagram resolution failed for: $cleanUrl")
         return null
     }
 

@@ -441,6 +441,19 @@
     <string name="hosting_session">Hosting %1$s</string>
     <string name="joined_session_with_code">Joined %1$s</string>
     <string name="play_song_first">Play a song first to host a session</string>
+    <string name="together_online">Online</string>
+    <string name="together_lan">LAN / Wi-Fi</string>
+    <string name="together_lan_description">Sync playback with friends on the same Wi-Fi network or mobile hotspot directly without using mobile data.</string>
+    <string name="together_host_lan">Host on LAN</string>
+    <string name="together_join_lan">Join on LAN</string>
+    <string name="together_host_ip">Host Address / IP</string>
+    <string name="together_host_ip_hint">192.168.x.x:8765 or join link</string>
+    <string name="together_local_ip">Your Local IP: %1$s</string>
+    <string name="together_scan_lan">Scan Network</string>
+    <string name="together_searching_lan">Scanning local network…</string>
+    <string name="together_no_hosts_found">No active hosts found on LAN</string>
+    <string name="together_lan_host_started">LAN host started on %1$s</string>
+    <string name="together_found_host">Found host: %1$s</string>
 
     <string name="storage">Storage</string>
     <string name="cache">Cache</string>
@@ -1067,6 +1080,19 @@
     <string name="import_playlist_option">Import playlist</string>
     <string name="download_canceled">Download canceled</string>
     <string name="charts">Charts</string>
+    <!-- Snippet Studio -->
+    <string name="ringtone_studio">Snippet Studio</string>
+    <string name="ringtone_studio_desc">Trim and export audio clips</string>
+    <string name="share_clip">Share</string>
+    <string name="save_snippet">Download</string>
+    <string name="snippet_duration">Length: %1$s</string>
+    <string name="loading_snippet_audio">Preparing audio track…</string>
+    <string name="processing_snippet">Trimming clip…</string>
+    <string name="clip_saved_to_storage">Snippet downloaded to Music/AirBeats/Snippets</string>
+    <string name="preset_15s">15s Story</string>
+    <string name="preset_30s">30s Clip</string>
+    <string name="preset_45s">45s</string>
+    <string name="preset_60s">60s</string>
 </resources>
 
 

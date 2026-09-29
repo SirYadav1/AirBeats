@@ -129,6 +129,20 @@ data class ListenTogetherSession(
     val serverNow: Long,
     val state: ListenTogetherPlaybackState?,
 ) {
+    fun toJson(): JSONObject =
+        JSONObject()
+            .put("code", code)
+            .put("participantId", participantId)
+            .put("joinUrl", joinUrl)
+            .put("participants", participants)
+            .put("participantList", JSONArray().apply { participantList.forEach { put(it.toJson()) } })
+            .put("hostName", hostName)
+            .put("controllerId", controllerId)
+            .put("controllerName", controllerName)
+            .put("stateVersion", stateVersion)
+            .put("serverNow", serverNow)
+            .put("state", state?.toJson())
+
     companion object {
         fun fromJson(json: JSONObject): ListenTogetherSession =
             ListenTogetherSession(
@@ -157,6 +171,12 @@ data class ListenTogetherParticipant(
     val name: String,
     val isHost: Boolean,
 ) {
+    fun toJson(): JSONObject =
+        JSONObject()
+            .put("id", id)
+            .put("name", name)
+            .put("isHost", isHost)
+
     companion object {
         fun fromJson(json: JSONObject) =
             ListenTogetherParticipant(

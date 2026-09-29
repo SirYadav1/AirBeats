@@ -728,7 +728,7 @@ fun AboutScreen(
 
                         UserCard(
                             imageUrl = "https://avatars.githubusercontent.com/u/241423835",
-                            name = "Venom",
+                            name = "V E N O M",
                             role = "UI/UX Specialist",
                             commits = founderCommits["drkvenom786"],
                             githubUrl = "https://github.com/drkvenom786",

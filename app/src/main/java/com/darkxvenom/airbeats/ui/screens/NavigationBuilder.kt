@@ -20,6 +20,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.dialog
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
 import com.darkxvenom.airbeats.BuildConfig
 import com.darkxvenom.airbeats.constants.HomeScreenStyle
 import com.darkxvenom.airbeats.constants.HomeScreenStyleKey
@@ -171,7 +172,12 @@ fun NavGraphBuilder.navigationBuilder(
     composable("year_in_music") {
         YearInMusicScreen(navController)
     }
-    composable("listen_together") {
+    composable(
+        route = "listen_together",
+        deepLinks = listOf(
+            navDeepLink { uriPattern = "airbeats://together.*" }
+        )
+    ) {
         ListenTogetherScreen(navController, scrollBehavior)
     }
     composable(com.darkxvenom.airbeats.ui.screens.musicrecognition.MusicRecognitionRoute) {

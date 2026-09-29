@@ -106,6 +106,10 @@ fun YouTubeSongMenu(
         mutableStateOf(false)
     }
 
+    var showSnippetStudioDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+
     val notAddedList by remember {
         mutableStateOf(mutableListOf<MediaMetadata>())
     }
@@ -335,6 +339,12 @@ fun YouTubeSongMenu(
                 permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             }
         }
+        GridMenuItem(
+            icon = R.drawable.content_cut,
+            title = R.string.ringtone_studio,
+        ) {
+            showSnippetStudioDialog = true
+        }
         if (artists.isNotEmpty()) {
             GridMenuItem(
                 icon = R.drawable.artist,
@@ -421,5 +431,14 @@ fun YouTubeSongMenu(
                 Toast.LENGTH_SHORT
             ).show()
         }
+    }
+
+    if (showSnippetStudioDialog) {
+        com.darkxvenom.airbeats.ui.component.SongSnippetStudioDialog(
+            mediaMetadata = song.toMediaMetadata(),
+            onDismiss = {
+                showSnippetStudioDialog = false
+            }
+        )
     }
 }
