@@ -68,8 +68,21 @@ class YouTubeQueue(
 
         val nextResult =
             withContext(IO) {
-                YouTube.next(endpoint, continuation).getOrThrow()
+                runCatching {
+                    YouTube.next(endpoint, continuation).getOrThrow()
+                }.getOrNull()
             }
+
+        if (nextResult == null) {
+            val singleItem = preloadItem?.toMediaItem()
+            val items = if (singleItem != null) listOf(singleItem) else emptyList()
+            return Queue.Status(
+                title = preloadItem?.title,
+                items = items,
+                mediaItemIndex = 0,
+            )
+        }
+
         endpoint = nextResult.endpoint
         continuation = nextResult.continuation
 
@@ -105,8 +118,10 @@ class YouTubeQueue(
     override suspend fun nextPage(): List<MediaItem> {
         val nextResult =
             withContext(IO) {
-                YouTube.next(endpoint, continuation).getOrThrow()
-            }
+                runCatching {
+                    YouTube.next(endpoint, continuation).getOrThrow()
+                }.getOrNull()
+            } ?: return emptyList()
         endpoint = nextResult.endpoint
         continuation = nextResult.continuation
         return nextResult.items.map { it.toMediaItem() }

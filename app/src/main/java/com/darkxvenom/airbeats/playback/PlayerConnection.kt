@@ -358,7 +358,12 @@ class PlayerConnection(
     }
 
 
+    fun clearError() {
+        _error.value = null
+    }
+
     fun playQueue(queue: Queue) {
+        clearError()
         service.playQueue(queue)
     }
 

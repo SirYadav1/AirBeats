@@ -34,6 +34,15 @@ class LinkMediaResolver(
         .followSslRedirects(true)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
+        .build(),
+    private val resolverOkHttpClient: OkHttpClient = OkHttpClient.Builder()
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .callTimeout(120, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 ) {
 
@@ -204,27 +213,47 @@ class LinkMediaResolver(
     ).trim()
 
     suspend fun fetchDirectDownloadUrl(url: String): String? = withContext(Dispatchers.IO) {
-        try {
-            val encodedUrl = URLEncoder.encode(url.trim(), StandardCharsets.UTF_8.name())
-            val reqUrl = "$RESOLVER_BASE/resolve?url=$encodedUrl"
-            val request = Request.Builder()
-                .url(reqUrl)
-                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                .addHeader("Accept", "application/json")
-                .build()
-            okHttpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext null
-                val body = response.body?.string().orEmpty()
-                if (body.isBlank()) return@withContext null
-                val json = JSONObject(body)
-                val videoUrl = json.optString("videoStreamingUrl").takeIf { it.isNotBlank() }
-                    ?: json.optString("videoDownloadUrl").takeIf { it.isNotBlank() }
-                    ?: json.optString("audioStreamingUrl").takeIf { it.isNotBlank() }
-                    ?: json.optString("audioDownloadUrl").takeIf { it.isNotBlank() }
-                return@withContext videoUrl
+        val encodedUrl = URLEncoder.encode(url.trim(), StandardCharsets.UTF_8.name())
+        val reqUrl = "$RESOLVER_BASE/resolve?url=$encodedUrl"
+        val request = Request.Builder()
+            .url(reqUrl)
+            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+            .addHeader("Accept", "application/json")
+            .build()
+
+        var attempts = 0
+        val maxAttempts = 2
+        while (attempts < maxAttempts) {
+            attempts++
+            try {
+                GlobalLog.append(Log.INFO, TAG, "Contacting resolver API (attempt $attempts of $maxAttempts)...")
+                resolverOkHttpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        GlobalLog.append(Log.WARN, TAG, "Resolver API returned HTTP ${response.code}")
+                        if (response.code in 502..504 && attempts < maxAttempts) {
+                            delay(3000)
+                            return@use
+                        }
+                        return@withContext null
+                    }
+                    val body = response.body?.string().orEmpty()
+                    if (body.isBlank()) return@withContext null
+                    val json = JSONObject(body)
+                    val videoUrl = json.optString("videoStreamingUrl").takeIf { it.isNotBlank() }
+                        ?: json.optString("videoDownloadUrl").takeIf { it.isNotBlank() }
+                        ?: json.optString("audioStreamingUrl").takeIf { it.isNotBlank() }
+                        ?: json.optString("audioDownloadUrl").takeIf { it.isNotBlank() }
+                    if (!videoUrl.isNullOrBlank()) {
+                        GlobalLog.append(Log.INFO, TAG, "Successfully resolved media stream via API")
+                        return@withContext videoUrl
+                    }
+                }
+            } catch (e: Exception) {
+                GlobalLog.append(Log.WARN, TAG, "Direct resolver service exception (attempt $attempts): ${e.message}")
+                if (attempts < maxAttempts) {
+                    delay(2000)
+                }
             }
-        } catch (e: Exception) {
-            GlobalLog.append(Log.WARN, TAG, "Direct resolver service exception: ${e.message}")
         }
         null
     }
@@ -396,16 +425,16 @@ class LinkMediaResolver(
             GlobalLog.append(Log.INFO, TAG, "WebView loading initial URL: $primaryUrl")
             webView.loadUrl(primaryUrl)
 
-            val maxWaitMs = 5000L
+            val maxWaitMs = 15000L
             val startTime = System.currentTimeMillis()
             var secondaryTried = false
 
             while (!deferredMediaUrl.isCompleted && System.currentTimeMillis() - startTime < maxWaitMs) {
-                delay(180)
+                delay(200)
                 if (deferredMediaUrl.isCompleted) break
 
                 val elapsed = System.currentTimeMillis() - startTime
-                if (!secondaryTried && elapsed > 2000L && shortcode.isNotBlank()) {
+                if (!secondaryTried && elapsed > 4000L && shortcode.isNotBlank()) {
                     secondaryTried = true
                     val captionedUrl = "https://www.instagram.com/p/$shortcode/embed/captioned/"
                     GlobalLog.append(Log.INFO, TAG, "WebView trying captioned embed fallback: $captionedUrl")
