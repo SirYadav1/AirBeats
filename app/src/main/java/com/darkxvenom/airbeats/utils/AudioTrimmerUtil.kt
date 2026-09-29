@@ -99,8 +99,8 @@ object AudioTrimmerUtil {
             var resolvedStreamUrl: String? = null
             var resolvedExt = "m4a"
 
-            val activeSongUrl = playerConnection?.service?.songUrlCache?.get(mediaMetadata.id)?.url
-                ?: MusicService.instance?.songUrlCache?.get(mediaMetadata.id)?.url
+            val activeSongUrl = playerConnection?.service?.getCachedPlaybackUrl(mediaMetadata.id)
+                ?: MusicService.instance?.getCachedPlaybackUrl(mediaMetadata.id)
             if (!activeSongUrl.isNullOrBlank()) {
                 resolvedStreamUrl = activeSongUrl
                 if (activeSongUrl.contains("opus") || activeSongUrl.contains("webm")) {
@@ -228,14 +228,14 @@ object AudioTrimmerUtil {
                 }
             }
 
-            if (resolvedStreamUrl.isNullOrBlank()) {
+            val streamUrl = resolvedStreamUrl
+            if (streamUrl.isNullOrBlank()) {
                 return@withContext AudioSourceResult.Error("Unable to find working audio stream for this song")
             }
 
             // 6. Download the resolved stream
-            val streamUrl = resolvedStreamUrl
             val isYouTube = streamUrl.contains("googlevideo.com")
-            val downloadUrl = if (isYouTube && !streamUrl.contains("range=")) {
+            val downloadUrl: String = if (isYouTube && !streamUrl.contains("range=")) {
                 val length = 15_000_000L
                 "${streamUrl}&range=0-$length"
             } else {

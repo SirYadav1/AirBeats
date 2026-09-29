@@ -370,6 +370,10 @@ class MusicService :
     private val jioSaavnAttemptedSongIds = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
     private val jioSaavnFailedSongs = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
 
+    fun getCachedPlaybackUrl(mediaId: String): String? {
+        return songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.url
+    }
+
     lateinit var sleepTimer: SleepTimer
 
     @Inject
