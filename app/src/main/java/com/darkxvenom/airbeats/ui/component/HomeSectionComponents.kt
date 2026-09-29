@@ -58,7 +58,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.darkxvenom.airbeats.LocalDatabase
+import com.darkxvenom.airbeats.db.entities.Song
 import com.darkxvenom.airbeats.innertube.YouTube
+import com.darkxvenom.airbeats.innertube.models.SongItem
+import com.darkxvenom.airbeats.models.MediaMetadata
+import com.darkxvenom.airbeats.models.toMediaMetadata
+import com.darkxvenom.airbeats.playback.PlayerConnection
+import com.darkxvenom.airbeats.playback.queues.YouTubeQueue
 import com.darkxvenom.airbeats.ui.utils.highQualityThumbnail
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
@@ -72,6 +78,46 @@ val HOME_TASTE_TAGS = listOf(
 
 enum class HomeThemeStyle {
     CLASSIC, SPOTIFY, APPLE, NEW_CLASSIC, MATERIAL
+}
+
+/**
+ * Shared helper for Infinite Radio that shuffles and picks a fresh random seed on every click,
+ * avoiding the currently playing song and recent radio seeds.
+ */
+object InfiniteRadioHelper {
+    private val recentSeedIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    fun playShuffledRadio(
+        playerConnection: PlayerConnection,
+        currentSongId: String?,
+        quickPicks: List<Song>?,
+        forgottenFavorites: List<Song>? = null,
+        keepListening: List<Song>? = null,
+        homeSongs: List<SongItem>? = null,
+    ) {
+        val pool = mutableListOf<MediaMetadata>()
+        quickPicks?.forEach { pool.add(it.toMediaMetadata()) }
+        forgottenFavorites?.forEach { pool.add(it.toMediaMetadata()) }
+        keepListening?.forEach { pool.add(it.toMediaMetadata()) }
+        homeSongs?.forEach { pool.add(it.toMediaMetadata()) }
+
+        if (pool.isEmpty()) return
+
+        val candidates = pool
+            .filter { it.id != currentSongId && it.id !in recentSeedIds }
+            .ifEmpty { pool.filter { it.id != currentSongId } }
+            .ifEmpty { pool }
+
+        val seed = candidates.shuffled().firstOrNull() ?: return
+
+        recentSeedIds.add(seed.id)
+        if (recentSeedIds.size > 20) {
+            recentSeedIds.clear()
+            recentSeedIds.add(seed.id)
+        }
+
+        playerConnection.playQueue(YouTubeQueue.radio(seed))
+    }
 }
 
 /**

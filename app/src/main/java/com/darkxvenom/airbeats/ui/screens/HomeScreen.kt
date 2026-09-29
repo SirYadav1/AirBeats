@@ -479,9 +479,14 @@ fun HomeScreen(
                             title = "Welcome back, $accountName",
                             subtitle = "Continuous radio tuned to your favorites",
                             onPlayRadio = {
-                                quickPicks?.firstOrNull()?.let { firstTrack ->
-                                    playerConnection.playQueue(YouTubeQueue.radio(firstTrack.toMediaMetadata()))
-                                }
+                                com.darkxvenom.airbeats.ui.component.InfiniteRadioHelper.playShuffledRadio(
+                                    playerConnection = playerConnection,
+                                    currentSongId = mediaMetadata?.id,
+                                    quickPicks = quickPicks,
+                                    forgottenFavorites = forgottenFavorites,
+                                    keepListening = keepListening,
+                                    homeSongs = homePage?.sections?.flatMap { it.items }?.filterIsInstance<com.darkxvenom.airbeats.innertube.models.SongItem>()
+                                )
                             },
                             style = HomeThemeStyle.CLASSIC,
                             modifier = Modifier
