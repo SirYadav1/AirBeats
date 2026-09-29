@@ -192,29 +192,13 @@ fun SharedMusicScreen(
                     }
 
                     is SharedMusicUiState.UrlShared -> {
-                        val context = LocalContext.current
                         val isInstagram = state.url.contains("instagram.com", ignoreCase = true) ||
                                 state.url.contains("instagr.am", ignoreCase = true)
                         if (isInstagram) {
-                            StatusErrorContent(
-                                icon = Icons.Default.Link,
-                                title = "Instagram Reel Protected",
-                                description = "Instagram requires authentication for this link because the reel may be private or restricted.\n\nTo identify this song:\n1. Open the reel in Instagram\n2. Tap Share and select 'Download' or 'Save Video'\n3. Share the saved video file directly to AirBeats",
-                                primaryButtonText = "Open in Instagram",
-                                onPrimaryClick = {
-                                    try {
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(state.url)).apply {
-                                            setPackage("com.instagram.android")
-                                        }
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        try {
-                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(state.url)))
-                                        } catch (_: Exception) {}
-                                    }
-                                },
-                                secondaryButtonText = stringResource(R.string.close),
-                                onSecondaryClick = onClose
+                            InstagramManualDownloadContent(
+                                url = state.url,
+                                viewModel = viewModel,
+                                onClose = onClose
                             )
                         } else {
                             StatusErrorContent(
@@ -860,3 +844,217 @@ private fun MusicLogItem(entry: LogEntry) {
         }
     }
 }
+
+@Composable
+private fun InstagramManualDownloadContent(
+    url: String,
+    viewModel: SharedMusicViewModel,
+    onClose: () -> Unit
+) {
+    val context = LocalContext.current
+    val manualStatus by viewModel.manualDownloadStatus.collectAsState()
+
+    androidx.compose.runtime.LaunchedEffect(url) {
+        viewModel.resolveManualDownload(url)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Link,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(36.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(
+            text = "Instagram Reel Direct Download",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Direct streaming was restricted by Instagram. You can download the video file directly to identify the music.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        when (val status = manualStatus) {
+            is ManualDownloadStatus.Loading, is ManualDownloadStatus.Idle -> {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertizontally,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.5.dp
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = "Preparing direct download link...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            is ManualDownloadStatus.Ready -> {
+                Button(
+                    onClick = {
+                        viewModel.downloadAndIdentify(status.downloadUrl)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "For manual download click here",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(status.downloadUrl)))
+                        } catch (_: Exception) {
+                            Toast.makeText(context, "Could not open download link", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(
+                        text = "Save Video to Browser / Storage",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+
+            is ManualDownloadStatus.Failed -> {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Direct download link could not be generated. Please try again or open the reel in Instagram.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = { viewModel.resolveManualDownload(url) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Retry Direct Download")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                                setPackage("com.instagram.android")
+                            }
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            } catch (_: Exception) {}
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(text = "Open in Instagram")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedButton(
+            onClick = onClose,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Text(text = stringResource(R.string.close))
+        }
+    }
+}
+

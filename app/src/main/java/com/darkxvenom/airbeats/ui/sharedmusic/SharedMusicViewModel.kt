@@ -21,17 +21,60 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+sealed class ManualDownloadStatus {
+    data object Idle : ManualDownloadStatus()
+    data object Loading : ManualDownloadStatus()
+    data class Ready(val downloadUrl: String) : ManualDownloadStatus()
+    data object Failed : ManualDownloadStatus()
+}
+
 @HiltViewModel
 class SharedMusicViewModel @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val identifyUseCase = IdentifySharedMusicUseCase(context)
+    private val linkMediaResolver = LinkMediaResolver(context)
 
     private val _uiState = MutableStateFlow<SharedMusicUiState>(SharedMusicUiState.Idle)
     val uiState: StateFlow<SharedMusicUiState> = _uiState.asStateFlow()
 
+    private val _manualDownloadStatus = MutableStateFlow<ManualDownloadStatus>(ManualDownloadStatus.Idle)
+    val manualDownloadStatus: StateFlow<ManualDownloadStatus> = _manualDownloadStatus.asStateFlow()
+
     private var currentJob: Job? = null
+
+    fun resolveManualDownload(url: String) {
+        viewModelScope.launch {
+            _manualDownloadStatus.value = ManualDownloadStatus.Loading
+            val directUrl = linkMediaResolver.fetchDirectDownloadUrl(url)
+            if (!directUrl.isNullOrBlank()) {
+                _manualDownloadStatus.value = ManualDownloadStatus.Ready(directUrl)
+            } else {
+                _manualDownloadStatus.value = ManualDownloadStatus.Failed
+            }
+        }
+    }
+
+    fun downloadAndIdentify(directMediaUrl: String) {
+        currentJob?.cancel()
+        currentJob = viewModelScope.launch {
+            _uiState.value = SharedMusicUiState.Processing(com.darkxvenom.airbeats.usecases.IdentificationStep.RESOLVING_LINK)
+            val tempManager = com.darkxvenom.airbeats.media.TemporaryMediaManager(context)
+            val targetFile = tempManager.createTempFile("mp4")
+            val success = linkMediaResolver.downloadMediaChunk(directMediaUrl, targetFile)
+            if (success && targetFile.exists() && targetFile.length() > 2048) {
+                processSharedContent(
+                    SharedContent(
+                        type = com.darkxvenom.airbeats.share.SharedContentType.VIDEO,
+                        uri = android.net.Uri.fromFile(targetFile)
+                    )
+                )
+            } else {
+                _uiState.value = SharedMusicUiState.Error("Failed to download media file")
+            }
+        }
+    }
 
     fun processSharedContent(content: SharedContent) {
         currentJob?.cancel()

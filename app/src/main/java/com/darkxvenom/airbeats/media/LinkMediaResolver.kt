@@ -198,9 +198,40 @@ class LinkMediaResolver(
         }
     }
 
+    private val RESOLVER_BASE = String(
+        android.util.Base64.decode("aHR0cHM6Ly9pbnN0YWdyYW0tcmVuZGVyLXJlc29sdmVyLm9ucmVuZGVyLmNvbQ==", android.util.Base64.DEFAULT),
+        StandardCharsets.UTF_8
+    ).trim()
+
+    suspend fun fetchDirectDownloadUrl(url: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val encodedUrl = URLEncoder.encode(url.trim(), StandardCharsets.UTF_8.name())
+            val reqUrl = "$RESOLVER_BASE/resolve?url=$encodedUrl"
+            val request = Request.Builder()
+                .url(reqUrl)
+                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                .addHeader("Accept", "application/json")
+                .build()
+            okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body?.string().orEmpty()
+                if (body.isBlank()) return@withContext null
+                val json = JSONObject(body)
+                val videoUrl = json.optString("videoStreamingUrl").takeIf { it.isNotBlank() }
+                    ?: json.optString("videoDownloadUrl").takeIf { it.isNotBlank() }
+                    ?: json.optString("audioStreamingUrl").takeIf { it.isNotBlank() }
+                    ?: json.optString("audioDownloadUrl").takeIf { it.isNotBlank() }
+                return@withContext videoUrl
+            }
+        } catch (e: Exception) {
+            GlobalLog.append(Log.WARN, TAG, "Direct resolver service exception: ${e.message}")
+        }
+        null
+    }
+
     private suspend fun resolveInstagramMedia(url: String): File? {
         val cleanUrl = url.trim()
-        GlobalLog.append(Log.INFO, TAG, "Starting Instagram local WebView resolution for: $cleanUrl")
+        GlobalLog.append(Log.INFO, TAG, "Starting Instagram resolution for: $cleanUrl")
         var shortcode = IG_SHORTCODE_REGEX.find(cleanUrl)?.groupValues?.getOrNull(1)
 
         if (shortcode.isNullOrBlank()) {
@@ -209,7 +240,7 @@ class LinkMediaResolver(
         }
         GlobalLog.append(Log.INFO, TAG, "Instagram shortcode: $shortcode")
 
-        // Pure local WebView extraction method
+        // 1. In-App Fast WebView resolution
         try {
             val mediaUrl = resolveInstagramViaWebView(cleanUrl, shortcode ?: "")
             if (!mediaUrl.isNullOrBlank()) {
@@ -225,6 +256,23 @@ class LinkMediaResolver(
             GlobalLog.append(Log.WARN, TAG, "Instagram WebView resolution error: ${e.message}")
         }
 
+        // 2. Automated background resolver fallback
+        try {
+            GlobalLog.append(Log.INFO, TAG, "Trying automated fallback resolver for Instagram: $cleanUrl")
+            val directUrl = fetchDirectDownloadUrl(cleanUrl)
+            if (!directUrl.isNullOrBlank()) {
+                GlobalLog.append(Log.INFO, TAG, "Fallback resolver returned media URL")
+                val targetFile = tempManager.createTempFile("mp4")
+                if (downloadMediaChunk(directUrl, targetFile)) {
+                    GlobalLog.append(Log.INFO, TAG, "Downloaded media from fallback service (${targetFile.length()} bytes)")
+                    return targetFile
+                }
+                tempManager.cleanup(targetFile)
+            }
+        } catch (e: Exception) {
+            GlobalLog.append(Log.WARN, TAG, "Automated fallback resolver error: ${e.message}")
+        }
+
         GlobalLog.append(Log.WARN, TAG, "Instagram resolution failed for: $cleanUrl")
         return null
     }
@@ -233,7 +281,7 @@ class LinkMediaResolver(
         val deferredMediaUrl = CompletableDeferred<String?>()
         var webView: WebView? = null
         try {
-            GlobalLog.append(Log.INFO, TAG, "Creating in-memory WebView for Instagram: $originalUrl")
+            GlobalLog.append(Log.INFO, TAG, "Creating fast in-memory WebView for Instagram shortcode: $shortcode")
             webView = WebView(context.applicationContext)
             webView.layout(0, 0, 1080, 1920)
 
@@ -242,7 +290,8 @@ class LinkMediaResolver(
             settings.domStorageEnabled = true
             settings.databaseEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
-            settings.userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+            // Desktop user agent bypasses mobile login redirection and renders standard video players
+            settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
             CookieManager.getInstance().apply {
                 setAcceptCookie(true)
@@ -274,31 +323,55 @@ class LinkMediaResolver(
                     GlobalLog.append(Log.INFO, TAG, "WebView page finished: $pageUrl")
                     val js = """
                         (function() {
-                            var v = document.querySelector('video');
-                            if (v && (v.currentSrc || v.src)) {
-                                var s = v.currentSrc || v.src;
-                                if (s && !s.startsWith('blob:')) return s;
-                            }
-                            var a = document.querySelector('audio');
-                            if (a && (a.currentSrc || a.src)) {
-                                var s = a.currentSrc || a.src;
-                                if (s && !s.startsWith('blob:')) return s;
-                            }
-                            var vs = document.querySelector('video source');
-                            if (vs && vs.src && !vs.src.startsWith('blob:')) return vs.src;
-                            var asrc = document.querySelector('audio source');
-                            if (asrc && asrc.src && !asrc.src.startsWith('blob:')) return asrc.src;
-
-                            var btns = document.querySelectorAll('button, div[role="button"], .PlayButton, .EmbeddedMediaImage');
+                            var btns = document.querySelectorAll('button, div[role="button"], .PlayButton, .EmbeddedMediaImage, [aria-label*="play" i], [aria-label*="Play" i]');
                             for (var i = 0; i < btns.length; i++) {
-                                var btn = btns[i];
-                                var txt = (btn.innerText || btn.getAttribute('aria-label') || '').toLowerCase();
-                                if (txt.includes('play') || txt.includes('allow') || txt.includes('accept') || txt.includes('agree')) {
-                                    try { btn.click(); } catch(e){}
-                                }
+                                try {
+                                    var evt = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+                                    btns[i].dispatchEvent(evt);
+                                    btns[i].click();
+                                } catch(e){}
                             }
-                            if (v) { try { v.play(); } catch(e){} }
-                            if (a) { try { a.play(); } catch(e){} }
+
+                            var vids = document.querySelectorAll('video');
+                            for (var i = 0; i < vids.length; i++) {
+                                var v = vids[i];
+                                try {
+                                    v.muted = true;
+                                    v.defaultMuted = true;
+                                    v.playsInline = true;
+                                    v.setAttribute('muted', '');
+                                    v.setAttribute('playsinline', '');
+                                    v.play();
+                                } catch(e){}
+                                var s = v.currentSrc || v.src;
+                                if (s && !s.startsWith('blob:') && s.startsWith('http')) return s;
+                            }
+
+                            var auds = document.querySelectorAll('audio');
+                            for (var i = 0; i < auds.length; i++) {
+                                var a = auds[i];
+                                try {
+                                    a.muted = true;
+                                    a.play();
+                                } catch(e){}
+                                var s = a.currentSrc || a.src;
+                                if (s && !s.startsWith('blob:') && s.startsWith('http')) return s;
+                            }
+
+                            var sources = document.querySelectorAll('video source, audio source');
+                            for (var i = 0; i < sources.length; i++) {
+                                var s = sources[i].src;
+                                if (s && !s.startsWith('blob:') && s.startsWith('http')) return s;
+                            }
+
+                            var scripts = document.querySelectorAll('script');
+                            for (var i = 0; i < scripts.length; i++) {
+                                var txt = scripts[i].textContent || '';
+                                var m = txt.match(/https:\/\/[^"'\\s]+?\.mp4[^"'\\s]*/);
+                                if (m && m[0]) return m[0];
+                                var m2 = txt.match(/"video_url"\s*:\s*"([^"]+)"/);
+                                if (m2 && m2[1]) return m2[1];
+                            }
                             return null;
                         })()
                     """.trimIndent()
@@ -314,45 +387,47 @@ class LinkMediaResolver(
                 }
             }
 
-            // Load originalUrl first to keep any share tokens (?stkn=...)
-            val primaryUrl = if (originalUrl.isNotBlank()) originalUrl else {
-                "https://www.instagram.com/reel/$shortcode/"
+            // Directly load embed URL which does not redirect to login wall
+            val primaryUrl = if (shortcode.isNotBlank()) {
+                "https://www.instagram.com/reel/$shortcode/embed/"
+            } else {
+                originalUrl
             }
-            GlobalLog.append(Log.INFO, TAG, "WebView loading primary URL: $primaryUrl")
+            GlobalLog.append(Log.INFO, TAG, "WebView loading initial URL: $primaryUrl")
             webView.loadUrl(primaryUrl)
 
-            val maxWaitMs = 7500L
+            val maxWaitMs = 5000L
             val startTime = System.currentTimeMillis()
-            var embedFallbackTried = false
+            var secondaryTried = false
 
             while (!deferredMediaUrl.isCompleted && System.currentTimeMillis() - startTime < maxWaitMs) {
-                delay(400)
+                delay(180)
                 if (deferredMediaUrl.isCompleted) break
 
-                // If 3.5s elapsed and nothing found, try embed URL
-                if (!embedFallbackTried && System.currentTimeMillis() - startTime > 3500L && shortcode.isNotBlank()) {
-                    embedFallbackTried = true
-                    val embedUrl = "https://www.instagram.com/p/$shortcode/embed/captioned/"
-                    GlobalLog.append(Log.INFO, TAG, "WebView switching to embed fallback: $embedUrl")
-                    webView.loadUrl(embedUrl)
+                val elapsed = System.currentTimeMillis() - startTime
+                if (!secondaryTried && elapsed > 2000L && shortcode.isNotBlank()) {
+                    secondaryTried = true
+                    val captionedUrl = "https://www.instagram.com/p/$shortcode/embed/captioned/"
+                    GlobalLog.append(Log.INFO, TAG, "WebView trying captioned embed fallback: $captionedUrl")
+                    webView.loadUrl(captionedUrl)
                 }
 
                 webView.evaluateJavascript("""
                     (function() {
-                        var v = document.querySelector('video');
-                        if (v && (v.currentSrc || v.src)) {
+                        var btns = document.querySelectorAll('button, div[role="button"], .PlayButton, .EmbeddedMediaImage');
+                        for (var i = 0; i < btns.length; i++) {
+                            try { btns[i].click(); } catch(e){}
+                        }
+                        var vids = document.querySelectorAll('video');
+                        for (var i = 0; i < vids.length; i++) {
+                            var v = vids[i];
+                            try {
+                                v.muted = true;
+                                v.play();
+                            } catch(e){}
                             var s = v.currentSrc || v.src;
-                            if (s && !s.startsWith('blob:')) return s;
+                            if (s && !s.startsWith('blob:') && s.startsWith('http')) return s;
                         }
-                        var a = document.querySelector('audio');
-                        if (a && (a.currentSrc || a.src)) {
-                            var s = a.currentSrc || a.src;
-                            if (s && !s.startsWith('blob:')) return s;
-                        }
-                        var vs = document.querySelector('video source');
-                        if (vs && vs.src && !vs.src.startsWith('blob:')) return vs.src;
-                        var asrc = document.querySelector('audio source');
-                        if (asrc && asrc.src && !asrc.src.startsWith('blob:')) return asrc.src;
                         return null;
                     })()
                 """.trimIndent()) { result ->
@@ -381,13 +456,14 @@ class LinkMediaResolver(
 
     private fun isInstagramMediaUrl(url: String): Boolean {
         val lower = url.lowercase()
-        if (lower.contains(".jpg") || lower.contains(".jpeg") || lower.contains(".png") ||
-            lower.contains(".webp") || lower.contains("rsrc.php") || lower.contains(".js") ||
-            lower.contains(".css") || lower.contains("/v/t51.")
-        ) {
+        if (lower.contains("rsrc.php") || lower.contains(".js") || lower.contains(".css")) {
             return false
         }
-        val isMetaCdn = lower.contains("cdninstagram.com") || lower.contains("fbcdn.net")
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".webp") ||
+            lower.contains(".jpg?") || lower.contains(".jpeg?") || lower.contains(".png?") || lower.contains(".webp?")) {
+            return false
+        }
+        val isMetaCdn = lower.contains("cdninstagram.com") || lower.contains("fbcdn.net") || lower.contains("instagram.f")
         val isMedia = lower.contains(".mp4") || lower.contains(".m4a") || lower.contains(".mp3") ||
                 lower.contains("/v/t50.") || lower.contains("/v/t0.") || lower.contains("/v/t64.") ||
                 lower.contains("/m1/v/") || lower.contains("mime_type=video") || lower.contains("mime_type=audio") ||
@@ -628,7 +704,7 @@ class LinkMediaResolver(
         return null
     }
 
-    private suspend fun downloadMediaChunk(
+    suspend fun downloadMediaChunk(
         mediaUrl: String,
         targetFile: File,
         maxBytes: Long = MAX_CHUNK_BYTES,

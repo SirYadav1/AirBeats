@@ -2910,7 +2910,11 @@ class MusicService :
                         }
                     }
                 } catch (e: Exception) {
-                    Timber.tag("MusicService").w(e, "JioSaavn priority resolution error, falling through to YouTube")
+                    if (e is InterruptedException || e is kotlinx.coroutines.CancellationException) {
+                        Timber.tag("MusicService").d("JioSaavn priority resolution timed out or cancelled, falling through to YouTube")
+                    } else {
+                        Timber.tag("MusicService").w(e, "JioSaavn priority resolution error, falling through to YouTube")
+                    }
                 }
             }
 
@@ -2977,11 +2981,10 @@ class MusicService :
                     contentLength = format.contentLength,
                 )
                 return@Factory dataSpec.withStreamUrl(streamUrl, format.contentLength)
-            } catch (e: InterruptedException) {
-                throw e
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException && player.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                    throw e
+                }
                 Timber.tag(ytLogTag).e(e, "YouTube playback error, trying JioSaavn fallback")
 
                 val enableJioSaavnFallback = runBlocking {
@@ -3556,7 +3559,11 @@ class MusicService :
                     }
                 }
             } catch (e: Exception) {
-                Timber.w(e, "Cast: JioSaavn priority resolution failed")
+                if (e is InterruptedException || e is kotlinx.coroutines.CancellationException) {
+                    Timber.d("Cast: JioSaavn priority resolution timed out or cancelled")
+                } else {
+                    Timber.w(e, "Cast: JioSaavn priority resolution failed")
+                }
             }
         }
 
