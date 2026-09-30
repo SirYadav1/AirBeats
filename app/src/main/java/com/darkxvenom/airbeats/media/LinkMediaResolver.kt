@@ -297,13 +297,14 @@ class LinkMediaResolver(
             GlobalLog.append(Log.INFO, TAG, "Creating fast in-memory WebView for Instagram shortcode: $shortcode")
             webView = WebView(context.applicationContext)
             webView.layout(0, 0, 1080, 1920)
+            webView.onResume()
+            webView.resumeTimers()
 
             val settings = webView.settings
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.databaseEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
-            // Desktop user agent bypasses mobile login redirection and renders standard video players
             settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
             CookieManager.getInstance().apply {
@@ -400,9 +401,9 @@ class LinkMediaResolver(
                 }
             }
 
-            // Directly load embed URL which does not redirect to login wall
+            // Directly load captioned embed URL which renders video player DOM reliably without login walls
             val primaryUrl = if (shortcode.isNotBlank()) {
-                "https://www.instagram.com/reel/$shortcode/embed/"
+                "https://www.instagram.com/p/$shortcode/embed/captioned/"
             } else {
                 originalUrl
             }
@@ -414,15 +415,15 @@ class LinkMediaResolver(
             var secondaryTried = false
 
             while (!deferredMediaUrl.isCompleted && System.currentTimeMillis() - startTime < maxWaitMs) {
-                delay(200)
+                delay(300)
                 if (deferredMediaUrl.isCompleted) break
 
                 val elapsed = System.currentTimeMillis() - startTime
-                if (!secondaryTried && elapsed > 4000L && shortcode.isNotBlank()) {
+                if (!secondaryTried && elapsed > 4500L && shortcode.isNotBlank()) {
                     secondaryTried = true
-                    val captionedUrl = "https://www.instagram.com/p/$shortcode/embed/captioned/"
-                    GlobalLog.append(Log.INFO, TAG, "WebView trying captioned embed fallback: $captionedUrl")
-                    webView.loadUrl(captionedUrl)
+                    val fallbackUrl = "https://www.instagram.com/reel/$shortcode/embed/captioned/"
+                    GlobalLog.append(Log.INFO, TAG, "WebView trying alternate embed: $fallbackUrl")
+                    webView.loadUrl(fallbackUrl)
                 }
 
                 webView.evaluateJavascript("""
@@ -723,9 +724,15 @@ class LinkMediaResolver(
         maxBytes: Long = MAX_CHUNK_BYTES,
         customUserAgent: String? = null
     ): Boolean = withContext(Dispatchers.IO) {
+        val isInstagram = mediaUrl.contains("cdninstagram.com") || mediaUrl.contains("fbcdn.net") || mediaUrl.contains("instagram.com")
+        if (isInstagram) {
+            // Instagram CDN rejects Range headers with 403/416; perform direct full chunk download with Referer
+            return@withContext downloadWithoutRange(mediaUrl, targetFile, maxBytes, customUserAgent)
+        }
+
         try {
             val hasRangeInUrl = mediaUrl.contains("range=") || mediaUrl.contains("bytestart=")
-            val defaultUa = "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+            val defaultUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
             val reqBuilder = Request.Builder()
                 .url(mediaUrl)
                 .addHeader("User-Agent", customUserAgent ?: defaultUa)
@@ -773,13 +780,19 @@ class LinkMediaResolver(
         customUserAgent: String? = null
     ): Boolean {
         return try {
-            val defaultUa = "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
-            val request = Request.Builder()
+            val isInstagram = mediaUrl.contains("cdninstagram.com") || mediaUrl.contains("fbcdn.net") || mediaUrl.contains("instagram.com")
+            val defaultUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            val reqBuilder = Request.Builder()
                 .url(mediaUrl)
                 .addHeader("User-Agent", customUserAgent ?: defaultUa)
                 .addHeader("Accept", "*/*")
-                .build()
 
+            if (isInstagram) {
+                reqBuilder.addHeader("Referer", "https://www.instagram.com/")
+                reqBuilder.addHeader("Origin", "https://www.instagram.com")
+            }
+
+            val request = reqBuilder.build()
             okHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     GlobalLog.append(Log.ERROR, TAG, "Direct download failed with HTTP ${response.code}")

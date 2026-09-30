@@ -1422,19 +1422,29 @@ class MusicService :
                 initialStatus.mediaItemIndex.coerceIn(0, initialStatus.items.lastIndex)
             }
 
-            val startPos = if (queue.preloadItem != null && player.playbackState != STATE_IDLE && player.currentMediaItem?.mediaId == initialStatus.items.getOrNull(targetIndex)?.mediaId) {
-                player.currentPosition
-            } else {
-                initialStatus.position
-            }
+            val isAlreadyPlayingPreload = queue.preloadItem != null &&
+                player.playbackState != STATE_IDLE &&
+                player.currentMediaItem?.mediaId == initialStatus.items.getOrNull(targetIndex)?.mediaId
 
-            player.setMediaItems(
-                initialStatus.items,
-                targetIndex,
-                startPos,
-            )
-            player.prepare()
-            player.playWhenReady = playWhenReady
+            if (isAlreadyPlayingPreload) {
+                // Preload item is already seamlessly playing! Add remaining items around it without restarting playback
+                val itemsBefore = initialStatus.items.subList(0, targetIndex)
+                val itemsAfter = initialStatus.items.subList(targetIndex + 1, initialStatus.items.size)
+                if (itemsBefore.isNotEmpty()) {
+                    player.addMediaItems(0, itemsBefore)
+                }
+                if (itemsAfter.isNotEmpty()) {
+                    player.addMediaItems(itemsAfter)
+                }
+            } else {
+                player.setMediaItems(
+                    initialStatus.items,
+                    targetIndex,
+                    initialStatus.position,
+                )
+                player.prepare()
+                player.playWhenReady = playWhenReady
+            }
 
             if (hadShuffle && player.mediaItemCount > 1) {
                 val shuffledIndices = IntArray(player.mediaItemCount) { it }
@@ -2775,7 +2785,9 @@ class MusicService :
                     val host = dataSpec.uri.host
                     if (host == "cached.airbeats.local" || !isNetworkConnected.value) {
                         isOfflineFallback = true
-                        return 0L
+                        throw androidx.media3.datasource.DataSourceException(
+                            androidx.media3.common.PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE
+                        )
                     }
                     isOfflineFallback = false
                     return defaultDataSource.open(dataSpec)
@@ -2858,13 +2870,14 @@ class MusicService :
                 Timber.w("Missing local source for online song $mediaId; resolving a fresh stream instead")
             }
 
-            // If offline, and we have cached data for this song, return a safe pseudo-HTTP URI
-            // so CacheDataSource serves cached spans, and DefaultDataSource won't route to FileDataSource ENOENT
-            if (!isNetworkConnected.value) {
-                val hasCache = downloadCache.keys.contains(mediaId) || playerCache.keys.contains(mediaId)
+            // Play cached data if offline or if the song is already fully cached
+            val isFullyCached = isSongFullyCached(mediaId)
+            val hasCache = downloadCache.keys.contains(mediaId) || playerCache.keys.contains(mediaId)
+
+            if (!isNetworkConnected.value || isFullyCached) {
                 if (hasCache) {
                     val isSkipUncached = dataStore.get(SkipUncachedPartKey, false)
-                    if (isSkipUncached && !isSongFullyCached(mediaId)) {
+                    if (isSkipUncached && !isFullyCached && !isNetworkConnected.value) {
                         throw java.io.IOException("Partially cached song skipped offline")
                     }
                     scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
@@ -2872,15 +2885,30 @@ class MusicService :
                         database.format(mediaId).firstOrNull()?.contentLength
                     }
                     val actualCachedLength: Long = getCachedBytesForSong(mediaId)
-                    val effectiveLength: Long? = if (dbContentLength != null && dbContentLength > 0L) {
-                        dbContentLength
-                    } else if (actualCachedLength > 0L) {
+                    val effectiveLength: Long? = if (actualCachedLength > 0L) {
                         actualCachedLength
+                    } else if (dbContentLength != null && dbContentLength > 0L) {
+                        dbContentLength
                     } else {
                         null
                     }
+
+                    // Apply content length mutation so CacheDataSource never queries upstream
+                    if (actualCachedLength > 0L) {
+                        runCatching {
+                            val targetCache = if (downloadCache.keys.contains(mediaId)) downloadCache else playerCache
+                            val meta = targetCache.getContentMetadata(mediaId)
+                            val metaLen = ContentMetadata.getContentLength(meta)
+                            if (metaLen <= 0L) {
+                                val mutations = androidx.media3.datasource.cache.ContentMetadataMutations()
+                                androidx.media3.datasource.cache.ContentMetadataMutations.setContentLength(mutations, actualCachedLength)
+                                targetCache.applyContentMetadataMutations(mediaId, mutations)
+                            }
+                        }
+                    }
+
                     return@Factory dataSpec.withStreamUrl("https://cached.airbeats.local/$mediaId", effectiveLength)
-                } else {
+                } else if (!isNetworkConnected.value) {
                     throw java.io.IOException("Song uncached offline")
                 }
             }

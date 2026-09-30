@@ -3,7 +3,13 @@ package com.darkxvenom.airbeats.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -61,7 +68,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.darkxvenom.airbeats.LocalPlayerAwareWindowInsets
 import com.darkxvenom.airbeats.LocalPlayerConnection
 import com.darkxvenom.airbeats.R
@@ -105,6 +114,7 @@ fun ListenTogetherScreen(
     var isHost by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var isScanningLan by remember { mutableStateOf(false) }
+    var discoveredHosts by remember { mutableStateOf<List<com.darkxvenom.airbeats.utils.DiscoveredLanHost>>(emptyList()) }
     var message by remember { mutableStateOf<String?>(null) }
 
     val syncedSession by ListenTogetherSync.session.collectAsState()
@@ -238,6 +248,8 @@ fun ListenTogetherScreen(
                     songTitle = mediaMetadata?.title ?: session?.state?.title,
                     subtitle = mediaMetadata?.artists?.joinToString { it.name }
                         ?: session?.state?.artists?.joinToString(),
+                    thumbnailUrl = mediaMetadata?.thumbnailUrl ?: session?.state?.thumbnailUrl,
+                    isPlaying = isPlaying,
                 )
 
                 if (selectedMode == ListenTogetherConnectionMode.ONLINE) {
@@ -510,10 +522,11 @@ fun ListenTogetherScreen(
                                                     return@launch
                                                 }
                                                 message = context.getString(R.string.together_searching_lan)
-                                                val found = LanTogetherClient.scanLocalNetwork(ip)
+                                                val found = LanTogetherClient.scanLocalNetwork(localIp = ip, port = 8765, context = context)
+                                                discoveredHosts = found
                                                 if (found.isNotEmpty()) {
-                                                    lanHostInput = found.first()
-                                                    message = context.getString(R.string.together_found_host, found.first())
+                                                    lanHostInput = found.first().address
+                                                    message = "Found ${found.size} host(s) on Wi-Fi"
                                                 } else {
                                                     message = context.getString(R.string.together_no_hosts_found)
                                                 }
@@ -544,6 +557,80 @@ fun ListenTogetherScreen(
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Text(stringResource(R.string.together_join_lan))
+                                }
+                            }
+
+                            // Discovered Hosts List
+                            AnimatedVisibility(visible = discoveredHosts.isNotEmpty()) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "AVAILABLE HOSTS (${discoveredHosts.size})",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    discoveredHosts.forEach { host ->
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Surface(
+                                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                                        shape = CircleShape,
+                                                        modifier = Modifier.size(36.dp)
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Icon(
+                                                                painter = painterResource(R.drawable.ic_wifi),
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(18.dp),
+                                                                tint = MaterialTheme.colorScheme.primary
+                                                            )
+                                                        }
+                                                    }
+                                                    Column {
+                                                        Text(
+                                                            text = host.hostName,
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        Text(
+                                                            text = "${host.address} • ${host.participants} in room",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+                                                Button(
+                                                    onClick = {
+                                                        lanHostInput = host.address
+                                                        isLoading = true
+                                                        ListenTogetherSync.setDisplayName(displayName)
+                                                        ListenTogetherSync.joinLanSession(host.address)
+                                                        isLoading = false
+                                                    },
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ) {
+                                                    Text("Join")
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -613,7 +700,7 @@ private fun ParticipantsSection(session: ListenTogetherSession) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.padding(18.dp)
         ) {
             Text(
@@ -625,18 +712,50 @@ private fun ParticipantsSection(session: ListenTogetherSession) {
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
             )
             session.participantList.forEach { participant ->
-                Text(
-                    text = if (participant.isHost) {
-                        stringResource(R.string.created_by_name, participant.name)
-                    } else {
-                        participant.name
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                ) {
+                    Surface(
+                        color = if (participant.isHost) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = CircleShape,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = participant.name.take(1).uppercase(),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (participant.isHost) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = participant.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (participant.isHost) FontWeight.SemiBold else FontWeight.Normal,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (participant.isHost) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "HOST",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -649,12 +768,25 @@ private fun CurrentSessionCard(
     isLan: Boolean,
     songTitle: String?,
     subtitle: String?,
+    thumbnailUrl: String? = null,
+    isPlaying: Boolean = false,
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
+
     SettingsGlassCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
             modifier = Modifier.padding(18.dp)
         ) {
             Row(
@@ -662,69 +794,157 @@ private fun CurrentSessionCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = if (session == null) {
-                        stringResource(R.string.no_active_session)
-                    } else if (isHost) {
-                        stringResource(R.string.hosting_session, session.code)
-                    } else {
-                        stringResource(R.string.joined_session_with_code, session.code)
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f, fill = false)
-                )
+                ) {
+                    if (session != null) {
+                        Box(
+                            modifier = Modifier
+                                .size(9.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF4CAF50).copy(alpha = pulseAlpha))
+                        )
+                    }
+                    Text(
+                        text = if (session == null) {
+                            stringResource(R.string.no_active_session)
+                        } else if (isHost) {
+                            stringResource(R.string.hosting_session, session.code)
+                        } else {
+                            stringResource(R.string.joined_session_with_code, session.code)
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
                 if (session != null) {
                     Surface(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(
-                            text = if (isLan) "LAN / Wi-Fi" else "Online",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(if (isLan) R.drawable.ic_wifi else R.drawable.resource_public),
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = if (isLan) "LAN / Wi-Fi" else "Online",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Song Info Row with artwork
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                ) {
+                    if (!thumbnailUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = thumbnailUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.music_note),
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = songTitle ?: stringResource(R.string.play_song_first),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    subtitle?.takeIf { it.isNotBlank() }?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (session != null) {
+                        Text(
+                            text = "${session.participants} listener${if (session.participants > 1) "s" else ""} in sync",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
             }
 
-            Text(
-                text = songTitle ?: stringResource(R.string.play_song_first),
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            subtitle?.takeIf { it.isNotBlank() }?.let {
-                Text(
-                    text = joinByBullet(it, session?.participants?.let { count -> "$count listeners" }),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            session?.joinUrl?.takeIf { it.isNotBlank() }?.let {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
             if (isLan && session != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Web Browser: http://${session.code}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Web Player:",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        Text(
+                            text = "http://${session.code}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
     }
