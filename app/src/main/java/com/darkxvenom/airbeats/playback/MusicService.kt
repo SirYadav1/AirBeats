@@ -181,6 +181,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -1250,9 +1251,9 @@ class MusicService :
             return totalCached >= (metaLen * 0.95).toLong()
         }
 
-        val dbLen = runCatching {
+        val dbLen: Long = runCatching {
             runBlocking(Dispatchers.IO) {
-                database.format(mediaId).firstOrNull()?.contentLength
+                database.format(mediaId).firstOrNull()?.contentLength ?: -1L
             }
         }.getOrNull() ?: -1L
 
@@ -2867,11 +2868,17 @@ class MusicService :
                         throw java.io.IOException("Partially cached song skipped offline")
                     }
                     scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                    val dbContentLength = runBlocking(Dispatchers.IO) {
+                    val dbContentLength: Long? = runBlocking(Dispatchers.IO) {
                         database.format(mediaId).firstOrNull()?.contentLength
                     }
-                    val actualCachedLength = getCachedBytesForSong(mediaId)
-                    val effectiveLength = dbContentLength?.takeIf { it > 0L } ?: actualCachedLength.takeIf { it > 0L }
+                    val actualCachedLength: Long = getCachedBytesForSong(mediaId)
+                    val effectiveLength: Long? = if (dbContentLength != null && dbContentLength > 0L) {
+                        dbContentLength
+                    } else if (actualCachedLength > 0L) {
+                        actualCachedLength
+                    } else {
+                        null
+                    }
                     return@Factory dataSpec.withStreamUrl("https://cached.airbeats.local/$mediaId", effectiveLength)
                 } else {
                     throw java.io.IOException("Song uncached offline")
