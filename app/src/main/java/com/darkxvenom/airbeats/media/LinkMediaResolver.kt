@@ -17,13 +17,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
 import org.jsoup.Jsoup
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URLDecoder
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
 class LinkMediaResolver(
@@ -34,15 +31,6 @@ class LinkMediaResolver(
         .followSslRedirects(true)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
-        .build(),
-    private val resolverOkHttpClient: OkHttpClient = OkHttpClient.Builder()
-        .followRedirects(true)
-        .followSslRedirects(true)
-        .connectTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(90, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
-        .callTimeout(120, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true)
         .build()
 ) {
 
@@ -207,57 +195,6 @@ class LinkMediaResolver(
         }
     }
 
-    private val RESOLVER_BASE = String(
-        android.util.Base64.decode("aHR0cHM6Ly9pbnN0YWdyYW0tcmVuZGVyLXJlc29sdmVyLm9ucmVuZGVyLmNvbQ==", android.util.Base64.DEFAULT),
-        StandardCharsets.UTF_8
-    ).trim()
-
-    suspend fun fetchDirectDownloadUrl(url: String): String? = withContext(Dispatchers.IO) {
-        val encodedUrl = URLEncoder.encode(url.trim(), StandardCharsets.UTF_8.name())
-        val reqUrl = "$RESOLVER_BASE/resolve?url=$encodedUrl"
-        val request = Request.Builder()
-            .url(reqUrl)
-            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-            .addHeader("Accept", "application/json")
-            .build()
-
-        var attempts = 0
-        val maxAttempts = 2
-        while (attempts < maxAttempts) {
-            attempts++
-            try {
-                GlobalLog.append(Log.INFO, TAG, "Contacting resolver API (attempt $attempts of $maxAttempts)...")
-                resolverOkHttpClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        GlobalLog.append(Log.WARN, TAG, "Resolver API returned HTTP ${response.code}")
-                        if (response.code in 502..504 && attempts < maxAttempts) {
-                            delay(3000)
-                            return@use
-                        }
-                        return@withContext null
-                    }
-                    val body = response.body?.string().orEmpty()
-                    if (body.isBlank()) return@withContext null
-                    val json = JSONObject(body)
-                    val videoUrl = json.optString("videoStreamingUrl").takeIf { it.isNotBlank() }
-                        ?: json.optString("videoDownloadUrl").takeIf { it.isNotBlank() }
-                        ?: json.optString("audioStreamingUrl").takeIf { it.isNotBlank() }
-                        ?: json.optString("audioDownloadUrl").takeIf { it.isNotBlank() }
-                    if (!videoUrl.isNullOrBlank()) {
-                        GlobalLog.append(Log.INFO, TAG, "Successfully resolved media stream via API")
-                        return@withContext videoUrl
-                    }
-                }
-            } catch (e: Exception) {
-                GlobalLog.append(Log.WARN, TAG, "Direct resolver service exception (attempt $attempts): ${e.message}")
-                if (attempts < maxAttempts) {
-                    delay(2000)
-                }
-            }
-        }
-        null
-    }
-
     private suspend fun resolveInstagramMedia(url: String): File? {
         val cleanUrl = url.trim()
         GlobalLog.append(Log.INFO, TAG, "Starting Instagram resolution for: $cleanUrl")
@@ -269,7 +206,7 @@ class LinkMediaResolver(
         }
         GlobalLog.append(Log.INFO, TAG, "Instagram shortcode: $shortcode")
 
-        // 1. In-App Fast WebView resolution
+        // Strategy 1 (Primary): In-App Fast WebView resolution
         try {
             val mediaUrl = resolveInstagramViaWebView(cleanUrl, shortcode ?: "")
             if (!mediaUrl.isNullOrBlank()) {
@@ -285,21 +222,68 @@ class LinkMediaResolver(
             GlobalLog.append(Log.WARN, TAG, "Instagram WebView resolution error: ${e.message}")
         }
 
-        // 2. Automated background resolver fallback
-        try {
-            GlobalLog.append(Log.INFO, TAG, "Trying automated fallback resolver for Instagram: $cleanUrl")
-            val directUrl = fetchDirectDownloadUrl(cleanUrl)
-            if (!directUrl.isNullOrBlank()) {
-                GlobalLog.append(Log.INFO, TAG, "Fallback resolver returned media URL")
-                val targetFile = tempManager.createTempFile("mp4")
-                if (downloadMediaChunk(directUrl, targetFile)) {
-                    GlobalLog.append(Log.INFO, TAG, "Downloaded media from fallback service (${targetFile.length()} bytes)")
-                    return targetFile
+        // Strategy 2: Direct HTTP check for Instagram embed captioned page & JSON endpoint
+        if (!shortcode.isNullOrBlank()) {
+            try {
+                val apiUrls = listOf(
+                    "https://www.instagram.com/reel/$shortcode/embed/captioned/",
+                    "https://www.instagram.com/p/$shortcode/embed/captioned/",
+                    "https://www.instagram.com/reel/$shortcode/?__a=1&__d=1",
+                    "https://www.instagram.com/p/$shortcode/?__a=1&__d=1"
+                )
+                for (apiEndpoint in apiUrls) {
+                    GlobalLog.append(Log.INFO, TAG, "Checking Instagram endpoint: $apiEndpoint")
+                    val request = Request.Builder()
+                        .url(apiEndpoint)
+                        .addHeader("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1")
+                        .addHeader("X-IG-App-ID", "936619743392459")
+                        .addHeader("Accept", "*/*")
+                        .build()
+
+                    okHttpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val html = response.body?.string().orEmpty()
+                            val mediaUrl = extractMediaUrlFromHtml(html)
+                            if (!mediaUrl.isNullOrBlank()) {
+                                GlobalLog.append(Log.INFO, TAG, "Found media URL from $apiEndpoint: $mediaUrl")
+                                val targetFile = tempManager.createTempFile("mp4")
+                                if (downloadMediaChunk(mediaUrl, targetFile)) {
+                                    return targetFile
+                                }
+                                tempManager.cleanup(targetFile)
+                            }
+                        }
+                    }
                 }
-                tempManager.cleanup(targetFile)
+            } catch (e: Exception) {
+                GlobalLog.append(Log.WARN, TAG, "Instagram HTTP API check failed: ${e.message}")
+            }
+        }
+
+        // Strategy 3: Bot User-Agent OpenGraph scrape
+        try {
+            GlobalLog.append(Log.INFO, TAG, "Trying bot OpenGraph scrape for $cleanUrl")
+            val request = Request.Builder()
+                .url(cleanUrl)
+                .addHeader("User-Agent", "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)")
+                .build()
+
+            okHttpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val html = response.body?.string().orEmpty()
+                    val mediaUrl = extractMediaUrlFromHtml(html)
+                    if (!mediaUrl.isNullOrBlank()) {
+                        GlobalLog.append(Log.INFO, TAG, "Found media URL via OpenGraph: $mediaUrl")
+                        val targetFile = tempManager.createTempFile("mp4")
+                        if (downloadMediaChunk(mediaUrl, targetFile)) {
+                            return targetFile
+                        }
+                        tempManager.cleanup(targetFile)
+                    }
+                }
             }
         } catch (e: Exception) {
-            GlobalLog.append(Log.WARN, TAG, "Automated fallback resolver error: ${e.message}")
+            GlobalLog.append(Log.WARN, TAG, "Instagram OpenGraph resolution failed: ${e.message}")
         }
 
         GlobalLog.append(Log.WARN, TAG, "Instagram resolution failed for: $cleanUrl")

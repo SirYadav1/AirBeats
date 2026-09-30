@@ -2756,6 +2756,51 @@ class MusicService :
         keepLoadingCurrentSongOnError()
     }
 
+    private fun createUpstreamDataSourceFactory(): DataSource.Factory {
+        val defaultFactory = DefaultDataSource.Factory(
+            this,
+            OkHttpDataSource.Factory(mediaOkHttpClient)
+        )
+        return DataSource.Factory {
+            val defaultDataSource = defaultFactory.createDataSource()
+            object : DataSource {
+                private var isOfflineFallback = false
+
+                override fun addTransferListener(transferListener: androidx.media3.datasource.TransferListener) {
+                    defaultDataSource.addTransferListener(transferListener)
+                }
+
+                override fun open(dataSpec: DataSpec): Long {
+                    val host = dataSpec.uri.host
+                    if (host == "cached.airbeats.local" || !isNetworkConnected.value) {
+                        isOfflineFallback = true
+                        return 0L
+                    }
+                    isOfflineFallback = false
+                    return defaultDataSource.open(dataSpec)
+                }
+
+                override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                    if (isOfflineFallback) {
+                        return C.RESULT_END_OF_INPUT
+                    }
+                    return defaultDataSource.read(buffer, offset, length)
+                }
+
+                override fun getUri(): android.net.Uri? {
+                    return if (isOfflineFallback) null else defaultDataSource.uri
+                }
+
+                override fun close() {
+                    if (!isOfflineFallback) {
+                        defaultDataSource.close()
+                    }
+                    isOfflineFallback = false
+                }
+            }
+        }
+    }
+
     private fun createCacheDataSource(): CacheDataSource.Factory =
         CacheDataSource
             .Factory()
@@ -2765,12 +2810,7 @@ class MusicService :
                     .Factory()
                     .setCache(playerCache)
                     .setUpstreamDataSourceFactory(
-                        DefaultDataSource.Factory(
-                            this,
-                            OkHttpDataSource.Factory(
-                                mediaOkHttpClient,
-                            ),
-                        ),
+                        createUpstreamDataSourceFactory()
                     ).setFlags(FLAG_IGNORE_CACHE_ON_ERROR),
             ).setCacheWriteDataSinkFactory(null)
             .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
@@ -2827,10 +2867,12 @@ class MusicService :
                         throw java.io.IOException("Partially cached song skipped offline")
                     }
                     scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                    val contentLength = runBlocking(Dispatchers.IO) {
+                    val dbContentLength = runBlocking(Dispatchers.IO) {
                         database.format(mediaId).firstOrNull()?.contentLength
                     }
-                    return@Factory dataSpec.withStreamUrl("https://cached.airbeats.local/$mediaId", contentLength)
+                    val actualCachedLength = getCachedBytesForSong(mediaId)
+                    val effectiveLength = dbContentLength?.takeIf { it > 0L } ?: actualCachedLength.takeIf { it > 0L }
+                    return@Factory dataSpec.withStreamUrl("https://cached.airbeats.local/$mediaId", effectiveLength)
                 } else {
                     throw java.io.IOException("Song uncached offline")
                 }
