@@ -2802,7 +2802,9 @@ class MusicService :
             }
         }
 
-        if (!isNetworkConnected.value) {
+        // Under no circumstances should the player skip to the next song when loading takes time or errors occur.
+        // It must keep loading the current track.
+        if (!isNetworkConnected.value && error.message?.contains("partially cached") != true) {
             waitOnNetworkError()
             return
         }
@@ -2969,6 +2971,17 @@ class MusicService :
         // If offline, check if downloadCache or playerCache has any cached data for this song
         val hasCache = downloadCache.keys.contains(mediaId) || playerCache.keys.contains(mediaId)
         if (hasCache && !isNetworkConnected.value) {
+            val cachedBytes = maxOf(
+                downloadCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE),
+                playerCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE),
+            )
+            if (cachedBytes > 0L) {
+                throw PlaybackException(
+                    "This song is only partially cached. Connect to the internet once to finish loading it.",
+                    null,
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                )
+            }
             scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
             return dataSpec
         }
