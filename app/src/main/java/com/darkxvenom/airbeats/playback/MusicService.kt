@@ -3384,7 +3384,6 @@ class MusicService :
                 }
             }
         }
-    }
 
     private fun createMediaSourceFactory(): DefaultMediaSourceFactory {
         val extractorsFactory = ExtractorsFactory {
