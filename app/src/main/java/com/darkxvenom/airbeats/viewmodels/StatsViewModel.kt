@@ -14,6 +14,7 @@ import com.darkxvenom.airbeats.utils.AirBeatsStatsCloudClient
 import com.darkxvenom.airbeats.utils.AirBeatsStatsCloudSync
 import com.darkxvenom.airbeats.utils.GlobalStatsBoard
 import com.darkxvenom.airbeats.utils.LocalStatsUpload
+import com.darkxvenom.airbeats.utils.dataStore
 import com.darkxvenom.airbeats.utils.reportException
 import timber.log.Timber
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -305,7 +306,27 @@ constructor(
 
     private suspend fun buildUpload(userId: String): LocalStatsUpload? {
         val isNameSet = namePreferenceManager.isNameSet.first()
-        if (!isNameSet) return null
+        val settings = context.dataStore.data.first()
+        val settingsEmail = settings[com.darkxvenom.airbeats.constants.AccountEmailKey]?.trim()?.takeIf { it.isNotBlank() }
+        val managerEmail = namePreferenceManager.accountEmail.first().trim().takeIf { it.isNotBlank() }
+        val effectiveEmail = (managerEmail ?: settingsEmail)?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+
+        val settingsName = settings[com.darkxvenom.airbeats.constants.AccountNameKey]?.trim()?.takeIf { it.isNotBlank() }
+        val managerName = namePreferenceManager.userName.first().trim().takeIf { it.isNotBlank() }
+        val effectiveName = (managerName ?: settingsName ?: effectiveEmail?.substringBefore("@"))?.ifBlank { null }
+            ?: (android.os.Build.MODEL ?: "AirBeats User")
+
+        val isSignedIn = !effectiveEmail.isNullOrBlank() || settings[com.darkxvenom.airbeats.constants.InnerTubeCookieKey]?.isNotBlank() == true || isNameSet
+
+        // Automatically sync email and username to namePreferenceManager if missing
+        if (!effectiveEmail.isNullOrBlank() && managerEmail.isNullOrBlank()) {
+            runCatching { namePreferenceManager.saveAccountEmail(effectiveEmail) }
+        }
+        if (managerName.isNullOrBlank() && !effectiveName.isBlank() && effectiveName != "AirBeats User") {
+            runCatching { namePreferenceManager.saveUserName(effectiveName) }
+        }
+
+        if (!isSignedIn && !isNameSet) return null
 
         val now = LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli()
         val weekStart =
@@ -319,8 +340,8 @@ constructor(
         val weekSongs = database.mostPlayedSongsStats(weekStart, limit = -1, toTimeStamp = Long.MAX_VALUE).first()
         val totalListenMs = allSongs.sumOf { it.timeListened?.toLong() ?: 0L }
         val weeklyListenMs = weekSongs.sumOf { it.timeListened?.toLong() ?: 0L }
-        val name = namePreferenceManager.userName.first().ifBlank { android.os.Build.MODEL ?: "AirBeats User" }
-        val email = namePreferenceManager.accountEmail.first().trim().lowercase().takeIf { it.isNotBlank() }
+        val name = effectiveName
+        val email = effectiveEmail
         val profileUrl =
             when (val avatar = AvatarPreferenceManager(context).getAvatarSelection.first()) {
                 is AvatarSelection.DiceBear -> avatar.url

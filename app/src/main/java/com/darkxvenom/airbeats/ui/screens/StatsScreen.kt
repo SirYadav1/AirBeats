@@ -697,7 +697,7 @@ private fun GlobalStatsBoardCard(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = topUser?.let { "Most listened: ${it.name} • Total Users: ${users.size}" } ?: "Waiting for daily cloud stats",
+                        text = topUser?.let { "Most listened: ${it.name} • Top ${users.size}" } ?: "Waiting for daily cloud stats",
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,

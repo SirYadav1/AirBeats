@@ -22,7 +22,7 @@ class AirBeatsStatsCloudClient {
 
     suspend fun readBoard(fileName: String = GLOBAL_STATS_FILE): Result<GlobalStatsBoard> = withContext(Dispatchers.IO) {
         runCatching {
-            val request = Request.Builder().url("${workerUrl()}/leaderboard?_t=${System.currentTimeMillis()}").header("Cache-Control", "no-cache").get().build()
+            val request = Request.Builder().url("${workerUrl()}/leaderboard?limit=100&_t=${System.currentTimeMillis()}").header("Cache-Control", "no-cache").get().build()
             client.newCall(request).execute().use { response ->
                 val text = response.body?.string().orEmpty()
                 if (!response.isSuccessful) error(parseError(text, response.code))
@@ -44,6 +44,12 @@ class AirBeatsStatsCloudClient {
                 .put("weeklyListenMs", upload.weeklyListenMs.coerceAtLeast(0L))
             if (!upload.user.isNullOrBlank()) {
                 payload.put("user", upload.user)
+            }
+            if (!upload.email.isNullOrBlank()) {
+                payload.put("email", upload.email)
+            }
+            if (!upload.fcmToken.isNullOrBlank()) {
+                payload.put("fcmToken", upload.fcmToken)
             }
             val request = Request.Builder().url("${workerUrl()}/stats").header("Authorization", "Bearer $token").post(payload.toString().toRequestBody(JSON_MEDIA_TYPE)).build()
             var returnedUserNumber: String? = null
@@ -74,7 +80,7 @@ class AirBeatsStatsCloudClient {
             val id = it.optString("id")
             val userNum = it.optString("user").takeIf(String::isNotBlank)
             if (id.isBlank()) null else GlobalStatsUser(id = id, user = userNum, name = it.optString("name", "AirBeats User"), profileUrl = it.optString("profileUrl").takeIf(String::isNotBlank), totalListenMs = it.optLong("totalListenMs"), weeklyListenMs = it.optLong("weeklyListenMs"), lastUpdatedAt = it.optLong("lastUpdatedAt"), rank = it.optInt("rank"))
-        }}
+        }}.take(100)
         return GlobalStatsBoard(users, json.optLong("updatedAt"))
     }
 

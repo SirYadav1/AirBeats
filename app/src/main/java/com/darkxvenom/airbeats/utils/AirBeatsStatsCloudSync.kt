@@ -45,7 +45,27 @@ object AirBeatsStatsCloudSync {
         userId: String,
     ): LocalStatsUpload? {
         val isNameSet = namePreferenceManager.isNameSet.first()
-        if (!isNameSet) return null
+        val settings = context.dataStore.data.first()
+        val settingsEmail = settings[com.darkxvenom.airbeats.constants.AccountEmailKey]?.trim()?.takeIf { it.isNotBlank() }
+        val managerEmail = namePreferenceManager.accountEmail.first().trim().takeIf { it.isNotBlank() }
+        val effectiveEmail = (managerEmail ?: settingsEmail).normalizedEmail()
+
+        val settingsName = settings[com.darkxvenom.airbeats.constants.AccountNameKey]?.trim()?.takeIf { it.isNotBlank() }
+        val managerName = namePreferenceManager.userName.first().trim().takeIf { it.isNotBlank() }
+        val effectiveName = (managerName ?: settingsName ?: effectiveEmail?.substringBefore("@"))?.ifBlank { null }
+            ?: (android.os.Build.MODEL ?: "AirBeats User")
+
+        val isSignedIn = !effectiveEmail.isNullOrBlank() || settings[com.darkxvenom.airbeats.constants.InnerTubeCookieKey]?.isNotBlank() == true || isNameSet
+
+        // Automatically sync email and username to namePreferenceManager if missing
+        if (!effectiveEmail.isNullOrBlank() && managerEmail.isNullOrBlank()) {
+            runCatching { namePreferenceManager.saveAccountEmail(effectiveEmail) }
+        }
+        if (managerName.isNullOrBlank() && !effectiveName.isBlank() && effectiveName != "AirBeats User") {
+            runCatching { namePreferenceManager.saveUserName(effectiveName) }
+        }
+
+        if (!isSignedIn && !isNameSet) return null
 
         val now = LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli()
         val weekStart =
@@ -59,8 +79,6 @@ object AirBeatsStatsCloudSync {
         val weekSongs = database.mostPlayedSongsStats(weekStart, limit = -1, toTimeStamp = Long.MAX_VALUE).first()
         val totalListenMs = allSongs.sumOf { it.timeListened?.toLong() ?: 0L }
         val weeklyListenMs = weekSongs.sumOf { it.timeListened?.toLong() ?: 0L }
-        val name = namePreferenceManager.userName.first().ifBlank { android.os.Build.MODEL ?: "AirBeats User" }
-        val email = namePreferenceManager.accountEmail.first().normalizedEmail()
         val profileUrl =
             when (val avatar = AvatarPreferenceManager(context).getAvatarSelection.first()) {
                 is AvatarSelection.DiceBear -> avatar.url
@@ -70,9 +88,9 @@ object AirBeatsStatsCloudSync {
         return LocalStatsUpload(
             userId = userId,
             user = getUserNumber(context),
-            name = name,
+            name = effectiveName,
             profileUrl = profileUrl,
-            email = email,
+            email = effectiveEmail,
             totalListenMs = totalListenMs,
             weeklyListenMs = weeklyListenMs,
         )
@@ -175,8 +193,12 @@ object AirBeatsStatsCloudSync {
             }.getOrNull()
         }
 
-        val currentName = runCatching { namePreferenceManager.userName.first().trim() }.getOrDefault("")
-        val currentEmail = runCatching { namePreferenceManager.accountEmail.first().normalizedEmail() }.getOrNull()
+        val settings = runCatching { context.dataStore.data.first() }.getOrNull()
+        val settingsEmail = settings?.get(com.darkxvenom.airbeats.constants.AccountEmailKey)?.trim()?.takeIf { it.isNotBlank() }
+        val settingsName = settings?.get(com.darkxvenom.airbeats.constants.AccountNameKey)?.trim()?.takeIf { it.isNotBlank() }
+
+        val currentName = runCatching { namePreferenceManager.userName.first().trim() }.getOrDefault("").ifBlank { settingsName.orEmpty() }
+        val currentEmail = (runCatching { namePreferenceManager.accountEmail.first().normalizedEmail() }.getOrNull() ?: settingsEmail).normalizedEmail()
 
         // 2. Fetch remote leaderboard to match with existing stats
         val board = runCatching { AirBeatsStatsCloudClient().readBoard().getOrNull() }.getOrNull()
