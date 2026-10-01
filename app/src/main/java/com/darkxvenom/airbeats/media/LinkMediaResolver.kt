@@ -314,6 +314,79 @@ class LinkMediaResolver(
                 } catch (_: Exception) {}
             }
 
+            val bridge = object {
+                @android.webkit.JavascriptInterface
+                fun onMediaFound(url: String?) {
+                    val clean = url?.trim('"', ' ', '\'', '\\')
+                    if (!clean.isNullOrBlank() && clean.startsWith("http") && !clean.startsWith("blob:") && isInstagramMediaUrl(clean)) {
+                        GlobalLog.append(Log.INFO, TAG, "AirBeatsBridge received Instagram media URL: $clean")
+                        if (!deferredMediaUrl.isCompleted) {
+                            deferredMediaUrl.complete(clean)
+                        }
+                    }
+                }
+            }
+            webView.addJavascriptInterface(bridge, "AirBeatsBridge")
+
+            val injectionScript = """
+                (function() {
+                    function report(url) {
+                        if (!url || typeof url !== 'string') return;
+                        if ((url.includes('cdninstagram.com') || url.includes('fbcdn.net')) &&
+                            (url.includes('.mp4') || url.includes('/v/t50.') || url.includes('/v/t0.') || url.includes('mime_type=video'))) {
+                            if (window.AirBeatsBridge) {
+                                window.AirBeatsBridge.onMediaFound(url);
+                            }
+                        }
+                    }
+
+                    if (window.fetch) {
+                        var origFetch = window.fetch;
+                        window.fetch = function() {
+                            var arg = arguments[0];
+                            if (typeof arg === 'string') report(arg);
+                            else if (arg && arg.url) report(arg.url);
+                            return origFetch.apply(this, arguments);
+                        };
+                    }
+
+                    if (window.XMLHttpRequest) {
+                        var origOpen = XMLHttpRequest.prototype.open;
+                        XMLHttpRequest.prototype.open = function(method, url) {
+                            report(url);
+                            return origOpen.apply(this, arguments);
+                        };
+                    }
+
+                    function scan() {
+                        var btns = document.querySelectorAll('button, div[role="button"], .PlayButton, .EmbeddedMediaImage, [aria-label*="play" i], [aria-label*="Play" i]');
+                        for (var i = 0; i < btns.length; i++) {
+                            try { btns[i].click(); } catch(e){}
+                        }
+                        var vids = document.querySelectorAll('video');
+                        for (var i = 0; i < vids.length; i++) {
+                            var v = vids[i];
+                            try { v.muted = true; v.play(); } catch(e){}
+                            report(v.currentSrc || v.src);
+                        }
+                        var srcs = document.querySelectorAll('video source');
+                        for (var i = 0; i < srcs.length; i++) {
+                            report(srcs[i].src);
+                        }
+                        var scripts = document.querySelectorAll('script');
+                        for (var i = 0; i < scripts.length; i++) {
+                            var txt = (scripts[i].textContent || '').replace(/\\\//g, '/').replace(/\\u0026/g, '&');
+                            var m = txt.match(/https:\/\/[^"'\\s]+?(?:cdninstagram\.com|fbcdn\.net)[^"'\\s]*?\.mp4[^"'\\s]*/);
+                            if (m && m[0]) report(m[0]);
+                            var m2 = txt.match(/"video_url"\s*:\s*"([^"]+)"/);
+                            if (m2 && m2[1]) report(m2[1]);
+                        }
+                    }
+                    scan();
+                    setInterval(scan, 400);
+                })();
+            """.trimIndent()
+
             webView.webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(
                     view: WebView?,
@@ -322,82 +395,22 @@ class LinkMediaResolver(
                     val reqUrl = request?.url?.toString()
                     if (reqUrl != null && isInstagramMediaUrl(reqUrl)) {
                         GlobalLog.append(Log.INFO, TAG, "WebView intercepted Instagram media URL: $reqUrl")
-                        val cleanMediaUrl = reqUrl
-                            .replace(Regex("""[?&]bytestart=\d+"""), "")
-                            .replace(Regex("""[?&]byteend=\d+"""), "")
                         if (!deferredMediaUrl.isCompleted) {
-                            deferredMediaUrl.complete(cleanMediaUrl)
+                            deferredMediaUrl.complete(reqUrl)
                         }
                     }
                     return super.shouldInterceptRequest(view, request)
                 }
 
+                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    view?.evaluateJavascript(injectionScript, null)
+                }
+
                 override fun onPageFinished(view: WebView?, pageUrl: String?) {
                     super.onPageFinished(view, pageUrl)
                     GlobalLog.append(Log.INFO, TAG, "WebView page finished: $pageUrl")
-                    val js = """
-                        (function() {
-                            var btns = document.querySelectorAll('button, div[role="button"], .PlayButton, .EmbeddedMediaImage, [aria-label*="play" i], [aria-label*="Play" i]');
-                            for (var i = 0; i < btns.length; i++) {
-                                try {
-                                    var evt = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
-                                    btns[i].dispatchEvent(evt);
-                                    btns[i].click();
-                                } catch(e){}
-                            }
-
-                            var vids = document.querySelectorAll('video');
-                            for (var i = 0; i < vids.length; i++) {
-                                var v = vids[i];
-                                try {
-                                    v.muted = true;
-                                    v.defaultMuted = true;
-                                    v.playsInline = true;
-                                    v.setAttribute('muted', '');
-                                    v.setAttribute('playsinline', '');
-                                    v.play();
-                                } catch(e){}
-                                var s = v.currentSrc || v.src;
-                                if (s && !s.startsWith('blob:') && s.startsWith('http')) return s;
-                            }
-
-                            var auds = document.querySelectorAll('audio');
-                            for (var i = 0; i < auds.length; i++) {
-                                var a = auds[i];
-                                try {
-                                    a.muted = true;
-                                    a.play();
-                                } catch(e){}
-                                var s = a.currentSrc || a.src;
-                                if (s && !s.startsWith('blob:') && s.startsWith('http')) return s;
-                            }
-
-                            var sources = document.querySelectorAll('video source, audio source');
-                            for (var i = 0; i < sources.length; i++) {
-                                var s = sources[i].src;
-                                if (s && !s.startsWith('blob:') && s.startsWith('http')) return s;
-                            }
-
-                            var scripts = document.querySelectorAll('script');
-                            for (var i = 0; i < scripts.length; i++) {
-                                var txt = scripts[i].textContent || '';
-                                var m = txt.match(/https:\/\/[^"'\\s]+?\.mp4[^"'\\s]*/);
-                                if (m && m[0]) return m[0];
-                                var m2 = txt.match(/"video_url"\s*:\s*"([^"]+)"/);
-                                if (m2 && m2[1]) return m2[1];
-                            }
-                            return null;
-                        })()
-                    """.trimIndent()
-                    view?.evaluateJavascript(js) { result ->
-                        val clean = result?.trim('"', ' ', '\'', '\\')
-                        if (!clean.isNullOrBlank() && clean != "null" && clean.startsWith("http")) {
-                            GlobalLog.append(Log.INFO, TAG, "WebView JS found media URL: $clean")
-                            if (!deferredMediaUrl.isCompleted) {
-                                deferredMediaUrl.complete(clean)
-                            }
-                        }
-                    }
+                    view?.evaluateJavascript(injectionScript, null)
                 }
             }
 
@@ -426,33 +439,7 @@ class LinkMediaResolver(
                     webView.loadUrl(fallbackUrl)
                 }
 
-                webView.evaluateJavascript("""
-                    (function() {
-                        var btns = document.querySelectorAll('button, div[role="button"], .PlayButton, .EmbeddedMediaImage');
-                        for (var i = 0; i < btns.length; i++) {
-                            try { btns[i].click(); } catch(e){}
-                        }
-                        var vids = document.querySelectorAll('video');
-                        for (var i = 0; i < vids.length; i++) {
-                            var v = vids[i];
-                            try {
-                                v.muted = true;
-                                v.play();
-                            } catch(e){}
-                            var s = v.currentSrc || v.src;
-                            if (s && !s.startsWith('blob:') && s.startsWith('http')) return s;
-                        }
-                        return null;
-                    })()
-                """.trimIndent()) { result ->
-                    val clean = result?.trim('"', ' ', '\'', '\\')
-                    if (!clean.isNullOrBlank() && clean != "null" && clean.startsWith("http")) {
-                        GlobalLog.append(Log.INFO, TAG, "WebView periodic poll found media URL: $clean")
-                        if (!deferredMediaUrl.isCompleted) {
-                            deferredMediaUrl.complete(clean)
-                        }
-                    }
-                }
+                webView.evaluateJavascript(injectionScript, null)
             }
 
             if (deferredMediaUrl.isCompleted) deferredMediaUrl.getCompleted() else null
@@ -688,6 +675,7 @@ class LinkMediaResolver(
 
     private fun extractMediaUrlFromHtml(html: String): String? {
         try {
+            val unescaped = html.replace("\\/", "/").replace("\\u0026", "&").replace("\\\"", "\"")
             val doc = Jsoup.parse(html)
             // 1. og:video / og:video:secure_url
             val ogVideo = doc.select("meta[property=og:video:secure_url]").attr("content").takeIf { it.isNotBlank() }
@@ -702,15 +690,25 @@ class LinkMediaResolver(
             val videoSrc = doc.select("video source").attr("src").takeIf { it.isNotBlank() }
                 ?: doc.select("video").attr("src").takeIf { it.isNotBlank() }
 
-            if (!videoSrc.isNullOrBlank()) {
+            if (!videoSrc.isNullOrBlank() && !videoSrc.startsWith("blob:")) {
                 return unescapeJsonString(videoSrc)
             }
 
-            // 3. Regex for JSON / embedded video_url
-            val jsonVideoRegex = Regex("""(?:video_url|videoUrl)["']?\s*:\s*["'](https:[^"'\\]+?)["']""")
-            val jsonMatch = jsonVideoRegex.find(html)
-            if (jsonMatch != null) {
-                return unescapeJsonString(jsonMatch.groupValues[1])
+            // 3. Regex for JSON / embedded video_url in unescaped HTML
+            val patterns = listOf(
+                Regex("""(?:"video_url"|"playback_url"|"playable_url"|"playable_url_quality_hd")\s*:\s*"([^"]+)""""),
+                Regex("""https://[a-zA-Z0-9.-]*(?:cdninstagram\.com|fbcdn\.net)/[^\s"']+\.mp4[^\s"']*"""),
+                Regex("""https://[a-zA-Z0-9.-]*(?:cdninstagram\.com|fbcdn\.net)/v/t50[^\s"']*""")
+            )
+
+            for (pattern in patterns) {
+                val match = pattern.find(unescaped)
+                if (match != null) {
+                    val raw = if (match.groupValues.size > 1) match.groupValues[1] else match.value
+                    if (raw.isNotBlank() && raw.startsWith("http")) {
+                        return unescapeJsonString(raw)
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "HTML parsing error", e)
@@ -789,7 +787,6 @@ class LinkMediaResolver(
 
             if (isInstagram) {
                 reqBuilder.addHeader("Referer", "https://www.instagram.com/")
-                reqBuilder.addHeader("Origin", "https://www.instagram.com")
             }
 
             val request = reqBuilder.build()

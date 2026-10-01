@@ -1217,8 +1217,19 @@ class MusicService :
         waitingForNetworkConnection.value = true
     }
 
+    private var queueLoadingJob: Job? = null
     private var songLoadingRetryJob: Job? = null
     private var songLoadingRetryCount = 0
+
+    fun stopPlayback() {
+        queueLoadingJob?.cancel()
+        queueLoadingJob = null
+        songLoadingRetryJob?.cancel()
+        waitingForNetworkConnection.value = false
+        clearAutomix()
+        player.stop()
+        player.clearMediaItems()
+    }
 
     fun getCachedBytesForSong(mediaId: String): Long {
         val dlBytes = runCatching { downloadCache.getCachedBytes(mediaId, 0, Long.MAX_VALUE) }.getOrDefault(0L)
@@ -1397,7 +1408,8 @@ class MusicService :
             player.prepare()
             player.playWhenReady = playWhenReady
         }
-        scope.launch(SilentHandler) {
+        queueLoadingJob?.cancel()
+        queueLoadingJob = scope.launch(SilentHandler) {
             val excludedSongIds = withContext(Dispatchers.IO) { database.getExcludedSongIds().toHashSet() }
             val initialStatus =
                 withContext(Dispatchers.IO) {
@@ -1414,6 +1426,11 @@ class MusicService :
             }
             if (initialStatus.items.isEmpty()) return@launch
 
+            if (player.playbackState == STATE_IDLE && player.mediaItemCount == 0) {
+                Timber.d("Player was stopped while queue was loading; aborting.")
+                return@launch
+            }
+
             val targetSongId = queue.preloadItem?.id
             val targetIndex = if (targetSongId != null) {
                 val found = initialStatus.items.indexOfFirst { it.mediaId == targetSongId }
@@ -1422,19 +1439,29 @@ class MusicService :
                 initialStatus.mediaItemIndex.coerceIn(0, initialStatus.items.lastIndex)
             }
 
-            val isAlreadyPlayingPreload = queue.preloadItem != null &&
+            val currentMediaId = player.currentMediaItem?.mediaId
+            val isCurrentItemTarget = currentMediaId != null &&
+                (currentMediaId == initialStatus.items.getOrNull(targetIndex)?.mediaId || currentMediaId == targetSongId)
+            val isAlreadyPlayingPreload = isCurrentItemTarget &&
                 player.playbackState != STATE_IDLE &&
-                player.currentMediaItem?.mediaId == initialStatus.items.getOrNull(targetIndex)?.mediaId
+                player.mediaItemCount > 0
 
             if (isAlreadyPlayingPreload) {
                 // Preload item is already seamlessly playing! Add remaining items around it without restarting playback
-                val itemsBefore = initialStatus.items.subList(0, targetIndex)
-                val itemsAfter = initialStatus.items.subList(targetIndex + 1, initialStatus.items.size)
-                if (itemsBefore.isNotEmpty()) {
-                    player.addMediaItems(0, itemsBefore)
-                }
-                if (itemsAfter.isNotEmpty()) {
-                    player.addMediaItems(itemsAfter)
+                if (targetIndex == 0) {
+                    val itemsAfter = initialStatus.items.subList(1, initialStatus.items.size)
+                    if (itemsAfter.isNotEmpty()) {
+                        player.addMediaItems(itemsAfter)
+                    }
+                } else {
+                    val itemsBefore = initialStatus.items.subList(0, targetIndex)
+                    val itemsAfter = initialStatus.items.subList(targetIndex + 1, initialStatus.items.size)
+                    if (itemsBefore.isNotEmpty()) {
+                        player.addMediaItems(0, itemsBefore)
+                    }
+                    if (itemsAfter.isNotEmpty()) {
+                        player.addMediaItems(itemsAfter)
+                    }
                 }
             } else {
                 player.setMediaItems(
@@ -2475,6 +2502,9 @@ class MusicService :
 
         // Automatic advance / repeat handling to guarantee playback continuity
         if (playbackState == Player.STATE_ENDED) {
+            if (player.mediaItemCount == 0 || player.playbackState == Player.STATE_IDLE) {
+                return
+            }
             // 1. Si el modo de repetición es REPEAT_MODE_ONE, reiniciar la misma canción
             if (player.repeatMode == Player.REPEAT_MODE_ONE) {
                 player.seekTo(0)
@@ -2719,7 +2749,7 @@ class MusicService :
         val skipUncachedPart = dataStore.get(SkipUncachedPartKey, false)
         val autoSkipOnError = dataStore.get(AutoSkipNextOnErrorKey, false)
 
-        if ((skipUncachedPart && isOffline) || autoSkipOnError) {
+        if ((skipUncachedPart && isOffline) || autoSkipOnError || isOffline) {
             PlayerConnection.instance?.clearError()
 
             val currentIdx = player.currentMediaItemIndex
@@ -2727,10 +2757,10 @@ class MusicService :
             var nextPlayableIndex = -1
 
             if (totalItems > 1) {
-                if (isOffline && skipUncachedPart) {
+                if (isOffline) {
                     for (i in (currentIdx + 1) until totalItems) {
                         val item = player.getMediaItemAt(i)
-                        if (isSongFullyCached(item.mediaId)) {
+                        if (isSongFullyCached(item.mediaId) || getCachedBytesForSong(item.mediaId) > 50_000L) {
                             nextPlayableIndex = i
                             break
                         }
@@ -2782,8 +2812,9 @@ class MusicService :
                 }
 
                 override fun open(dataSpec: DataSpec): Long {
-                    val host = dataSpec.uri.host
-                    if (host == "cached.airbeats.local" || !isNetworkConnected.value) {
+                    val scheme = dataSpec.uri.scheme
+                    val isNetwork = scheme == "http" || scheme == "https"
+                    if (dataSpec.uri.host == "cached.airbeats.local" || (isNetwork && !isNetworkConnected.value)) {
                         isOfflineFallback = true
                         throw androidx.media3.datasource.DataSourceException(
                             androidx.media3.common.PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE
@@ -2875,12 +2906,46 @@ class MusicService :
             val hasCache = downloadCache.keys.contains(mediaId) || playerCache.keys.contains(mediaId)
 
             if (!isNetworkConnected.value || isFullyCached) {
+                val safeMediaId = mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+                val offlineDir = java.io.File(cacheDir, "offline_cache").apply { mkdirs() }
+                val existingLocalFile = offlineDir.listFiles()?.firstOrNull {
+                    it.name.startsWith("cached_${safeMediaId}.") && it.length() > 50_000L
+                }
+
+                if (existingLocalFile != null) {
+                    scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+                    return@Factory dataSpec.withStreamUrl(
+                        android.net.Uri.fromFile(existingLocalFile).toString(),
+                        existingLocalFile.length()
+                    )
+                }
+
                 if (hasCache) {
                     val isSkipUncached = dataStore.get(SkipUncachedPartKey, false)
                     if (isSkipUncached && !isFullyCached && !isNetworkConnected.value) {
                         throw java.io.IOException("Partially cached song skipped offline")
                     }
                     scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+
+                    // Export cached audio bytes to a robust local file for offline playback
+                    val cachedAudio = com.darkxvenom.airbeats.utils.SaveToStorageUtil.getCachedAudioBytes(this@MusicService, mediaId)
+                    if (cachedAudio != null && cachedAudio.first.isNotEmpty()) {
+                        val (bytes, ext) = cachedAudio
+                        val targetFile = java.io.File(offlineDir, "cached_${safeMediaId}.$ext")
+                        val tempFile = java.io.File(offlineDir, "temp_${safeMediaId}_${System.currentTimeMillis()}.$ext")
+                        runCatching {
+                            tempFile.writeBytes(bytes)
+                            tempFile.renameTo(targetFile)
+                        }
+                        val finalFile = if (targetFile.exists() && targetFile.length() > 0) targetFile else tempFile
+                        if (finalFile.exists() && finalFile.length() > 0) {
+                            return@Factory dataSpec.withStreamUrl(
+                                android.net.Uri.fromFile(finalFile).toString(),
+                                finalFile.length()
+                            )
+                        }
+                    }
+
                     val dbContentLength: Long? = runBlocking(Dispatchers.IO) {
                         database.format(mediaId).firstOrNull()?.contentLength
                     }
