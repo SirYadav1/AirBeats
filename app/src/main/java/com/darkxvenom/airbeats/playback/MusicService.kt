@@ -38,10 +38,13 @@ import androidx.media3.common.Player.REPEAT_MODE_OFF
 import androidx.media3.common.Player.REPEAT_MODE_ONE
 import androidx.media3.common.Player.STATE_IDLE
 import androidx.media3.common.Timeline
+import android.net.Uri
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.datasource.TransferListener
+import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR
 import androidx.media3.datasource.cache.ContentMetadata
@@ -2807,110 +2810,191 @@ class MusicService :
         keepLoadingCurrentSongOnError()
     }
 
-    private fun createCacheDataSource(): CacheDataSource.Factory =
-        CacheDataSource
-            .Factory()
-            .setCache(downloadCache)
-            .setUpstreamDataSourceFactory(
-                CacheDataSource
-                    .Factory()
-                    .setCache(playerCache)
-                    .setUpstreamDataSourceFactory(
-                        DefaultDataSource.Factory(
-                            this,
-                            OkHttpDataSource.Factory(
-                                mediaOkHttpClient,
-                            ),
-                        ),
-                    ).setFlags(FLAG_IGNORE_CACHE_ON_ERROR),
-            ).setCacheWriteDataSinkFactory(null)
-            .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
+    private fun Cache.isFullyCached(mediaId: String): Boolean {
+        val contentLength = runCatching { ContentMetadata.getContentLength(getContentMetadata(mediaId)) }.getOrDefault(-1L)
+        if (contentLength > 0L && isCached(mediaId, 0L, contentLength)) {
+            return true
+        }
+        val spans = runCatching { getCachedSpans(mediaId) }.getOrNull()
+        return !spans.isNullOrEmpty() && spans.sumOf { it.length } > 50_000L
+    }
 
-    private fun createDataSourceFactory(): DataSource.Factory {
-        fun DataSpec.withStreamUrl(url: String, contentLength: Long?): DataSpec {
-            val resolved = withUri(url.toUri())
-            if (resolved.length != C.LENGTH_UNSET.toLong()) return resolved
+    private fun Uri.shouldBypassPlayerCache(): Boolean {
+        val normalizedScheme = scheme?.lowercase(java.util.Locale.US)
+        return normalizedScheme == "content" ||
+            normalizedScheme == "file" ||
+            normalizedScheme == "android.resource"
+    }
 
-            val remainingLength =
-                if (contentLength != null && contentLength > 0L) {
-                    if (resolved.position >= contentLength) {
-                        0L
-                    } else {
-                        contentLength - resolved.position
-                    }
-                } else {
-                    C.LENGTH_UNSET.toLong()
-                }
+    private class SchemeRoutingDataSource(
+        private val selectFactory: (DataSpec) -> DataSource.Factory,
+    ) : DataSource {
+        private val transferListeners = mutableListOf<TransferListener>()
+        private var delegate: DataSource? = null
 
-            return if (remainingLength != C.LENGTH_UNSET.toLong()) {
-                resolved.buildUpon()
-                    .setLength(remainingLength)
-                    .build()
-            } else {
-                resolved
-            }
+        override fun addTransferListener(transferListener: TransferListener) {
+            transferListeners += transferListener
+            delegate?.addTransferListener(transferListener)
         }
 
-        return ResolvingDataSource.Factory(createCacheDataSource()) { dataSpec ->
-            if (dataSpec.uri.scheme == "content") {
-                return@Factory dataSpec
-            }
+        override fun open(dataSpec: DataSpec): Long {
+            val selectedFactory = selectFactory(dataSpec)
+            val selectedDataSource = selectedFactory.createDataSource()
+            transferListeners.forEach(selectedDataSource::addTransferListener)
+            delegate = selectedDataSource
+            return selectedDataSource.open(dataSpec)
+        }
 
-            val mediaId = dataSpec.key ?: dataSpec.uri.toString()
+        override fun read(
+            buffer: ByteArray,
+            offset: Int,
+            length: Int,
+        ): Int = checkNotNull(delegate).read(buffer, offset, length)
 
-            if (dataSpec.uri.scheme == "file") {
-                val fileExists = dataSpec.uri.path?.let { path -> java.io.File(path).isFile } == true
-                val isOnlineSong = mediaId.matches(Regex("[A-Za-z0-9_-]{11}")) ||
-                    mediaId.startsWith("JS:") || mediaId.startsWith("sp:")
-                if (fileExists || !isOnlineSong) {
-                    return@Factory dataSpec
+        override fun getUri(): Uri? = delegate?.uri
+
+        override fun getResponseHeaders(): Map<String, List<String>> = delegate?.responseHeaders ?: emptyMap()
+
+        override fun close() {
+            val selected = delegate
+            delegate = null
+            selected?.close()
+        }
+    }
+
+    private fun createResolvedUpstreamDataSourceFactory(): DataSource.Factory {
+        val httpFactory = OkHttpDataSource.Factory(mediaOkHttpClient)
+        val mediaFactory = DefaultDataSource.Factory(this, httpFactory)
+        return ResolvingDataSource.Factory(mediaFactory, ::resolvePlaybackDataSpec)
+    }
+
+    private fun createPlayerCacheDataSourceFactory(cacheWriteEnabled: Boolean = true): CacheDataSource.Factory =
+        CacheDataSource
+            .Factory()
+            .setCache(playerCache)
+            .setUpstreamDataSourceFactory(createResolvedUpstreamDataSourceFactory())
+            .apply {
+                if (!cacheWriteEnabled) {
+                    setCacheWriteDataSinkFactory(null)
                 }
-                Timber.w("Missing local source for online song $mediaId; resolving a fresh stream instead")
+            }.setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
+
+    private fun createDataSourceFactory(): DataSource.Factory {
+        val directFactory = createResolvedUpstreamDataSourceFactory()
+        val streamingFactory = DataSource.Factory {
+            createPlayerCacheDataSourceFactory(cacheWriteEnabled = true).createDataSource()
+        }
+        val downloadedFactory =
+            CacheDataSource.Factory()
+                .setCache(downloadCache)
+                .setUpstreamDataSourceFactory(streamingFactory)
+                .setCacheWriteDataSinkFactory(null)
+                .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
+
+        return DataSource.Factory {
+            SchemeRoutingDataSource { dataSpec ->
+                val mediaId = dataSpec.key
+                when {
+                    dataSpec.uri.shouldBypassPlayerCache() -> directFactory
+                    else -> {
+                        if (mediaId != null) {
+                            scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+                        }
+                        if (mediaId != null && downloadCache.isFullyCached(mediaId)) {
+                            downloadedFactory
+                        } else {
+                            streamingFactory
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun DataSpec.withStreamUrl(url: String, contentLength: Long?): DataSpec {
+        val resolved = withUri(url.toUri())
+        if (resolved.length != C.LENGTH_UNSET.toLong()) return resolved
+
+        val remainingLength =
+            if (contentLength != null && contentLength > 0L) {
+                if (resolved.position >= contentLength) {
+                    0L
+                } else {
+                    contentLength - resolved.position
+                }
+            } else {
+                C.LENGTH_UNSET.toLong()
             }
 
-            val checkLength = if (dataSpec.length > 0) dataSpec.length else 1L
+        return if (remainingLength != C.LENGTH_UNSET.toLong()) {
+            resolved.buildUpon()
+                .setLength(remainingLength)
+                .build()
+        } else {
+            resolved
+        }
+    }
 
-            // If the song is downloaded in downloadCache, it is fully on disk and never needs network
-            if (downloadCache.isCached(mediaId, dataSpec.position, checkLength)) {
-                scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                return@Factory dataSpec
-            }
+    private fun resolvePlaybackDataSpec(dataSpec: DataSpec): DataSpec {
+        if (dataSpec.uri.shouldBypassPlayerCache()) {
+            return dataSpec
+        }
 
-            // If cached in playerCache, play directly from cache
-            if (playerCache.isCached(mediaId, dataSpec.position, checkLength)) {
-                scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                return@Factory dataSpec
-            }
+        val mediaId = dataSpec.key ?: dataSpec.uri.toString()
 
-            // If offline, check if downloadCache or playerCache has any cached data for this song
-            val hasCache = downloadCache.keys.contains(mediaId) || playerCache.keys.contains(mediaId)
-            if (hasCache && !isNetworkConnected.value) {
-                scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                return@Factory dataSpec
+        if (dataSpec.uri.scheme == "file") {
+            val fileExists = dataSpec.uri.path?.let { path -> java.io.File(path).isFile } == true
+            val isOnlineSong = mediaId.matches(Regex("[A-Za-z0-9_-]{11}")) ||
+                mediaId.startsWith("JS:") || mediaId.startsWith("sp:")
+            if (fileExists || !isOnlineSong) {
+                return dataSpec
             }
+            Timber.w("Missing local source for online song $mediaId; resolving a fresh stream instead")
+        }
 
-            // Also check disk offline cache file
-            val safeMediaId = mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            val offlineFile = java.io.File(cacheDir, "offline_cache").listFiles()?.firstOrNull {
-                it.name.startsWith("cached_${safeMediaId}.") && it.length() > 50_000L
-            }
-            if (offlineFile != null) {
-                scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                return@Factory dataSpec.withStreamUrl(
-                    android.net.Uri.fromFile(offlineFile).toString(),
-                    offlineFile.length()
-                )
-            }
+        val checkLength = if (dataSpec.length > 0) dataSpec.length else 1L
 
-            // If offline and not in any cache, fail gracefully without attempting network
-            if (!isNetworkConnected.value) {
-                throw java.io.IOException("Song not available offline")
-            }
+        // If the song is downloaded in downloadCache, it is fully on disk and never needs network
+        if (downloadCache.isCached(mediaId, dataSpec.position, checkLength)) {
+            scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+            return dataSpec
+        }
 
-            songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
-                scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                return@Factory dataSpec.withStreamUrl(it.url, it.contentLength)
-            }
+        // If cached in playerCache, play directly from cache
+        if (playerCache.isCached(mediaId, dataSpec.position, checkLength)) {
+            scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+            return dataSpec
+        }
+
+        // If offline, check if downloadCache or playerCache has any cached data for this song
+        val hasCache = downloadCache.keys.contains(mediaId) || playerCache.keys.contains(mediaId)
+        if (hasCache && !isNetworkConnected.value) {
+            scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+            return dataSpec
+        }
+
+        // Also check disk offline cache file
+        val safeMediaId = mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+        val offlineFile = java.io.File(cacheDir, "offline_cache").listFiles()?.firstOrNull {
+            it.name.startsWith("cached_${safeMediaId}.") && it.length() > 50_000L
+        }
+        if (offlineFile != null) {
+            scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+            return dataSpec.withStreamUrl(
+                android.net.Uri.fromFile(offlineFile).toString(),
+                offlineFile.length()
+            )
+        }
+
+        // If offline and not in any cache, fail gracefully without attempting network
+        if (!isNetworkConnected.value) {
+            throw java.io.IOException("Song not available offline")
+        }
+
+        songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
+            scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+            return dataSpec.withStreamUrl(it.url, it.contentLength)
+        }
 
             var actualMediaId = mediaId
             if (mediaId.startsWith("JS:")) {
@@ -2945,7 +3029,7 @@ class MusicService :
                         contentLength = null,
                     )
                     scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                    return@Factory dataSpec.withStreamUrl(streamUrl, null)
+                    return dataSpec.withStreamUrl(streamUrl, null)
                 }
 
                 // Seamless Fallback: JioSaavn stream failed or null -> find matching YouTube song
@@ -3083,7 +3167,7 @@ class MusicService :
                                     contentLength = null,
                                 )
                                 scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                                return@Factory dataSpec.withStreamUrl(verifiedUrl, null)
+                                return dataSpec.withStreamUrl(verifiedUrl, null)
                             } else {
                                 Timber.tag("MusicService").w("JioSaavn stream URL validation failed for '$mediaId'. Falling back directly to YouTube.")
                             }
@@ -3160,7 +3244,7 @@ class MusicService :
                     expiresAt = System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L),
                     contentLength = format.contentLength,
                 )
-                return@Factory dataSpec.withStreamUrl(streamUrl, format.contentLength)
+                return dataSpec.withStreamUrl(streamUrl, format.contentLength)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException && player.playbackState == androidx.media3.common.Player.STATE_IDLE) {
                     throw e
@@ -3211,7 +3295,7 @@ class MusicService :
                                         contentLength = null,
                                     )
                                     scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                                    return@Factory dataSpec.withStreamUrl(verifiedUrl, null)
+                                    return dataSpec.withStreamUrl(verifiedUrl, null)
                                 }
                             }
                         }
@@ -3263,7 +3347,7 @@ class MusicService :
                                     Timber.tag(JRlogTag)
                                         .i("Using JossRed URL as fallback: $alternativeUrl")
                                     scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                                    return@Factory dataSpec.withUri(alternativeUrl.toUri())
+                                    return dataSpec.withUri(alternativeUrl.toUri())
                                 } else {
                                     Timber.tag(JRlogTag)
                                         .w("JossRed URL unreachable (HTTP ${it.code}), throwing original error")
