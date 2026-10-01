@@ -475,7 +475,7 @@ fun ScrobblerSettingsScreen(
 
     // ── Dialog: Direct Sign-In ──
     if (showDirectSignInDialog) {
-        var usernameInput by remember { mutableStateOf(session.username.ifBlank { LastFmSessionPreferences.DEFAULT_USERNAME }) }
+        var usernameInput by remember { mutableStateOf(session.username) }
         var passwordInput by remember { mutableStateOf("") }
 
         AlertDialog(

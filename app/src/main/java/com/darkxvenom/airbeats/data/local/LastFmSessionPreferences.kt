@@ -43,7 +43,6 @@ class LastFmSessionPreferences @Inject constructor(
         // Production Last.fm credentials for Airbeats
         const val DEFAULT_API_KEY = "e4ff17cfd46f9de0433018bc72d8f8e4"
         const val DEFAULT_API_SECRET = "91a200bc71d725949101232c96020733"
-        const val DEFAULT_USERNAME = "Darkboy336"
     }
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
