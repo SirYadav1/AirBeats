@@ -67,7 +67,7 @@ object SaveToStorageUtil {
         .proxy(YouTube.proxy)
         .build()
 
-    private fun detectExtension(bytes: ByteArray): String {
+    fun detectExtension(bytes: ByteArray): String {
         if (bytes.size >= 8) {
             // Check for ftyp (mp4/m4a)
             if (bytes[4] == 'f'.code.toByte() && bytes[5] == 't'.code.toByte() && bytes[6] == 'y'.code.toByte() && bytes[7] == 'p'.code.toByte()) {

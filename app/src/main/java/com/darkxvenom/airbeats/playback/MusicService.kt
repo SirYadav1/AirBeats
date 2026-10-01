@@ -2646,14 +2646,120 @@ class MusicService :
             songUrlCache.remove(mediaId)
         }
 
-        // Under no circumstances should the player skip to the next song when loading takes time or errors occur.
-        // It must keep loading the current track.
-        if (!isNetworkConnected.value && error.message?.contains("partially cached") != true) {
+        // If offline, wait for network reconnection rather than looping indefinitely
+        if (!isNetworkConnected.value) {
             waitOnNetworkError()
             return
         }
 
         keepLoadingCurrentSongOnError()
+    }
+
+    private val cachedPlaybackLocks = java.util.concurrent.ConcurrentHashMap<String, Any>()
+
+    fun getCachedPlaybackFile(mediaId: String): java.io.File? {
+        if (mediaId.isBlank()) return null
+        val lock = cachedPlaybackLocks.computeIfAbsent(mediaId) { Any() }
+        synchronized(lock) {
+            try {
+                val playbackCacheDir = java.io.File(cacheDir, "cached_playback").apply { mkdirs() }
+                val safeFileName = mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+
+                val totalCachedBytes = maxOf(
+                    downloadCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE),
+                    playerCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE)
+                )
+
+                // 1. Check if already assembled file exists and is valid
+                val existingFiles = playbackCacheDir.listFiles { _, name ->
+                    name.startsWith("cached_${safeFileName}.") && !name.endsWith(".tmp")
+                }
+
+                if (!existingFiles.isNullOrEmpty()) {
+                    val existing = existingFiles.first()
+                    if (totalCachedBytes <= 0L) {
+                        existing.delete()
+                    } else if (existing.length() > 0L && existing.length() >= totalCachedBytes) {
+                        return existing
+                    }
+                }
+
+                // 2. Locate spans in downloadCache or playerCache
+                val spans = (downloadCache.getCachedSpans(mediaId).takeIf { it.isNotEmpty() }
+                    ?: playerCache.getCachedSpans(mediaId)).sortedBy { it.position }
+
+                if (spans.isEmpty() || spans.first().position != 0L) {
+                    return null
+                }
+
+                // 3. Verify contiguous bytes from position 0
+                var contiguousLength = 0L
+                for (span in spans) {
+                    if (span.position <= contiguousLength) {
+                        contiguousLength = maxOf(contiguousLength, span.position + span.length)
+                    } else {
+                        break
+                    }
+                }
+
+                // Must have at least 64KB for audio headers & initial playable frames
+                if (contiguousLength < 64_000L) {
+                    return null
+                }
+
+                val firstSpanFile = spans.first().file ?: return null
+                val headerBytes = ByteArray(32)
+                val bytesRead = runCatching {
+                    firstSpanFile.inputStream().use { it.read(headerBytes) }
+                }.getOrDefault(0)
+                if (bytesRead < 8) return null
+
+                val ext = com.darkxvenom.airbeats.utils.SaveToStorageUtil.detectExtension(headerBytes)
+                val targetFile = java.io.File(playbackCacheDir, "cached_${safeFileName}.$ext")
+                val tempFile = java.io.File(playbackCacheDir, "cached_${safeFileName}.$ext.tmp")
+
+                tempFile.outputStream().use { out ->
+                    var written = 0L
+                    for (span in spans) {
+                        if (span.position <= written) {
+                            val file = span.file ?: continue
+                            val skip = written - span.position
+                            file.inputStream().use { input ->
+                                if (skip > 0) input.skip(skip)
+                                val toCopy = (span.position + span.length) - written
+                                if (toCopy > 0) {
+                                    var remaining = toCopy
+                                    val buffer = ByteArray(8192)
+                                    while (remaining > 0) {
+                                        val r = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                                        if (r == -1) break
+                                        out.write(buffer, 0, r)
+                                        remaining -= r
+                                        written += r
+                                    }
+                                }
+                            }
+                        } else {
+                            break // Stop at gap
+                        }
+                    }
+                }
+
+                if (tempFile.length() > 0L) {
+                    if (targetFile.exists()) targetFile.delete()
+                    if (tempFile.renameTo(targetFile)) {
+                        return targetFile
+                    } else {
+                        return tempFile
+                    }
+                } else {
+                    tempFile.delete()
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Error assembling cached playback file for $mediaId")
+            }
+            return null
+        }
     }
 
     private fun createCacheDataSource(): CacheDataSource.Factory =
@@ -2717,27 +2823,36 @@ class MusicService :
                 Timber.w("Missing local source for online song $mediaId; resolving a fresh stream instead")
             }
 
-            val cachedContentLength = runBlocking(Dispatchers.IO) {
-                database.format(mediaId).first()?.contentLength?.takeIf { it > 0L }
-            }
-            val cachedBytes = maxOf(
-                downloadCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE),
-                playerCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE),
-            )
-            val isFullyCached = cachedContentLength != null && cachedBytes >= cachedContentLength
-
-            if (isFullyCached) {
-                return@Factory dataSpec.withStreamUrl("https://cached.airbeats.local/$mediaId", cachedContentLength)
+            // 1. Instant Cached Playback: check if song audio is cached locally in downloadCache or playerCache
+            val candidateIds = if (mediaId.startsWith("sp:")) {
+                listOfNotNull(mediaId, spotifyMatchCache[mediaId])
+            } else {
+                listOf(mediaId)
             }
 
-            if (!isNetworkConnected.value && cachedBytes > 0L) {
+            for (candidateId in candidateIds) {
+                val cachedFile = getCachedPlaybackFile(candidateId)
+                if (cachedFile != null && cachedFile.length() > 0L) {
+                    Timber.tag("MusicService").d("Resolved instant cached playback for $mediaId via ${cachedFile.name} (${cachedFile.length()} bytes)")
+                    scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+                    return@Factory dataSpec.buildUpon()
+                        .setUri(android.net.Uri.fromFile(cachedFile))
+                        .setKey(cachedFile.absolutePath)
+                        .setLength(cachedFile.length())
+                        .build()
+                }
+            }
+
+            // 2. Offline guard: if not connected and no local cache exists, fail gracefully instead of hanging
+            if (!isNetworkConnected.value) {
                 throw PlaybackException(
-                    "This song is only partially cached. Connect to the internet once to finish loading it.",
+                    "This song is not cached for offline playback. Connect to the internet to stream it.",
                     null,
                     PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
                 )
             }
 
+            // 3. In-memory URL cache
             songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
                 scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
                 return@Factory dataSpec.withStreamUrl(it.url, it.contentLength)
@@ -3466,32 +3581,19 @@ class MusicService :
             listOf(mediaId)
         }
         for (candidateId in candidateIds) {
-            val cachedAudio = withContext(Dispatchers.IO) {
-                com.darkxvenom.airbeats.utils.SaveToStorageUtil.getCachedAudioBytes(this@MusicService, candidateId)
-            }
-            if (cachedAudio != null) {
-                val (bytes, ext) = cachedAudio
-                val mimeType = when (ext) {
+            val cachedFile = getCachedPlaybackFile(candidateId)
+            if (cachedFile != null && cachedFile.length() > 0) {
+                val mimeType = when (cachedFile.extension) {
                     "m4a", "mp4" -> "audio/mp4"
                     "opus", "ogg" -> "audio/ogg"
                     "flac" -> "audio/flac"
                     "wav" -> "audio/wav"
                     else -> "audio/mpeg"
                 }
-                val streamCacheDir = java.io.File(cacheDir, "lan_stream").apply { mkdirs() }
-                val safeFileName = candidateId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-                val tempFile = java.io.File(streamCacheDir, "cached_${safeFileName}.$ext")
-                runCatching {
-                    if (!tempFile.exists() || tempFile.length() != bytes.size.toLong()) {
-                        tempFile.outputStream().use { it.write(bytes) }
-                    }
-                }
-                if (tempFile.exists() && tempFile.length() > 0) {
-                    return ResolvedCastStream(
-                        url = android.net.Uri.fromFile(tempFile).toString(),
-                        mimeType = mimeType
-                    )
-                }
+                return ResolvedCastStream(
+                    url = android.net.Uri.fromFile(cachedFile).toString(),
+                    mimeType = mimeType
+                )
             }
         }
 
