@@ -82,6 +82,16 @@ import com.darkxvenom.airbeats.models.MediaMetadata
 import com.darkxvenom.airbeats.ui.component.Lyrics
 import com.darkxvenom.airbeats.ui.component.LyricsV2
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import com.darkxvenom.airbeats.constants.RotateBackgroundKey
 import androidx.compose.foundation.background
 import com.darkxvenom.airbeats.ui.component.LocalMenuState
 import com.darkxvenom.airbeats.ui.component.BigSeekBar
@@ -130,6 +140,21 @@ fun AirBeatsLyricsScreen(
     )
     val useLyricsV2 = lyricsScreenStyle == com.darkxvenom.airbeats.constants.LyricsScreenStyle.LYRICS_2
     val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.SQUIGGLY)
+    val rotateBackground by rememberPreference(RotateBackgroundKey, defaultValue = false)
+
+    val infiniteTransition = rememberInfiniteTransition(label = "backgroundRotation")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 20000,
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
 
     // Auto-fetch lyrics when no lyrics found (same logic as refetch)
     LaunchedEffect(mediaMetadata.id, currentLyrics) {
@@ -191,7 +216,11 @@ fun AirBeatsLyricsScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clipToBounds()
+        ) {
             coil.compose.AsyncImage(
                 model = mediaMetadata.thumbnailUrl,
                 contentDescription = null,
@@ -199,6 +228,14 @@ fun AirBeatsLyricsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .blur(48.dp)
+                    .graphicsLayer {
+                        if (rotateBackground) {
+                            scaleX = 2.5f
+                            scaleY = 2.5f
+                            rotationZ = rotation
+                            transformOrigin = TransformOrigin.Center
+                        }
+                    }
             )
             Box(
                 modifier = Modifier
