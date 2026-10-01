@@ -142,20 +142,63 @@ class ScrobblerSettingsViewModel @Inject constructor(
         }
     }
 
+    private val _pendingToken = MutableStateFlow<String?>(null)
+    val pendingToken: StateFlow<String?> = _pendingToken.asStateFlow()
+
+    private val _showAuthConfirmDialog = MutableStateFlow(false)
+    val showAuthConfirmDialog: StateFlow<Boolean> = _showAuthConfirmDialog.asStateFlow()
+
+    private val _webAuthLoading = MutableStateFlow(false)
+    val webAuthLoading: StateFlow<Boolean> = _webAuthLoading.asStateFlow()
+
     fun beginWebAuth(context: Context) {
-        val url = authRepository.authUrl()
-        if (url == null) {
-            _showCredentialsDialog.value = true
-            _toastMessage.value = "Please enter your Last.fm API credentials first"
+        viewModelScope.launch {
+            _webAuthLoading.value = true
+            val tokenRes = authRepository.obtainRequestToken()
+            _webAuthLoading.value = false
+            if (tokenRes.isSuccess) {
+                val token = tokenRes.getOrThrow()
+                _pendingToken.value = token
+                _showAuthConfirmDialog.value = true
+                val url = authRepository.authUrl(token)
+                if (url != null) {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        })
+                    }.onFailure {
+                        _toastMessage.value = "No browser found to open authentication link"
+                    }
+                }
+            } else {
+                _toastMessage.value = tokenRes.exceptionOrNull()?.message ?: "Failed to get Last.fm request token"
+            }
+        }
+    }
+
+    fun confirmWebAuth() {
+        val token = _pendingToken.value
+        if (token.isNullOrBlank()) {
+            _toastMessage.value = "No pending authentication token"
             return
         }
-        runCatching {
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
-        }.onFailure {
-            _toastMessage.value = "No browser found to open authentication link"
+        viewModelScope.launch {
+            _webAuthLoading.value = true
+            val res = authRepository.completeWebAuth(token)
+            _webAuthLoading.value = false
+            if (res.isSuccess) {
+                _showAuthConfirmDialog.value = false
+                _pendingToken.value = null
+                _toastMessage.value = "Connected as ${res.getOrNull()}"
+                scrobblerPreferences.setEnabled(true)
+            } else {
+                _toastMessage.value = res.exceptionOrNull()?.message ?: "Authorization not completed on Last.fm. Please tap Allow in your browser."
+            }
         }
+    }
+
+    fun dismissAuthConfirmDialog() {
+        _showAuthConfirmDialog.value = false
     }
 
     fun openSessionKeyDialog() {
@@ -316,6 +359,8 @@ fun ScrobblerSettingsScreen(
     val directSignInLoading by viewModel.directSignInLoading.collectAsState()
     val directSignInError by viewModel.directSignInError.collectAsState()
     val showCredentialsDialog by viewModel.showCredentialsDialog.collectAsState()
+    val showAuthConfirmDialog by viewModel.showAuthConfirmDialog.collectAsState()
+    val webAuthLoading by viewModel.webAuthLoading.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
 
     var showDisconnectConfirmDialog by remember { mutableStateOf(false) }
@@ -430,7 +475,7 @@ fun ScrobblerSettingsScreen(
 
     // ── Dialog: Direct Sign-In ──
     if (showDirectSignInDialog) {
-        var usernameInput by remember { mutableStateOf("") }
+        var usernameInput by remember { mutableStateOf(session.username.ifBlank { LastFmSessionPreferences.DEFAULT_USERNAME }) }
         var passwordInput by remember { mutableStateOf("") }
 
         AlertDialog(
@@ -548,8 +593,8 @@ fun ScrobblerSettingsScreen(
 
     // ── Dialog: Custom API Credentials ──
     if (showCredentialsDialog) {
-        var apiKeyInput by remember { mutableStateOf(session.apiKey) }
-        var apiSecretInput by remember { mutableStateOf(session.apiSecret) }
+        var apiKeyInput by remember { mutableStateOf(session.apiKey.ifBlank { LastFmSessionPreferences.DEFAULT_API_KEY }) }
+        var apiSecretInput by remember { mutableStateOf(session.apiSecret.ifBlank { LastFmSessionPreferences.DEFAULT_API_SECRET }) }
 
         AlertDialog(
             onDismissRequest = viewModel::dismissCredentialsDialog,
@@ -612,6 +657,53 @@ fun ScrobblerSettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDisconnectConfirmDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+            shape = RoundedCornerShape(24.dp)
+        )
+    }
+
+    // ── Dialog: Web Auth Confirmation ──
+    if (showAuthConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissAuthConfirmDialog,
+            icon = {
+                Icon(
+                    painter = painterResource(R.drawable.ic_lastfm),
+                    contentDescription = null,
+                    tint = Color(0xFFD51007),
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = { Text("Complete Last.fm Sign-In") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "1. In your browser, tap \"Yes, allow access\" to authorize Airbeats on your Last.fm account.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "2. Return here and tap \"Complete Sign-In\" below.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = viewModel::confirmWebAuth,
+                    enabled = !webAuthLoading,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD51007))
+                ) {
+                    if (webAuthLoading) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Complete Sign-In", color = Color.White)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissAuthConfirmDialog) {
                     Text(stringResource(R.string.cancel))
                 }
             },

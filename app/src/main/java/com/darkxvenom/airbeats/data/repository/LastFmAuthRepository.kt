@@ -61,15 +61,54 @@ class LastFmAuthRepository @Inject constructor(
         )
     }
 
-    fun authUrl(): String? {
+    suspend fun obtainRequestToken(): Result<String> {
+        val stored = sessionPreferences.session.first()
+        val apiKey = stored.apiKey
+        val apiSecret = stored.apiSecret
+
+        if (apiKey.isBlank() || apiSecret.isBlank()) {
+            val message = "Last.fm API credentials missing"
+            transientState.value = LastFmAuthState.Error(message)
+            return Result.failure(LastFmException(message))
+        }
+
+        return try {
+            val signParams = mapOf(
+                "method" to "auth.getToken",
+                "api_key" to apiKey,
+            )
+            val sig = LastFmSigner.sign(signParams, apiSecret)
+            val bodyParams = signParams + mapOf("api_sig" to sig, "format" to "json")
+            val (_, responseText) = api.get(bodyParams)
+            if (responseText.isBlank()) throw LastFmException("Empty response from Last.fm")
+
+            val parsed = json.parseToJsonElement(responseText).jsonObject
+            val errorCode = (parsed["error"] as? kotlinx.serialization.json.JsonPrimitive)?.intOrNull
+            if (errorCode != null) {
+                val rawMessage = (parsed["message"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                throw LastFmException(LastFmErrors.friendlyMessage(errorCode, rawMessage), errorCode)
+            }
+
+            val token = parsed["token"]?.jsonPrimitive?.content
+            if (token.isNullOrBlank()) throw LastFmException("Last.fm did not return an authorization token")
+            Result.success(token)
+        } catch (e: Exception) {
+            val message = (e as? LastFmException)?.message ?: (e.message ?: "Could not request Last.fm token")
+            Result.failure(LastFmException(message))
+        }
+    }
+
+    fun authUrl(token: String? = null): String? {
         val apiKey = sessionPreferences.currentSession.apiKey
         if (apiKey.isBlank()) return null
-        return Uri.parse("https://www.last.fm/api/auth/")
+        val builder = Uri.parse("https://www.last.fm/api/auth/")
             .buildUpon()
             .appendQueryParameter("api_key", apiKey)
-            .appendQueryParameter("cb", LAST_FM_AUTH_CALLBACK_URI)
-            .build()
-            .toString()
+        if (!token.isNullOrBlank()) {
+            builder.appendQueryParameter("token", token)
+        }
+        builder.appendQueryParameter("cb", LAST_FM_AUTH_CALLBACK_URI)
+        return builder.build().toString()
     }
 
     suspend fun completeWebAuth(token: String): Result<String> {

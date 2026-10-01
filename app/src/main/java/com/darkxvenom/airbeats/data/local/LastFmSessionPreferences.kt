@@ -37,9 +37,13 @@ class LastFmSessionPreferences @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     companion object {
-        // Standard Last.fm credentials fallback (users can replace with their own in Settings)
-        const val DEFAULT_API_KEY = "8a213904535359a35d944d1885b5976b"
-        const val DEFAULT_API_SECRET = "9a7569b9f7cb2f43a2906df0dfd66df2"
+        const val OLD_DEFAULT_API_KEY = "8a213904535359a35d944d1885b5976b"
+        const val OLD_DEFAULT_API_SECRET = "9a7569b9f7cb2f43a2906df0dfd66df2"
+
+        // Production Last.fm credentials for Airbeats
+        const val DEFAULT_API_KEY = "e4ff17cfd46f9de0433018bc72d8f8e4"
+        const val DEFAULT_API_SECRET = "91a200bc71d725949101232c96020733"
+        const val DEFAULT_USERNAME = "Darkboy336"
     }
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -48,8 +52,8 @@ class LastFmSessionPreferences @Inject constructor(
         .map { prefs ->
             val userKey = prefs[LastFmApiKey]?.trim().orEmpty()
             val userSecret = prefs[LastFmApiSecret]?.trim().orEmpty()
-            val effectiveKey = userKey.ifBlank { DEFAULT_API_KEY }
-            val effectiveSecret = userSecret.ifBlank { DEFAULT_API_SECRET }
+            val effectiveKey = if (userKey.isBlank() || userKey == OLD_DEFAULT_API_KEY) DEFAULT_API_KEY else userKey
+            val effectiveSecret = if (userSecret.isBlank() || userSecret == OLD_DEFAULT_API_SECRET) DEFAULT_API_SECRET else userSecret
             val sk = prefs[LastFmSessionKey]?.trim().orEmpty()
             val user = prefs[LastFmUsername]?.trim().orEmpty()
 
