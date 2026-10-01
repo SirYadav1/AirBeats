@@ -329,14 +329,26 @@ fun BottomSheetPlayer(
     val showLyrics by rememberPreference(ShowLyricsKey, defaultValue = false)
     val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.SQUIGGLY)
 
-    var position by rememberSaveable(playbackState) {
-        mutableLongStateOf(playerConnection.player.currentPosition)
+    var position by rememberSaveable(mediaMetadata?.id) {
+        mutableLongStateOf(0L)
     }
-    var duration by rememberSaveable(playbackState) {
-        mutableLongStateOf(playerConnection.player.duration)
+    var duration by rememberSaveable(mediaMetadata?.id) {
+        val metaDur = (mediaMetadata?.duration ?: 0) * 1000L
+        mutableLongStateOf(if (metaDur > 0) metaDur else playerConnection.player.duration.coerceAtLeast(0L))
     }
     var sliderPosition by remember {
         mutableStateOf<Long?>(null)
+    }
+
+    LaunchedEffect(mediaMetadata?.id) {
+        sliderPosition = null
+        position = 0L
+        val metaDur = (mediaMetadata?.duration ?: 0) * 1000L
+        if (metaDur > 0) {
+            duration = metaDur
+        } else if (playerConnection.player.duration > 0) {
+            duration = playerConnection.player.duration
+        }
     }
 
     var gradientColors by remember {
@@ -753,12 +765,23 @@ fun BottomSheetPlayer(
             .background(textButtonColor)
     }
 
-    LaunchedEffect(playbackState) {
-        if (playbackState == STATE_READY) {
+    LaunchedEffect(playbackState, mediaMetadata?.id) {
+        if (playbackState == STATE_READY || playbackState == androidx.media3.common.Player.STATE_BUFFERING) {
             while (isActive) {
+                val currentPos = playerConnection.player.currentPosition
+                if (currentPos >= 0) {
+                    position = currentPos
+                }
+                val dur = playerConnection.player.duration
+                if (dur > 0) {
+                    duration = dur
+                } else {
+                    val metaDur = (mediaMetadata?.duration ?: 0) * 1000L
+                    if (metaDur > 0) {
+                        duration = metaDur
+                    }
+                }
                 delay(100)
-                position = playerConnection.player.currentPosition
-                duration = playerConnection.player.duration
             }
         }
     }

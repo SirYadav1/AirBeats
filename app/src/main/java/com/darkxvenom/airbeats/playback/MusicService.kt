@@ -458,6 +458,18 @@ class MusicService :
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        runCatching {
+            val playbackCacheDir = java.io.File(cacheDir, "cached_playback")
+            if (playbackCacheDir.exists()) {
+                playbackCacheDir.listFiles()?.forEach { file ->
+                    if (file.name.endsWith(".tmp") || file.length() < 500_000L) {
+                        file.delete()
+                    }
+                }
+            }
+        }
+
         setListener(object : MediaSessionService.Listener {
             override fun onForegroundServiceStartNotAllowedException() {
                 Timber.w("MediaSessionService listener: onForegroundServiceStartNotAllowedException caught and suppressed")
@@ -1254,19 +1266,18 @@ class MusicService :
         }
         val safeMediaId = mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
         val offlineFile = java.io.File(cacheDir, "offline_cache").listFiles()?.firstOrNull {
-            it.name.startsWith("cached_${safeMediaId}.") && it.length() > 50_000L
+            it.name.startsWith("cached_${safeMediaId}.") && it.length() > 500_000L
         }
         if (offlineFile != null) return true
+
+        if (downloadCache.isFullyCached(mediaId)) {
+            return true
+        }
 
         val dlBytes = runCatching { downloadCache.getCachedSpans(mediaId).sumOf { it.length } }.getOrDefault(0L)
         val plBytes = runCatching { playerCache.getCachedSpans(mediaId).sumOf { it.length } }.getOrDefault(0L)
         val totalCached = dlBytes + plBytes
         if (totalCached <= 0L) return false
-
-        // Download cache stores fully downloaded songs
-        if (downloadCache.keys.contains(mediaId) && dlBytes > 50_000L) {
-            return true
-        }
 
         // Try getting content length from cache metadata
         val dlMeta = runCatching { downloadCache.getContentMetadata(mediaId) }.getOrNull()
@@ -1289,7 +1300,7 @@ class MusicService :
             return totalCached >= (dbLen * 0.95).toLong()
         }
 
-        return totalCached >= 500_000L
+        return totalCached >= 2_500_000L
     }
 
     private fun keepLoadingCurrentSongOnError() {
@@ -2727,16 +2738,20 @@ class MusicService :
 
         Log.e(TAG, "Player error: ${error.errorCodeName}, message: ${error.message}", error)
 
-        player.currentMediaItem?.mediaId?.let { mediaId ->
-            if (jioSaavnAttemptedSongIds.remove(mediaId)) {
-                Log.w(TAG, "JioSaavn stream failed for track $mediaId. Retrying immediately with native stream...")
-                jioSaavnFailedSongs.add(mediaId)
-                songUrlCache.remove(mediaId)
+        val currentMediaId = player.currentMediaItem?.mediaId
+        val currentPos = player.currentPosition.coerceAtLeast(0L)
+        val wasActivelyPlaying = currentPos > 3000L
+
+        if (!currentMediaId.isNullOrBlank()) {
+            if (jioSaavnAttemptedSongIds.remove(currentMediaId)) {
+                Log.w(TAG, "JioSaavn stream failed for track $currentMediaId. Retrying immediately with native stream...")
+                jioSaavnFailedSongs.add(currentMediaId)
+                songUrlCache.remove(currentMediaId)
                 database.query {
                     runCatching {
                         upsert(
                             FormatEntity(
-                                id = mediaId,
+                                id = currentMediaId,
                                 itag = 0,
                                 mimeType = "",
                                 codecs = "",
@@ -2750,19 +2765,46 @@ class MusicService :
                     }
                 }
                 scope.launch(Dispatchers.Main) {
+                    if (wasActivelyPlaying) {
+                        player.seekTo(player.currentMediaItemIndex, currentPos)
+                    }
                     player.prepare()
                     player.play()
                 }
                 return
             }
-            songUrlCache.remove(mediaId)
+            songUrlCache.remove(currentMediaId)
+            YTPlayerUtils.invalidateCachedStreamUrls(currentMediaId)
+        }
+
+        // Mid-track playback recovery: if the song was already playing (>3s), NEVER auto-skip it!
+        // Stalls or expired stream URLs should be refreshed and resumed from current position.
+        if (wasActivelyPlaying && consecutivePlaybackErr < 3) {
+            consecutivePlaybackErr++
+            Log.w(TAG, "Song was actively playing at ${currentPos}ms when error occurred. Retrying from current position (attempt $consecutivePlaybackErr)...")
+            scope.launch(Dispatchers.Main) {
+                PlayerConnection.instance?.clearError()
+                delay(800)
+                if (player.currentMediaItem != null) {
+                    player.seekTo(player.currentMediaItemIndex, currentPos)
+                    player.prepare()
+                    player.play()
+                }
+            }
+            return
         }
 
         val isOffline = !isNetworkConnected.value
         val skipUncachedPart = dataStore.get(SkipUncachedPartKey, false)
         val autoSkipOnError = dataStore.get(AutoSkipNextOnErrorKey, false)
 
-        if ((skipUncachedPart && isOffline) || autoSkipOnError || isOffline) {
+        val canAutoSkip = if (isOffline) {
+            skipUncachedPart && currentMediaId != null && !isSongFullyCached(currentMediaId)
+        } else {
+            autoSkipOnError && !wasActivelyPlaying
+        }
+
+        if (canAutoSkip) {
             PlayerConnection.instance?.clearError()
 
             val currentIdx = player.currentMediaItemIndex
@@ -2773,7 +2815,7 @@ class MusicService :
                 if (isOffline) {
                     for (i in (currentIdx + 1) until totalItems) {
                         val item = player.getMediaItemAt(i)
-                        if (isSongFullyCached(item.mediaId) || getCachedBytesForSong(item.mediaId) > 50_000L) {
+                        if (isSongFullyCached(item.mediaId)) {
                             nextPlayableIndex = i
                             break
                         }
@@ -2822,10 +2864,21 @@ class MusicService :
                 val playbackCacheDir = java.io.File(cacheDir, "cached_playback").apply { mkdirs() }
                 val safeFileName = mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
 
-                val totalCachedBytes = maxOf(
-                    downloadCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE),
-                    playerCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE)
-                )
+                // Only allow serving local file if the song is 100% fully downloaded in downloadCache.
+                // NEVER serve partial streaming cache from playerCache as a static file, because
+                // static partial files hit EOF and force ExoPlayer to prematurely skip the whole song!
+                if (!downloadCache.isFullyCached(mediaId)) {
+                    // Clean up any stale partial files for this mediaId
+                    playbackCacheDir.listFiles { _, name ->
+                        name.startsWith("cached_${safeFileName}.")
+                    }?.forEach { it.delete() }
+                    return null
+                }
+
+                val totalCachedBytes = downloadCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE)
+                if (totalCachedBytes < 300_000L) {
+                    return null
+                }
 
                 // 1. Check if already assembled file exists and is valid
                 val existingFiles = playbackCacheDir.listFiles { _, name ->
@@ -2834,17 +2887,15 @@ class MusicService :
 
                 if (!existingFiles.isNullOrEmpty()) {
                     val existing = existingFiles.first()
-                    if (totalCachedBytes <= 0L) {
-                        existing.delete()
-                    } else if (existing.length() > 0L && existing.length() >= totalCachedBytes) {
+                    if (existing.length() >= totalCachedBytes) {
                         return existing
+                    } else {
+                        existing.delete()
                     }
                 }
 
-                // 2. Locate spans in downloadCache or playerCache
-                val spans = (downloadCache.getCachedSpans(mediaId).takeIf { it.isNotEmpty() }
-                    ?: playerCache.getCachedSpans(mediaId)).sortedBy { it.position }
-
+                // 2. Locate spans in downloadCache only
+                val spans = downloadCache.getCachedSpans(mediaId).sortedBy { it.position }
                 if (spans.isEmpty() || spans.first().position != 0L) {
                     return null
                 }
@@ -2859,8 +2910,7 @@ class MusicService :
                     }
                 }
 
-                // Must have at least 64KB for audio headers & initial playable frames
-                if (contiguousLength < 64_000L) {
+                if (contiguousLength < totalCachedBytes) {
                     return null
                 }
 
@@ -2902,7 +2952,7 @@ class MusicService :
                     }
                 }
 
-                if (tempFile.length() > 0L) {
+                if (tempFile.length() >= totalCachedBytes) {
                     if (targetFile.exists()) targetFile.delete()
                     if (tempFile.renameTo(targetFile)) {
                         return targetFile
@@ -2921,11 +2971,18 @@ class MusicService :
 
     private fun Cache.isFullyCached(mediaId: String): Boolean {
         val contentLength = runCatching { ContentMetadata.getContentLength(getContentMetadata(mediaId)) }.getOrDefault(-1L)
-        if (contentLength > 0L && isCached(mediaId, 0L, contentLength)) {
-            return true
+        if (contentLength > 0L) {
+            return isCached(mediaId, 0L, contentLength)
         }
-        val spans = runCatching { getCachedSpans(mediaId) }.getOrNull()
-        return !spans.isNullOrEmpty() && spans.sumOf { it.length } > 50_000L
+        val dbLen: Long = runCatching {
+            runBlocking(Dispatchers.IO) {
+                database.format(mediaId).firstOrNull()?.contentLength ?: -1L
+            }
+        }.getOrNull() ?: -1L
+        if (dbLen > 0L) {
+            return isCached(mediaId, 0L, dbLen)
+        }
+        return false
     }
 
     private fun Uri.shouldBypassPlayerCache(): Boolean {
@@ -3027,7 +3084,7 @@ class MusicService :
         val remainingLength =
             if (contentLength != null && contentLength > 0L) {
                 if (resolved.position >= contentLength) {
-                    0L
+                    C.LENGTH_UNSET.toLong()
                 } else {
                     contentLength - resolved.position
                 }

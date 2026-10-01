@@ -185,9 +185,23 @@ fun AirBeatsLyricsScreen(
         }
     }
 
-    var position by remember { mutableLongStateOf(0L) }
-    var duration by remember { mutableLongStateOf(C.TIME_UNSET) }
+    var position by remember(mediaMetadata.id) { mutableLongStateOf(0L) }
+    var duration by remember(mediaMetadata.id) {
+        val metaDur = mediaMetadata.duration * 1000L
+        mutableLongStateOf(if (metaDur > 0) metaDur else C.TIME_UNSET)
+    }
     var sliderPosition by remember { mutableStateOf<Long?>(null) }
+
+    LaunchedEffect(mediaMetadata.id) {
+        sliderPosition = null
+        position = 0L
+        val metaDur = mediaMetadata.duration * 1000L
+        if (metaDur > 0) {
+            duration = metaDur
+        } else if (player.duration > 0) {
+            duration = player.duration
+        }
+    }
     
     // Track loading state: when buffering or when user is seeking
     val isLoading = playbackState == STATE_BUFFERING || sliderPosition != null
@@ -195,12 +209,23 @@ fun AirBeatsLyricsScreen(
     val textBackgroundColor = Color.White
     val icBackgroundColor = Color.Black
 
-    LaunchedEffect(playbackState) {
-        if (playbackState == STATE_READY) {
+    LaunchedEffect(playbackState, mediaMetadata.id) {
+        if (playbackState == STATE_READY || playbackState == STATE_BUFFERING) {
             while (isActive) {
+                val currentPos = player.currentPosition
+                if (currentPos >= 0) {
+                    position = currentPos
+                }
+                val dur = player.duration
+                if (dur > 0) {
+                    duration = dur
+                } else {
+                    val metaDur = mediaMetadata.duration * 1000L
+                    if (metaDur > 0) {
+                        duration = metaDur
+                    }
+                }
                 delay(100)
-                position = player.currentPosition
-                duration = player.duration
             }
         }
     }
