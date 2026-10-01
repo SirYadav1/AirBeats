@@ -81,6 +81,7 @@ fun SpotifyImportDialog(
                                 val result = SpotifyImporter.importPlaylist(
                                     url = url,
                                     dao = database,
+                                    context = context,
                                     onProgress = { current, max ->
                                         progress = current
                                         total = max

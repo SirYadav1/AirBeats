@@ -33,6 +33,7 @@ import com.darkxvenom.airbeats.constants.ProxyEnabledKey
 import com.darkxvenom.airbeats.constants.ProxyTypeKey
 import com.darkxvenom.airbeats.constants.ProxyUrlKey
 import com.darkxvenom.airbeats.constants.SYSTEM_DEFAULT
+import com.darkxvenom.airbeats.constants.SpotifyCookieKey
 import com.darkxvenom.airbeats.constants.UseLoginForBrowse
 import com.darkxvenom.airbeats.constants.VisitorDataKey
 import com.darkxvenom.airbeats.db.MusicDatabase
@@ -206,6 +207,20 @@ class App : LocaleAwareApplication(), ImageLoaderFactory {
                 database = database,
                 namePreferenceManager = namePreferenceManager,
             )?.onFailure(::reportException)
+        }
+        GlobalScope.launch(Dispatchers.IO) {
+            dataStore.data
+                .map { it[SpotifyCookieKey] }
+                .distinctUntilChanged()
+                .collect { spDc ->
+                    if (!spDc.isNullOrBlank() && com.darkxvenom.airbeats.spotify.Spotify.accessToken.isNullOrBlank()) {
+                        tryOrNull {
+                            com.darkxvenom.airbeats.spotify.SpotifyAuth.fetchAccessToken(spDc).onSuccess { token ->
+                                com.darkxvenom.airbeats.spotify.Spotify.accessToken = token.accessToken
+                            }
+                        }
+                    }
+                }
         }
         GlobalScope.launch {
             dataStore.data

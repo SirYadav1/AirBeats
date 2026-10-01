@@ -47,6 +47,8 @@ fun YouTubeLoginScreen(navController: NavController) {
     var accountEmail by rememberPreference(AccountEmailKey, "")
     var accountChannelHandle by rememberPreference(AccountChannelHandleKey, "")
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     var webView: WebView? = null
     var isLoadingAccountInfo by remember { mutableStateOf(false) }
     var isAccountHandled by remember { mutableStateOf(false) }
@@ -70,6 +72,24 @@ fun YouTubeLoginScreen(navController: NavController) {
                         accountEmail = email
                         accountChannelHandle = handle
                         isLoadingAccountInfo = false
+
+                        // Automatically sync profile and trigger global stats upload
+                        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                            val namePrefManager = com.darkxvenom.airbeats.ui.component.NamePreferenceManager(context)
+                            if (email.isNotBlank()) {
+                                namePrefManager.saveAccountEmail(email)
+                                namePrefManager.rememberGoogleLoginEmail(email)
+                            }
+                            if (name.isNotBlank()) {
+                                namePrefManager.saveUserName(name)
+                            }
+                            com.darkxvenom.airbeats.utils.AirBeatsStatsCloudSync.syncDaily(
+                                context,
+                                com.darkxvenom.airbeats.db.InternalDatabase.newInstance(context),
+                                namePrefManager
+                            )
+                        }
+
                         navController.backToMain()
                     } else {
                         if (retryCount < MAX_RETRY_ATTEMPTS) {

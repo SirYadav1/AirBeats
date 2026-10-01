@@ -21,6 +21,15 @@ import java.net.NetworkInterface
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
+data class LanQueueItem(
+    val index: Int,
+    val id: String,
+    val title: String,
+    val artist: String,
+    val durationMs: Long,
+    val thumbnailUrl: String?,
+)
+
 @OptIn(UnstableApi::class)
 class LanTogetherServer(
     val context: Context? = null,
@@ -31,6 +40,10 @@ class LanTogetherServer(
     var audioStreamResolver: (suspend (songId: String) -> ResolvedCastStream?)? = null,
     var onPlaybackCommand: ((action: String, positionMs: Long?) -> Unit)? = null,
 ) : NanoHTTPD(port) {
+
+    var queueItemsProvider: (() -> List<LanQueueItem>)? = null
+    var currentQueueIndexProvider: (() -> Int)? = null
+    var lyricsResolver: (suspend (songId: String) -> String?)? = null
 
     private val participants = ConcurrentHashMap<String, ListenTogetherParticipant>()
 
@@ -126,6 +139,48 @@ class LanTogetherServer(
                     jsonResponse(currentSession.toJson())
                 }
 
+                uri == "/together/queue" && method == Method.GET -> {
+                    val items = queueItemsProvider?.invoke().orEmpty()
+                    val curIdx = currentQueueIndexProvider?.invoke() ?: 0
+                    val jsonArr = org.json.JSONArray()
+                    items.forEach { item ->
+                        val obj = JSONObject().apply {
+                            put("index", item.index)
+                            put("id", item.id)
+                            put("title", item.title)
+                            put("artist", item.artist)
+                            put("durationMs", item.durationMs)
+                            put("thumbnailUrl", item.thumbnailUrl ?: "")
+                            put("isCurrent", item.index == curIdx)
+                            put("isPlayed", item.index < curIdx)
+                        }
+                        jsonArr.put(obj)
+                    }
+                    val res = JSONObject().apply {
+                        put("currentIndex", curIdx)
+                        put("queue", jsonArr)
+                    }
+                    jsonResponse(res)
+                }
+
+                uri == "/together/lyrics" && method == Method.GET -> {
+                    val reqId = session.parms["id"]?.takeIf { it.isNotBlank() } ?: playbackState?.songId.orEmpty()
+                    val lyrics = if (reqId.isNotBlank()) {
+                        try {
+                            runBlocking(Dispatchers.IO) {
+                                lyricsResolver?.invoke(reqId)
+                            }
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } else null
+                    val res = JSONObject().apply {
+                        put("songId", reqId)
+                        put("lyrics", lyrics ?: "")
+                    }
+                    jsonResponse(res)
+                }
+
                 uri == "/together/action" && method == Method.POST -> {
                     val body = parseBodyJson(session)
                     val action = body.optString("action")
@@ -163,7 +218,12 @@ class LanTogetherServer(
                                 }
                             }
                         }
-                        onPlaybackCommand?.invoke(action, positionMs)
+                        val cmdPos = if (action == "play_index") {
+                            body.optLong("index", positionMs ?: 0L)
+                        } else {
+                            positionMs
+                        }
+                        onPlaybackCommand?.invoke(action, cmdPos)
                     }
 
                     val currentSession = buildSessionSnapshot(participantId = reqParticipantId)
@@ -375,7 +435,7 @@ class LanTogetherServer(
     private fun renderWebPlayerHtml(): String {
         return """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -383,71 +443,47 @@ class LanTogetherServer(
   <link rel="icon" href="https://raw.githubusercontent.com/drkvenom786/Airbeats/refs/heads/main/icon2.png" type="image/png">
   <style>
     :root {
-      --bg: #ffffff;
-      --card-bg: #ffffff;
-      --text: #050505;
-      --text-muted: #6b7280;
-      --border: #e5e7eb;
-      --pill-bg: #f3f4f6;
-      --btn-primary: #050505;
-      --btn-text: #ffffff;
-      --accent: #8b5cf6;
-      --track-bg: #e5e7eb;
-      --track-fill: #050505;
-      --thumb-color: #050505;
-      --success: #10b981;
-      --circle-btn: #ffffff;
-      --circle-btn-border: #e5e7eb;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #090a10;
-        --card-bg: #12131c;
-        --text: #f9fafb;
-        --text-muted: #9ca3af;
-        --border: rgba(255, 255, 255, 0.08);
-        --pill-bg: rgba(255, 255, 255, 0.06);
-        --btn-primary: #ffffff;
-        --btn-text: #050505;
-        --track-bg: rgba(255, 255, 255, 0.12);
-        --track-fill: #ffffff;
-        --thumb-color: #ffffff;
-        --circle-btn: #181926;
-        --circle-btn-border: rgba(255, 255, 255, 0.12);
-      }
-    }
-
-    [data-theme="light"] {
-      --bg: #ffffff;
-      --card-bg: #ffffff;
-      --text: #050505;
-      --text-muted: #6b7280;
-      --border: #e5e7eb;
-      --pill-bg: #f3f4f6;
-      --btn-primary: #050505;
-      --btn-text: #ffffff;
-      --track-bg: #e5e7eb;
-      --track-fill: #050505;
-      --thumb-color: #050505;
-      --circle-btn: #ffffff;
-      --circle-btn-border: #e5e7eb;
-    }
-
-    [data-theme="dark"] {
-      --bg: #090a10;
-      --card-bg: #12131c;
-      --text: #f9fafb;
-      --text-muted: #9ca3af;
-      --border: rgba(255, 255, 255, 0.08);
-      --pill-bg: rgba(255, 255, 255, 0.06);
+      --bg: #090a12;
+      --card-bg: rgba(18, 20, 32, 0.78);
+      --card-solid: #121420;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: rgba(255, 255, 255, 0.1);
+      --pill-bg: rgba(255, 255, 255, 0.08);
+      --pill-active: #ffffff;
+      --pill-active-text: #090a12;
       --btn-primary: #ffffff;
-      --btn-text: #050505;
+      --btn-text: #090a12;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.35);
       --track-bg: rgba(255, 255, 255, 0.12);
       --track-fill: #ffffff;
       --thumb-color: #ffffff;
-      --circle-btn: #181926;
+      --success: #10b981;
+      --circle-btn: rgba(255, 255, 255, 0.08);
       --circle-btn-border: rgba(255, 255, 255, 0.12);
+    }
+
+    [data-theme="light"] {
+      --bg: #f1f3f7;
+      --card-bg: rgba(255, 255, 255, 0.88);
+      --card-solid: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: rgba(0, 0, 0, 0.08);
+      --pill-bg: rgba(0, 0, 0, 0.05);
+      --pill-active: #0f172a;
+      --pill-active-text: #ffffff;
+      --btn-primary: #0f172a;
+      --btn-text: #ffffff;
+      --accent: #4f46e5;
+      --accent-glow: rgba(79, 70, 229, 0.25);
+      --track-bg: rgba(0, 0, 0, 0.08);
+      --track-fill: #0f172a;
+      --thumb-color: #0f172a;
+      --success: #059669;
+      --circle-btn: #ffffff;
+      --circle-btn-border: rgba(0, 0, 0, 0.1);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -455,13 +491,40 @@ class LanTogetherServer(
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       min-height: 100vh;
       display: flex;
       justify-content: center;
       padding: 0;
       overflow-x: hidden;
-      transition: background-color 0.2s ease, color 0.2s ease;
+      transition: background-color 0.25s ease, color 0.25s ease;
+    }
+
+    /* Ambient Dynamic Blur Backdrop */
+    .ambient-bg {
+      position: fixed;
+      inset: -40px;
+      background-size: cover;
+      background-position: center;
+      filter: blur(80px) saturate(1.8) brightness(0.35);
+      z-index: -2;
+      transform: scale(1.15);
+      transition: background-image 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      opacity: 0.85;
+      pointer-events: none;
+    }
+
+    [data-theme="light"] .ambient-bg {
+      filter: blur(90px) saturate(1.4) brightness(0.9);
+      opacity: 0.45;
+    }
+
+    .ambient-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at 50% 20%, transparent 20%, var(--bg) 90%);
+      z-index: -1;
+      pointer-events: none;
     }
 
     .app-container {
@@ -469,10 +532,15 @@ class LanTogetherServer(
       max-width: 480px;
       min-height: 100vh;
       background: var(--card-bg);
-      padding: 16px 20px 32px;
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      padding: 16px 20px 28px;
       display: flex;
       flex-direction: column;
       position: relative;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
     }
 
     /* Top Bar Header */
@@ -480,26 +548,26 @@ class LanTogetherServer(
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 52px;
+      height: 48px;
       margin-bottom: 12px;
     }
 
     .brand-wrap {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
     .brand-icon {
-      width: 38px;
-      height: 38px;
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
       overflow: hidden;
       background: #000;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
 
     .brand-icon img {
@@ -509,15 +577,21 @@ class LanTogetherServer(
     }
 
     .brand-name {
-      font-size: 1.25rem;
+      font-size: 1.15rem;
       font-weight: 800;
       letter-spacing: 0.5px;
       color: var(--text);
     }
 
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .circle-btn {
-      width: 42px;
-      height: 42px;
+      width: 38px;
+      height: 38px;
       border-radius: 50%;
       background: var(--circle-btn);
       border: 1px solid var(--circle-btn-border);
@@ -527,7 +601,7 @@ class LanTogetherServer(
       cursor: pointer;
       color: var(--text);
       transition: transform 0.15s ease, background 0.15s ease;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
     }
 
     .circle-btn:active {
@@ -535,26 +609,98 @@ class LanTogetherServer(
     }
 
     .circle-btn svg {
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
       fill: currentColor;
+    }
+
+    /* Segmented Navigation Tab Bar */
+    .nav-tabs {
+      display: flex;
+      background: var(--pill-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(12px);
+      gap: 4px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 16px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-weight: 700;
+      font-size: 0.84rem;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .tab-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+      transition: transform 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--pill-active);
+      color: var(--pill-active-text);
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.14);
+    }
+
+    .tab-badge {
+      font-size: 0.72rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      background: var(--pill-bg);
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .tab-btn.active .tab-badge {
+      background: rgba(0, 0, 0, 0.15);
+      color: var(--pill-active-text);
+    }
+
+    /* Tab Views */
+    .tab-view {
+      display: none;
+      flex-direction: column;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .tab-view.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     /* Dropdown Menu */
     .menu-dropdown {
       position: absolute;
-      top: 66px;
+      top: 60px;
       right: 20px;
-      background: var(--card-bg);
+      background: var(--card-solid);
       border: 1px solid var(--border);
       border-radius: 18px;
-      box-shadow: 0 16px 36px rgba(0,0,0,0.18);
+      box-shadow: 0 16px 36px rgba(0,0,0,0.28);
       padding: 8px;
       display: none;
       flex-direction: column;
       gap: 4px;
       z-index: 100;
-      min-width: 210px;
+      min-width: 220px;
     }
 
     .menu-dropdown.show { display: flex; }
@@ -587,16 +733,16 @@ class LanTogetherServer(
       flex-shrink: 0;
     }
 
-    /* Artwork Container */
+    /* ── TAB 1: PLAYER VIEW ── */
     .art-container {
       position: relative;
       width: 100%;
       aspect-ratio: 1 / 1;
       border-radius: 28px;
       overflow: hidden;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
-      background: #151622;
-      margin-bottom: 20px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+      background: rgba(0, 0, 0, 0.3);
+      margin-bottom: 18px;
     }
 
     .art-img {
@@ -655,20 +801,18 @@ class LanTogetherServer(
       100% { transform: scale(0.9); opacity: 0.7; }
     }
 
-    /* Artist Row */
     .artist-row {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 8px;
-      cursor: pointer;
+      margin-bottom: 6px;
       text-decoration: none;
       color: var(--text);
     }
 
     .artist-avatar {
-      width: 28px;
-      height: 28px;
+      width: 26px;
+      height: 26px;
       border-radius: 50%;
       background: var(--pill-bg);
       display: flex;
@@ -678,8 +822,8 @@ class LanTogetherServer(
     }
 
     .artist-avatar svg {
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
       fill: currentColor;
     }
 
@@ -689,21 +833,13 @@ class LanTogetherServer(
       color: var(--text);
     }
 
-    .artist-chevron {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--text-muted);
-      line-height: 1;
-    }
-
-    /* Song Title */
     .track-title {
-      font-size: 1.7rem;
+      font-size: 1.6rem;
       font-weight: 800;
       line-height: 1.25;
-      letter-spacing: -0.4px;
+      letter-spacing: -0.3px;
       color: var(--text);
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
@@ -711,13 +847,12 @@ class LanTogetherServer(
       word-break: break-word;
     }
 
-    /* Meta & Badges */
     .meta-row {
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
-      font-size: 0.85rem;
+      gap: 10px;
+      margin-bottom: 16px;
+      font-size: 0.82rem;
       color: var(--text-muted);
       font-weight: 600;
     }
@@ -725,52 +860,34 @@ class LanTogetherServer(
     .listener-pill {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      background: var(--pill-bg);
+      color: var(--text);
+      font-weight: 700;
     }
 
     .listener-pill svg {
-      width: 16px;
-      height: 16px;
-      fill: currentColor;
-    }
-
-    .genre-tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: 12px;
-      background: var(--pill-bg);
-      font-size: 0.82rem;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 12px;
-      width: fit-content;
-    }
-
-    .genre-tag svg {
       width: 14px;
       height: 14px;
       fill: currentColor;
     }
 
-    .track-desc {
-      font-size: 0.85rem;
+    .quality-tag {
+      padding: 4px 10px;
+      border-radius: 12px;
+      background: var(--pill-bg);
+      font-weight: 700;
       color: var(--text-muted);
-      margin-bottom: 18px;
-      line-height: 1.4;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
-    /* Visualizer wave */
     .wave-anim {
       display: none;
       align-items: flex-end;
       gap: 2px;
       height: 12px;
-      margin-left: 6px;
+      margin-left: 4px;
     }
 
     .wave-anim span {
@@ -785,7 +902,7 @@ class LanTogetherServer(
     .wave-anim span:nth-child(3) { height: 40%; animation-delay: 0.2s; }
     @keyframes wave { 0% { height: 25%; } 100% { height: 100%; } }
 
-    /* DYNAMIC LIVE SEEK BAR */
+    /* SEEK BAR */
     .progress-section {
       width: 100%;
       margin-bottom: 16px;
@@ -858,23 +975,55 @@ class LanTogetherServer(
       font-variant-numeric: tabular-nums;
     }
 
-    /* HERO AUDIO BUTTON (MATCHES THEME BLACK & WHITE) */
+    /* CONTROLS DECK (PREV / HERO PLAY / NEXT) */
+    .controls-deck {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .ctrl-circle-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--circle-btn);
+      border: 1px solid var(--circle-btn-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text);
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+
+    .ctrl-circle-btn:active {
+      transform: scale(0.92);
+    }
+
+    .ctrl-circle-btn svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+    }
+
     .hero-btn {
-      width: 100%;
+      flex: 1;
+      max-width: 220px;
       height: 54px;
       border-radius: 27px;
       background: var(--btn-primary);
       color: var(--btn-text);
       font-size: 1rem;
       font-weight: 700;
-      border: 1px solid var(--border);
+      border: none;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
-      margin-bottom: 14px;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
       transition: transform 0.15s ease, opacity 0.15s ease;
     }
 
@@ -889,19 +1038,13 @@ class LanTogetherServer(
       fill: currentColor;
     }
 
-    .btn-icon-wrap {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
     /* Volume & Live Sync Row */
     .controls-sub-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
       padding: 0 2px;
     }
 
@@ -910,7 +1053,7 @@ class LanTogetherServer(
       align-items: center;
       gap: 8px;
       flex: 1;
-      max-width: 220px;
+      max-width: 210px;
     }
 
     .vol-btn {
@@ -977,29 +1120,284 @@ class LanTogetherServer(
       fill: currentColor;
     }
 
-    /* BOTTOM ACTION BAR (MATCHING SCREENSHOT) */
-    .bottom-actions {
+    /* ── TAB 2: QUEUE VIEW ── */
+    .queue-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .queue-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .queue-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .btn-share-queue {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 20px;
+      background: var(--pill-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-share-queue:hover {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+    }
+
+    .btn-share-queue svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+
+    .queue-list-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 520px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .queue-list-container::-webkit-scrollbar {
+      width: 4px;
+    }
+    .queue-list-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .queue-list-container::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    .queue-section-label {
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-top: 10px;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .queue-item {
       display: flex;
       align-items: center;
       gap: 12px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: var(--pill-bg);
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+
+    .queue-item:hover {
+      border-color: var(--border);
+      transform: translateX(2px);
+    }
+
+    .queue-item.current {
+      background: rgba(99, 102, 241, 0.12);
+      border-color: var(--accent);
+    }
+
+    .queue-item.played {
+      opacity: 0.65;
+    }
+
+    .queue-thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      object-fit: cover;
+      background: #181926;
+      flex-shrink: 0;
+    }
+
+    .queue-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .queue-item-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .queue-item-artist {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+
+    .queue-item-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: transparent;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: color 0.15s;
+    }
+
+    .queue-item-btn:hover {
+      color: var(--text);
+    }
+
+    .queue-item-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    /* ── TAB 3: LYRICS VIEW ── */
+    .lyrics-card {
+      display: flex;
+      flex-direction: column;
+      min-height: 480px;
+      max-height: 540px;
+      border-radius: 24px;
+      background: var(--pill-bg);
+      border: 1px solid var(--border);
+      padding: 18px 16px;
+      position: relative;
+    }
+
+    .lyrics-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .lyrics-header-title {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .lyrics-scroll-box {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 8px 120px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    .lyrics-scroll-box::-webkit-scrollbar {
+      width: 4px;
+    }
+    .lyrics-scroll-box::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    .lyric-line {
+      font-size: 1.18rem;
+      line-height: 1.5;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-origin: left center;
+      padding: 4px 6px;
+      border-radius: 10px;
+    }
+
+    .lyric-line:hover {
+      color: var(--text);
+      background: var(--pill-bg);
+    }
+
+    .lyric-line.active {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: var(--text);
+      transform: scale(1.03);
+      text-shadow: 0 0 18px var(--accent-glow);
+    }
+
+    .lyrics-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 320px;
+      gap: 14px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .lyrics-empty svg {
+      width: 48px;
+      height: 48px;
+      fill: currentColor;
+      opacity: 0.4;
+    }
+
+    /* BOTTOM ACTIONS (OPEN IN APP & SHARE) */
+    .bottom-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       margin-top: auto;
-      padding-top: 12px;
+      padding-top: 14px;
     }
 
     .btn-open-app {
       flex: 1;
-      height: 54px;
-      border-radius: 27px;
+      height: 50px;
+      border-radius: 25px;
       background: var(--btn-primary);
       color: var(--btn-text);
-      font-size: 1rem;
+      font-size: 0.95rem;
       font-weight: 700;
       border: none;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
+      gap: 8px;
       text-decoration: none;
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
       transition: transform 0.15s ease, opacity 0.15s ease;
@@ -1017,8 +1415,8 @@ class LanTogetherServer(
     }
 
     .bottom-circle-btn {
-      width: 54px;
-      height: 54px;
+      width: 50px;
+      height: 50px;
       border-radius: 50%;
       background: var(--circle-btn);
       border: 1px solid var(--circle-btn-border);
@@ -1037,16 +1435,16 @@ class LanTogetherServer(
     }
 
     .bottom-circle-btn svg {
-      width: 22px;
-      height: 22px;
+      width: 20px;
+      height: 20px;
       fill: currentColor;
     }
 
     .footer-caption {
       text-align: center;
-      font-size: 0.75rem;
+      font-size: 0.74rem;
       color: var(--text-muted);
-      margin-top: 14px;
+      margin-top: 12px;
       font-weight: 500;
     }
 
@@ -1058,20 +1456,27 @@ class LanTogetherServer(
       transform: translateX(-50%);
       background: #10b981;
       color: white;
-      padding: 8px 18px;
-      border-radius: 20px;
-      font-size: 0.82rem;
+      padding: 9px 20px;
+      border-radius: 24px;
+      font-size: 0.84rem;
       font-weight: 700;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.25s ease;
+      transition: opacity 0.25s ease, transform 0.25s ease;
       z-index: 200;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.22);
     }
-    .toast.show { opacity: 1; }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-6px);
+    }
   </style>
 </head>
 <body>
+  <!-- Dynamic Ambient Artwork Backdrop -->
+  <div id="ambientBg" class="ambient-bg"></div>
+  <div class="ambient-overlay"></div>
+
   <audio id="audioElement" preload="auto" playsinline></audio>
 
   <div class="app-container">
@@ -1084,9 +1489,14 @@ class LanTogetherServer(
         <span class="brand-name">AIRBEATS</span>
       </div>
 
-      <button class="circle-btn" onclick="toggleMenu()" aria-label="Menu">
-        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
-      </button>
+      <div class="top-actions">
+        <button class="circle-btn" onclick="toggleTheme()" aria-label="Toggle Theme" title="Theme">
+          <svg id="themeIcon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+        </button>
+        <button class="circle-btn" onclick="toggleMenu()" aria-label="Menu" title="More">
+          <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+        </button>
+      </div>
 
       <!-- Dropdown Menu -->
       <div id="menuDropdown" class="menu-dropdown">
@@ -1096,11 +1506,11 @@ class LanTogetherServer(
         </button>
         <button class="menu-item" onclick="copyStreamLink()">
           <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
-          <span>Copy Direct Stream URL</span>
+          <span>Copy Stream URL</span>
         </button>
-        <button class="menu-item" onclick="toggleTheme()">
-          <svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
-          <span>Toggle Light / Dark Mode</span>
+        <button class="menu-item" onclick="shareQueue()">
+          <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+          <span>Share Queue</span>
         </button>
         <a id="menuAppDeepLink" href="airbeats://together?host=$hostIp&port=$port&sid=$sessionId" class="menu-item">
           <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
@@ -1109,107 +1519,167 @@ class LanTogetherServer(
       </div>
     </div>
 
-    <!-- Album Artwork Card -->
-    <div class="art-container">
-      <img id="artImg" class="art-img" alt="Artwork" />
-      <div id="artPlaceholder" class="art-placeholder">
+    <!-- Segmented Navigation Tabs -->
+    <div class="nav-tabs">
+      <button id="tabBtnPlayer" class="tab-btn active" onclick="switchTab('player')">
         <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-      </div>
-      <div class="live-badge-float">
-        <span class="live-dot"></span>
-        <span>LAN LIVE</span>
-      </div>
-    </div>
-
-    <!-- Artist Row -->
-    <div class="artist-row">
-      <div class="artist-avatar">
-        <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-      </div>
-      <span id="trackArtist" class="artist-name">AirBeats</span>
-      <span class="artist-chevron">›</span>
-    </div>
-
-    <!-- Track Title -->
-    <h1 id="trackTitle" class="track-title">AirBeats Session</h1>
-
-    <!-- Meta / Badges Row -->
-    <div class="meta-row">
-      <div class="listener-pill">
-        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
-        <span id="participantCount">1 listener</span>
-      </div>
-      <span id="statusTag">Connecting...</span>
-      <div id="waveAnim" class="wave-anim">
-        <span></span><span></span><span></span>
-      </div>
-    </div>
-
-    <!-- Genre / Source Badge -->
-    <div class="genre-tag">
-      <svg viewBox="0 0 24 24"><path d="M10 20h4V4h-4v16zm-6 0h4v-8H4v8zM16 9v11h4V9h-4z"/></svg>
-      <span id="genreLabel">AirBeats LAN</span>
-    </div>
-
-    <!-- Track Description -->
-    <p id="trackDesc" class="track-desc">Streaming live over LAN • Host: $hostDisplayName</p>
-
-    <!-- LIVE SEEK BAR WITH CONTINUOUS FILL -->
-    <div class="progress-section">
-      <div class="progress-bar-wrap" id="progressBarWrap">
-        <div class="progress-track">
-          <div id="progressFill" class="progress-fill" style="width: 0%;"></div>
-        </div>
-        <div id="progressThumb" class="progress-thumb" style="left: 0%;"></div>
-        <input type="range" id="seekSlider" class="seek-slider" min="0" max="100" value="0" step="0.1" />
-      </div>
-      <div class="time-row">
-        <span id="curTime">00:00</span>
-        <span id="durTime">--:--</span>
-      </div>
-    </div>
-
-    <!-- Hero Play / Listen Button (Black & White Theme, SVG Icons) -->
-    <button id="heroPlayBtn" class="hero-btn" onclick="togglePlayback()">
-      <span id="heroPlayIcon" class="btn-icon-wrap">
-        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-      </span>
-      <span id="heroPlayText">Start Listening</span>
-    </button>
-
-    <!-- Volume & Live Sync Row (SVG Icons) -->
-    <div class="controls-sub-row">
-      <div class="vol-wrap">
-        <button class="vol-btn" onclick="toggleMute()" title="Mute/Unmute">
-          <span id="volIcon">
-            <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-          </span>
-        </button>
-        <input type="range" id="volSlider" class="vol-slider" min="0" max="1" step="0.02" value="1" oninput="onVolumeChange(this.value)" title="Volume" />
-      </div>
-      <button class="btn-sync-live" onclick="syncWithHost()" title="Re-sync with Host">
-        <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
-        <span>Sync Live</span>
+        <span>Player</span>
+      </button>
+      <button id="tabBtnQueue" class="tab-btn" onclick="switchTab('queue')">
+        <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg>
+        <span>Queue</span>
+        <span id="queueBadge" class="tab-badge" style="display:none;">0</span>
+      </button>
+      <button id="tabBtnLyrics" class="tab-btn" onclick="switchTab('lyrics')">
+        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
+        <span>Lyrics</span>
       </button>
     </div>
 
-    <!-- Bottom Actions Row (Matching Reference Screenshot) -->
+    <!-- ── TAB 1: PLAYER ── -->
+    <div id="viewPlayer" class="tab-view active">
+      <!-- Artwork Container -->
+      <div class="art-container">
+        <img id="artImg" class="art-img" alt="Artwork" />
+        <div id="artPlaceholder" class="art-placeholder">
+          <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        </div>
+        <div class="live-badge-float">
+          <span class="live-dot"></span>
+          <span>LAN LIVE</span>
+        </div>
+      </div>
+
+      <!-- Artist Row -->
+      <div class="artist-row">
+        <div class="artist-avatar">
+          <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        </div>
+        <span id="trackArtist" class="artist-name">AirBeats</span>
+      </div>
+
+      <!-- Track Title -->
+      <h1 id="trackTitle" class="track-title">AirBeats Session</h1>
+
+      <!-- Meta / Badges Row -->
+      <div class="meta-row">
+        <div class="listener-pill">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+          <span id="participantCount">1 listener</span>
+        </div>
+        <span class="quality-tag">Lossless LAN</span>
+        <span id="statusTag">Connecting...</span>
+        <div id="waveAnim" class="wave-anim">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <!-- Seek Bar -->
+      <div class="progress-section">
+        <div class="progress-bar-wrap" id="progressBarWrap">
+          <div class="progress-track">
+            <div id="progressFill" class="progress-fill" style="width: 0%;"></div>
+          </div>
+          <div id="progressThumb" class="progress-thumb" style="left: 0%;"></div>
+          <input type="range" id="seekSlider" class="seek-slider" min="0" max="100" value="0" step="0.1" />
+        </div>
+        <div class="time-row">
+          <span id="curTime">00:00</span>
+          <span id="durTime">--:--</span>
+        </div>
+      </div>
+
+      <!-- Controls Deck (Previous, Main Play/Pause, Next) -->
+      <div class="controls-deck">
+        <button class="ctrl-circle-btn" onclick="prevTrack()" title="Previous Track">
+          <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        </button>
+
+        <button id="heroPlayBtn" class="hero-btn" onclick="togglePlayback()">
+          <span id="heroPlayIcon" class="btn-icon-wrap">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </span>
+          <span id="heroPlayText">Start Listening</span>
+        </button>
+
+        <button class="ctrl-circle-btn" onclick="nextTrack()" title="Next Track">
+          <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+        </button>
+      </div>
+
+      <!-- Volume & Live Sync Row -->
+      <div class="controls-sub-row">
+        <div class="vol-wrap">
+          <button class="vol-btn" onclick="toggleMute()" title="Mute/Unmute">
+            <span id="volIcon">
+              <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            </span>
+          </button>
+          <input type="range" id="volSlider" class="vol-slider" min="0" max="1" step="0.02" value="1" oninput="onVolumeChange(this.value)" title="Volume" />
+        </div>
+        <button class="btn-sync-live" onclick="syncWithHost()" title="Re-sync with Host">
+          <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+          <span>Sync Live</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── TAB 2: QUEUE ── -->
+    <div id="viewQueue" class="tab-view">
+      <div class="queue-header-row">
+        <div class="queue-title-wrap">
+          <span class="queue-title">Playback Queue</span>
+        </div>
+        <button class="btn-share-queue" onclick="shareQueue()" title="Share complete queue">
+          <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+          <span>Share Queue</span>
+        </button>
+      </div>
+
+      <div id="queueListContainer" class="queue-list-container">
+        <!-- Rendered dynamically by updateQueueUi() -->
+        <div class="lyrics-empty">
+          <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          <p>Loading queue...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB 3: LYRICS ── -->
+    <div id="viewLyrics" class="tab-view">
+      <div class="lyrics-card">
+        <div class="lyrics-header">
+          <span class="lyrics-header-title">
+            <svg style="width:16px;height:16px;fill:currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
+            <span>Live Synced Lyrics</span>
+          </span>
+          <button class="circle-btn" style="width:30px;height:30px" onclick="reloadLyrics()" title="Refresh Lyrics">
+            <svg style="width:14px;height:14px" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+          </button>
+        </div>
+
+        <div id="lyricsScrollBox" class="lyrics-scroll-box">
+          <div class="lyrics-empty">
+            <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            <p>Fetching lyrics...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Actions Row -->
     <div class="bottom-actions">
       <a id="appDeepLink" href="airbeats://together?host=$hostIp&port=$port&sid=$sessionId" class="btn-open-app">
         <img src="https://raw.githubusercontent.com/drkvenom786/Airbeats/refs/heads/main/icon2.png" alt="Logo" />
         <span>Open in AirBeats</span>
       </a>
 
-      <button class="bottom-circle-btn" onclick="copyLink()" title="Share Link">
+      <button class="bottom-circle-btn" onclick="copyLink()" title="Share Session Link">
         <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
-      </button>
-
-      <button class="bottom-circle-btn" onclick="toggleMenu()" title="More Options">
-        <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
       </button>
     </div>
 
-    <p class="footer-caption">Free high-res audio streaming on AirBeats App</p>
+    <p class="footer-caption">AirBeats Lossless Audio Streaming • Host: $hostDisplayName</p>
   </div>
 
   <div id="toast" class="toast"></div>
@@ -1229,6 +1699,10 @@ class LanTogetherServer(
     var waveAnim = document.getElementById('waveAnim');
     var statusTag = document.getElementById('statusTag');
     var menuDropdown = document.getElementById('menuDropdown');
+    var ambientBg = document.getElementById('ambientBg');
+    var lyricsScrollBox = document.getElementById('lyricsScrollBox');
+    var queueListContainer = document.getElementById('queueListContainer');
+    var queueBadge = document.getElementById('queueBadge');
 
     var playSvg = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
     var pauseSvg = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
@@ -1242,6 +1716,11 @@ class LanTogetherServer(
     var lastServerState = null;
     var isSeeking = false;
     var clientPid = 'web_' + Math.random().toString(36).substring(2, 8);
+    var activeTab = 'player';
+    var cachedQueue = [];
+    var parsedLyrics = [];
+    var lyricsSongId = null;
+    var activeLyricIndex = -1;
 
     function formatTime(sec) {
       if (!sec || isNaN(sec) || sec < 0) sec = 0;
@@ -1249,6 +1728,24 @@ class LanTogetherServer(
       var m = Math.floor(sec / 60);
       var s = sec % 60;
       return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    /* Tab Switching */
+    function switchTab(tab) {
+      activeTab = tab;
+      ['player', 'queue', 'lyrics'].forEach(function(t) {
+        var view = document.getElementById('view' + t.charAt(0).toUpperCase() + t.slice(1));
+        var btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+        if (view) view.classList.toggle('active', t === tab);
+        if (btn) btn.classList.toggle('active', t === tab);
+      });
+      if (tab === 'queue') {
+        fetchQueue();
+      } else if (tab === 'lyrics') {
+        if (currentSongId && currentSongId !== lyricsSongId) {
+          fetchLyrics(currentSongId);
+        }
+      }
     }
 
     function toggleMenu() {
@@ -1266,7 +1763,7 @@ class LanTogetherServer(
 
     function toggleTheme() {
       var current = document.documentElement.getAttribute('data-theme');
-      var next = (current === 'dark') ? 'light' : 'dark';
+      var next = (current === 'light') ? 'dark' : 'light';
       document.documentElement.setAttribute('data-theme', next);
       localStorage.setItem('airbeats_theme', next);
       showToast('Switched to ' + next + ' theme');
@@ -1301,6 +1798,21 @@ class LanTogetherServer(
         }
       };
       xhr.send(JSON.stringify(payload));
+    }
+
+    function prevTrack() {
+      sendPlaybackAction('prev');
+      showToast('Previous track');
+    }
+
+    function nextTrack() {
+      sendPlaybackAction('next');
+      showToast('Next track');
+    }
+
+    function playQueueIndex(idx) {
+      sendPlaybackAction('play_index', idx);
+      showToast('Playing track #' + (idx + 1));
     }
 
     function togglePlayback() {
@@ -1366,6 +1878,8 @@ class LanTogetherServer(
         audio.play().catch(function(e) { console.warn('Audio play error:', e); });
       }
       updatePlayPauseUi();
+      fetchLyrics(songId);
+      fetchQueue();
     }
 
     function updatePlayPauseUi() {
@@ -1469,10 +1983,9 @@ class LanTogetherServer(
       };
     }
 
-    /* CONTINUOUS LIVE TIMELINE TICK LOOP (UPDATES AUTOMATICALLY IN REAL TIME) */
+    /* Real-Time Timeline and Lyrics Synchronization Loop */
     function tickTimeline() {
       if (!lastServerState) return;
-      if (isSeeking) return;
 
       var durationMs = 0;
       if (lastServerState.durationMs && lastServerState.durationMs > 0) {
@@ -1494,30 +2007,312 @@ class LanTogetherServer(
         }
       }
 
-      if (curTimeEl) {
-        curTimeEl.innerText = formatTime(currentMs / 1000);
-      }
-      if (durTimeEl) {
-        durTimeEl.innerText = (durationMs > 0) ? formatTime(durationMs / 1000) : '--:--';
+      if (!isSeeking) {
+        if (curTimeEl) curTimeEl.innerText = formatTime(currentMs / 1000);
+        if (durTimeEl) durTimeEl.innerText = (durationMs > 0) ? formatTime(durationMs / 1000) : '--:--';
+
+        if (durationMs > 0) {
+          var pct = Math.min(100, Math.max(0, (currentMs / durationMs) * 100));
+          if (seekSlider) seekSlider.value = pct;
+          if (progressFill) progressFill.style.width = pct + '%';
+          if (progressThumb) progressThumb.style.left = pct + '%';
+        }
       }
 
-      if (durationMs > 0) {
-        var pct = Math.min(100, Math.max(0, (currentMs / durationMs) * 100));
-        if (seekSlider) seekSlider.value = pct;
-        if (progressFill) progressFill.style.width = pct + '%';
-        if (progressThumb) progressThumb.style.left = pct + '%';
-      }
+      // Sync active lyric line
+      syncLyricsWithTime(currentMs / 1000);
     }
 
     setInterval(tickTimeline, 100);
 
-    if (audio) {
-      audio.onplay = function() { updatePlayPauseUi(); };
-      audio.onpause = function() { updatePlayPauseUi(); };
-      audio.onended = function() {
-        if (waveAnim) waveAnim.style.display = 'none';
-        if (statusTag) statusTag.innerText = 'Track Ended';
+    /* ── QUEUE MANAGEMENT & SHARE QUEUE ── */
+    function fetchQueue() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/together/queue', true);
+      xhr.onload = function() {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            var data = JSON.parse(xhr.responseText);
+            cachedQueue = data.queue || [];
+            updateQueueUi(cachedQueue, data.currentIndex || 0);
+          } catch (e) {}
+        }
       };
+      xhr.send();
+    }
+
+    function updateQueueUi(queue, currentIndex) {
+      if (!queueListContainer) return;
+      if (queueBadge) {
+        if (queue.length > 0) {
+          queueBadge.style.display = 'inline-block';
+          queueBadge.innerText = queue.length;
+        } else {
+          queueBadge.style.display = 'none';
+        }
+      }
+
+      if (!queue || queue.length === 0) {
+        queueListContainer.innerHTML = '<div class="lyrics-empty"><p>Queue is empty</p></div>';
+        return;
+      }
+
+      var html = '';
+      var played = [];
+      var current = null;
+      var upcoming = [];
+
+      queue.forEach(function(item) {
+        if (item.index < currentIndex) {
+          played.push(item);
+        } else if (item.index === currentIndex) {
+          current = item;
+        } else {
+          upcoming.push(item);
+        }
+      });
+
+      // 1. Previously Played Section
+      if (played.length > 0) {
+        html += '<div class="queue-section-label">';
+        html += '<svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>';
+        html += '<span>Previously Played (' + played.length + ')</span></div>';
+        played.forEach(function(item) {
+          html += renderQueueRow(item, 'played');
+        });
+      }
+
+      // 2. Now Playing Section
+      if (current) {
+        html += '<div class="queue-section-label" style="color:var(--accent)">';
+        html += '<svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
+        html += '<span>Now Playing</span></div>';
+        html += renderQueueRow(current, 'current');
+      }
+
+      // 3. Up Next Section
+      html += '<div class="queue-section-label">';
+      html += '<svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg>';
+      html += '<span>Up Next (' + upcoming.length + ')</span></div>';
+      if (upcoming.length > 0) {
+        upcoming.forEach(function(item) {
+          html += renderQueueRow(item, 'upcoming');
+        });
+      } else {
+        html += '<p style="font-size:0.82rem;color:var(--text-muted);padding:8px 12px;">No more tracks up next</p>';
+      }
+
+      queueListContainer.innerHTML = html;
+    }
+
+    function renderQueueRow(item, type) {
+      var thumb = item.thumbnailUrl ? '<img class="queue-thumb" src="' + item.thumbnailUrl + '" alt="" onerror="this.style.display=\'none\'" />' : '<div class="queue-thumb" style="display:flex;align-items:center;justify-content:center"><svg style="width:18px;height:18px;fill:var(--text-muted)" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>';
+      var cls = 'queue-item ' + type;
+      var btnIcon = (type === 'current') ? pauseSvg : playSvg;
+      var clickAction = 'playQueueIndex(' + item.index + ')';
+
+      return '<div class="' + cls + '" onclick="' + clickAction + '">' +
+        thumb +
+        '<div class="queue-item-info">' +
+          '<div class="queue-item-title">' + escapeHtml(item.title) + '</div>' +
+          '<div class="queue-item-artist">' + escapeHtml(item.artist) + '</div>' +
+        '</div>' +
+        '<button class="queue-item-btn" onclick="event.stopPropagation();' + clickAction + '">' +
+          btnIcon +
+        '</button>' +
+      '</div>';
+    }
+
+    function shareQueue() {
+      if (menuDropdown) menuDropdown.classList.remove('show');
+      if (!cachedQueue || cachedQueue.length === 0) {
+        showToast('Queue is currently empty');
+        return;
+      }
+
+      var text = '🎶 AirBeats Queue (' + cachedQueue.length + ' tracks):
+' +
+        cachedQueue.map(function(t, i) {
+          return (i + 1) + '. ' + t.title + ' - ' + t.artist;
+        }).join('
+') +
+        '
+
+Listen along: ' + window.location.href;
+
+      if (navigator.share) {
+        navigator.share({
+          title: 'AirBeats Queue',
+          text: text,
+          url: window.location.href
+        }).catch(function() {
+          copyTextToClipboard(text, 'Queue copied to clipboard!');
+        });
+      } else {
+        copyTextToClipboard(text, 'Queue copied to clipboard!');
+      }
+    }
+
+    /* ── LYRICS MANAGEMENT (KARAOKE SYNCHRONIZED) ── */
+    function fetchLyrics(songId) {
+      if (!songId) return;
+      lyricsSongId = songId;
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/together/lyrics?id=' + encodeURIComponent(songId), true);
+      xhr.onload = function() {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            var data = JSON.parse(xhr.responseText);
+            parseAndRenderLyrics(data.lyrics || '');
+          } catch (e) {
+            parseAndRenderLyrics('');
+          }
+        }
+      };
+      xhr.onerror = function() {
+        parseAndRenderLyrics('');
+      };
+      xhr.send();
+    }
+
+    function reloadLyrics() {
+      if (currentSongId) {
+        fetchLyrics(currentSongId);
+        showToast('Refreshing lyrics...');
+      }
+    }
+
+    function parseAndRenderLyrics(raw) {
+      if (!lyricsScrollBox) return;
+      parsedLyrics = [];
+      activeLyricIndex = -1;
+
+      if (!raw || !raw.trim()) {
+        lyricsScrollBox.innerHTML = '<div class="lyrics-empty"><svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg><p>No lyrics found for this track</p></div>';
+        return;
+      }
+
+      var lines = raw.split('\n');
+      var lrcRegex = /^\[(\d{2}):(\d{2}(?:\.\d{1,3})?)\](.*)$/;
+      var isLrc = false;
+
+      for (var i = 0; i < lines.length; i++) {
+        var match = lines[i].trim().match(lrcRegex);
+        if (match) {
+          isLrc = true;
+          var min = parseInt(match[1], 10);
+          var sec = parseFloat(match[2]);
+          var text = match[3].trim();
+          parsedLyrics.push({ time: (min * 60) + sec, text: text || '♪' });
+        }
+      }
+
+      if (isLrc && parsedLyrics.length > 0) {
+        parsedLyrics.sort(function(a, b) { return a.time - b.time; });
+        var html = '';
+        parsedLyrics.forEach(function(item, idx) {
+          html += '<div id="lyric_' + idx + '" class="lyric-line" onclick="seekToLyric(' + item.time + ')">' + escapeHtml(item.text) + '</div>';
+        });
+        lyricsScrollBox.innerHTML = html;
+      } else {
+        // Plain lyrics
+        var htmlPlain = '';
+        lines.forEach(function(line) {
+          var t = line.trim();
+          if (t) {
+            htmlPlain += '<div class="lyric-line" style="opacity:0.85">' + escapeHtml(t) + '</div>';
+          } else {
+            htmlPlain += '<div style="height:12px"></div>';
+          }
+        });
+        lyricsScrollBox.innerHTML = htmlPlain;
+      }
+    }
+
+    function seekToLyric(timeSec) {
+      if (audio && audio.duration) {
+        audio.currentTime = timeSec;
+      }
+      sendPlaybackAction('seek', timeSec * 1000);
+      showToast('Seek to ' + formatTime(timeSec));
+    }
+
+    function syncLyricsWithTime(curSec) {
+      if (!parsedLyrics || parsedLyrics.length === 0 || !lyricsScrollBox) return;
+
+      var currentIdx = -1;
+      for (var i = 0; i < parsedLyrics.length; i++) {
+        if (curSec >= parsedLyrics[i].time) {
+          currentIdx = i;
+        } else {
+          break;
+        }
+      }
+
+      if (currentIdx !== activeLyricIndex) {
+        if (activeLyricIndex >= 0) {
+          var prevEl = document.getElementById('lyric_' + activeLyricIndex);
+          if (prevEl) prevEl.classList.remove('active');
+        }
+        activeLyricIndex = currentIdx;
+        if (activeLyricIndex >= 0) {
+          var activeEl = document.getElementById('lyric_' + activeLyricIndex);
+          if (activeEl) {
+            activeEl.classList.add('active');
+            if (activeTab === 'lyrics') {
+              var topPos = activeEl.offsetTop - lyricsScrollBox.offsetTop - (lyricsScrollBox.clientHeight / 2) + 40;
+              lyricsScrollBox.scrollTo({ top: Math.max(0, topPos), behavior: 'smooth' });
+            }
+          }
+        }
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function copyTextToClipboard(text, successMsg) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+          showToast(successMsg);
+        }).catch(function() {
+          showToast('Copied to clipboard');
+        });
+      } else {
+        var input = document.createElement('textarea');
+        input.value = text;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        showToast(successMsg);
+      }
+    }
+
+    function copyLink() {
+      var url = window.location.href;
+      copyTextToClipboard(url, 'Session join link copied!');
+    }
+
+    function copyStreamLink() {
+      var streamUrl = window.location.origin + '/stream';
+      if (menuDropdown) menuDropdown.classList.remove('show');
+      copyTextToClipboard(streamUrl, 'Direct stream URL copied!');
+    }
+
+    function showToast(msg) {
+      var t = document.getElementById('toast');
+      if (!t) return;
+      t.innerText = msg;
+      t.className = 'toast show';
+      setTimeout(function() { t.className = 'toast'; }, 2200);
     }
 
     function updateUi(data) {
@@ -1533,7 +2328,6 @@ class LanTogetherServer(
       var artistEl = document.getElementById('trackArtist');
       var artImg = document.getElementById('artImg');
       var artPlaceholder = document.getElementById('artPlaceholder');
-      var descEl = document.getElementById('trackDesc');
 
       if (!state || !state.title) {
         if (titleEl) titleEl.innerText = 'AirBeats Session';
@@ -1548,10 +2342,10 @@ class LanTogetherServer(
       if (titleEl) titleEl.innerText = state.title;
       var artistStr = (state.artists && state.artists.length) ? state.artists.join(', ') : 'AirBeats';
       if (artistEl) artistEl.innerText = artistStr;
-      if (descEl) descEl.innerText = 'Streaming live over LAN • Host: ' + (data.hostName || 'AirBeats');
       document.title = (state.isPlaying ? '\u25B6 ' : '\u23F8 ') + state.title + ' \u2022 AirBeats';
 
       if (state.thumbnailUrl) {
+        if (ambientBg) ambientBg.style.backgroundImage = 'url("' + state.thumbnailUrl + '")';
         if (artImg) {
           if (artImg.src !== state.thumbnailUrl) artImg.src = state.thumbnailUrl;
           artImg.onerror = function() {
@@ -1574,6 +2368,8 @@ class LanTogetherServer(
             loadAndPlaySong(state.songId, state);
           } else {
             currentSongId = state.songId;
+            fetchLyrics(state.songId);
+            fetchQueue();
           }
         } else if (isAudioActivated && !isUserPaused) {
           var timeSinceUserAction = Date.now() - lastUserActionTime;
@@ -1621,42 +2417,9 @@ class LanTogetherServer(
     }
 
     setInterval(fetchState, 1200);
+    setInterval(fetchQueue, 3500);
     fetchState();
-
-    function copyLink() {
-      var url = window.location.href;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(function() {
-          showToast('Join link copied!');
-        }).catch(function() {
-          showToast('Copied: ' + url);
-        });
-      } else {
-        showToast('Link: ' + url);
-      }
-    }
-
-    function copyStreamLink() {
-      var streamUrl = window.location.origin + '/stream';
-      if (menuDropdown) menuDropdown.classList.remove('show');
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(streamUrl).then(function() {
-          showToast('Stream URL copied: ' + streamUrl);
-        }).catch(function() {
-          showToast('Copied: ' + streamUrl);
-        });
-      } else {
-        showToast('Stream: ' + streamUrl);
-      }
-    }
-
-    function showToast(msg) {
-      var t = document.getElementById('toast');
-      if (!t) return;
-      t.innerText = msg;
-      t.className = 'toast show';
-      setTimeout(function() { t.className = 'toast'; }, 2200);
-    }
+    fetchQueue();
   </script>
 </body>
 </html>
