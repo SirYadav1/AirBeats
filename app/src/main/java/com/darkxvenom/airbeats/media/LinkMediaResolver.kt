@@ -17,13 +17,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
 import org.jsoup.Jsoup
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URLDecoder
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
 class LinkMediaResolver(
@@ -200,7 +197,7 @@ class LinkMediaResolver(
 
     private suspend fun resolveInstagramMedia(url: String): File? {
         val cleanUrl = url.trim()
-        GlobalLog.append(Log.INFO, TAG, "Starting Instagram local WebView resolution for: $cleanUrl")
+        GlobalLog.append(Log.INFO, TAG, "Starting Instagram resolution for: $cleanUrl")
         var shortcode = IG_SHORTCODE_REGEX.find(cleanUrl)?.groupValues?.getOrNull(1)
 
         if (shortcode.isNullOrBlank()) {
@@ -209,7 +206,7 @@ class LinkMediaResolver(
         }
         GlobalLog.append(Log.INFO, TAG, "Instagram shortcode: $shortcode")
 
-        // Pure local WebView extraction method
+        // Strategy 1 (Primary): In-App Fast WebView resolution
         try {
             val mediaUrl = resolveInstagramViaWebView(cleanUrl, shortcode ?: "")
             if (!mediaUrl.isNullOrBlank()) {
@@ -225,6 +222,70 @@ class LinkMediaResolver(
             GlobalLog.append(Log.WARN, TAG, "Instagram WebView resolution error: ${e.message}")
         }
 
+        // Strategy 2: Direct HTTP check for Instagram embed captioned page & JSON endpoint
+        if (!shortcode.isNullOrBlank()) {
+            try {
+                val apiUrls = listOf(
+                    "https://www.instagram.com/reel/$shortcode/embed/captioned/",
+                    "https://www.instagram.com/p/$shortcode/embed/captioned/",
+                    "https://www.instagram.com/reel/$shortcode/?__a=1&__d=1",
+                    "https://www.instagram.com/p/$shortcode/?__a=1&__d=1"
+                )
+                for (apiEndpoint in apiUrls) {
+                    GlobalLog.append(Log.INFO, TAG, "Checking Instagram endpoint: $apiEndpoint")
+                    val request = Request.Builder()
+                        .url(apiEndpoint)
+                        .addHeader("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1")
+                        .addHeader("X-IG-App-ID", "936619743392459")
+                        .addHeader("Accept", "*/*")
+                        .build()
+
+                    okHttpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val html = response.body?.string().orEmpty()
+                            val mediaUrl = extractMediaUrlFromHtml(html)
+                            if (!mediaUrl.isNullOrBlank()) {
+                                GlobalLog.append(Log.INFO, TAG, "Found media URL from $apiEndpoint: $mediaUrl")
+                                val targetFile = tempManager.createTempFile("mp4")
+                                if (downloadMediaChunk(mediaUrl, targetFile)) {
+                                    return targetFile
+                                }
+                                tempManager.cleanup(targetFile)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                GlobalLog.append(Log.WARN, TAG, "Instagram HTTP API check failed: ${e.message}")
+            }
+        }
+
+        // Strategy 3: Bot User-Agent OpenGraph scrape
+        try {
+            GlobalLog.append(Log.INFO, TAG, "Trying bot OpenGraph scrape for $cleanUrl")
+            val request = Request.Builder()
+                .url(cleanUrl)
+                .addHeader("User-Agent", "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)")
+                .build()
+
+            okHttpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val html = response.body?.string().orEmpty()
+                    val mediaUrl = extractMediaUrlFromHtml(html)
+                    if (!mediaUrl.isNullOrBlank()) {
+                        GlobalLog.append(Log.INFO, TAG, "Found media URL via OpenGraph: $mediaUrl")
+                        val targetFile = tempManager.createTempFile("mp4")
+                        if (downloadMediaChunk(mediaUrl, targetFile)) {
+                            return targetFile
+                        }
+                        tempManager.cleanup(targetFile)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            GlobalLog.append(Log.WARN, TAG, "Instagram OpenGraph resolution failed: ${e.message}")
+        }
+
         GlobalLog.append(Log.WARN, TAG, "Instagram resolution failed for: $cleanUrl")
         return null
     }
@@ -233,16 +294,18 @@ class LinkMediaResolver(
         val deferredMediaUrl = CompletableDeferred<String?>()
         var webView: WebView? = null
         try {
-            GlobalLog.append(Log.INFO, TAG, "Creating in-memory WebView for Instagram: $originalUrl")
+            GlobalLog.append(Log.INFO, TAG, "Creating fast in-memory WebView for Instagram shortcode: $shortcode")
             webView = WebView(context.applicationContext)
             webView.layout(0, 0, 1080, 1920)
+            webView.onResume()
+            webView.resumeTimers()
 
             val settings = webView.settings
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.databaseEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
-            settings.userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+            settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
             CookieManager.getInstance().apply {
                 setAcceptCookie(true)
@@ -250,6 +313,79 @@ class LinkMediaResolver(
                     setAcceptThirdPartyCookies(webView, true)
                 } catch (_: Exception) {}
             }
+
+            val bridge = object {
+                @android.webkit.JavascriptInterface
+                fun onMediaFound(url: String?) {
+                    val clean = url?.trim('"', ' ', '\'', '\\')
+                    if (!clean.isNullOrBlank() && clean.startsWith("http") && !clean.startsWith("blob:") && isInstagramMediaUrl(clean)) {
+                        GlobalLog.append(Log.INFO, TAG, "AirBeatsBridge received Instagram media URL: $clean")
+                        if (!deferredMediaUrl.isCompleted) {
+                            deferredMediaUrl.complete(clean)
+                        }
+                    }
+                }
+            }
+            webView.addJavascriptInterface(bridge, "AirBeatsBridge")
+
+            val injectionScript = """
+                (function() {
+                    function report(url) {
+                        if (!url || typeof url !== 'string') return;
+                        if ((url.includes('cdninstagram.com') || url.includes('fbcdn.net')) &&
+                            (url.includes('.mp4') || url.includes('/v/t50.') || url.includes('/v/t0.') || url.includes('mime_type=video'))) {
+                            if (window.AirBeatsBridge) {
+                                window.AirBeatsBridge.onMediaFound(url);
+                            }
+                        }
+                    }
+
+                    if (window.fetch) {
+                        var origFetch = window.fetch;
+                        window.fetch = function() {
+                            var arg = arguments[0];
+                            if (typeof arg === 'string') report(arg);
+                            else if (arg && arg.url) report(arg.url);
+                            return origFetch.apply(this, arguments);
+                        };
+                    }
+
+                    if (window.XMLHttpRequest) {
+                        var origOpen = XMLHttpRequest.prototype.open;
+                        XMLHttpRequest.prototype.open = function(method, url) {
+                            report(url);
+                            return origOpen.apply(this, arguments);
+                        };
+                    }
+
+                    function scan() {
+                        var btns = document.querySelectorAll('button, div[role="button"], .PlayButton, .EmbeddedMediaImage, [aria-label*="play" i], [aria-label*="Play" i]');
+                        for (var i = 0; i < btns.length; i++) {
+                            try { btns[i].click(); } catch(e){}
+                        }
+                        var vids = document.querySelectorAll('video');
+                        for (var i = 0; i < vids.length; i++) {
+                            var v = vids[i];
+                            try { v.muted = true; v.play(); } catch(e){}
+                            report(v.currentSrc || v.src);
+                        }
+                        var srcs = document.querySelectorAll('video source');
+                        for (var i = 0; i < srcs.length; i++) {
+                            report(srcs[i].src);
+                        }
+                        var scripts = document.querySelectorAll('script');
+                        for (var i = 0; i < scripts.length; i++) {
+                            var txt = (scripts[i].textContent || '').replace(/\\\//g, '/').replace(/\\u0026/g, '&');
+                            var m = txt.match(/https:\/\/[^"'\\s]+?(?:cdninstagram\.com|fbcdn\.net)[^"'\\s]*?\.mp4[^"'\\s]*/);
+                            if (m && m[0]) report(m[0]);
+                            var m2 = txt.match(/"video_url"\s*:\s*"([^"]+)"/);
+                            if (m2 && m2[1]) report(m2[1]);
+                        }
+                    }
+                    scan();
+                    setInterval(scan, 400);
+                })();
+            """.trimIndent()
 
             webView.webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(
@@ -259,111 +395,51 @@ class LinkMediaResolver(
                     val reqUrl = request?.url?.toString()
                     if (reqUrl != null && isInstagramMediaUrl(reqUrl)) {
                         GlobalLog.append(Log.INFO, TAG, "WebView intercepted Instagram media URL: $reqUrl")
-                        val cleanMediaUrl = reqUrl
-                            .replace(Regex("""[?&]bytestart=\d+"""), "")
-                            .replace(Regex("""[?&]byteend=\d+"""), "")
                         if (!deferredMediaUrl.isCompleted) {
-                            deferredMediaUrl.complete(cleanMediaUrl)
+                            deferredMediaUrl.complete(reqUrl)
                         }
                     }
                     return super.shouldInterceptRequest(view, request)
                 }
 
+                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    view?.evaluateJavascript(injectionScript, null)
+                }
+
                 override fun onPageFinished(view: WebView?, pageUrl: String?) {
                     super.onPageFinished(view, pageUrl)
                     GlobalLog.append(Log.INFO, TAG, "WebView page finished: $pageUrl")
-                    val js = """
-                        (function() {
-                            var v = document.querySelector('video');
-                            if (v && (v.currentSrc || v.src)) {
-                                var s = v.currentSrc || v.src;
-                                if (s && !s.startsWith('blob:')) return s;
-                            }
-                            var a = document.querySelector('audio');
-                            if (a && (a.currentSrc || a.src)) {
-                                var s = a.currentSrc || a.src;
-                                if (s && !s.startsWith('blob:')) return s;
-                            }
-                            var vs = document.querySelector('video source');
-                            if (vs && vs.src && !vs.src.startsWith('blob:')) return vs.src;
-                            var asrc = document.querySelector('audio source');
-                            if (asrc && asrc.src && !asrc.src.startsWith('blob:')) return asrc.src;
-
-                            var btns = document.querySelectorAll('button, div[role="button"], .PlayButton, .EmbeddedMediaImage');
-                            for (var i = 0; i < btns.length; i++) {
-                                var btn = btns[i];
-                                var txt = (btn.innerText || btn.getAttribute('aria-label') || '').toLowerCase();
-                                if (txt.includes('play') || txt.includes('allow') || txt.includes('accept') || txt.includes('agree')) {
-                                    try { btn.click(); } catch(e){}
-                                }
-                            }
-                            if (v) { try { v.play(); } catch(e){} }
-                            if (a) { try { a.play(); } catch(e){} }
-                            return null;
-                        })()
-                    """.trimIndent()
-                    view?.evaluateJavascript(js) { result ->
-                        val clean = result?.trim('"', ' ', '\'', '\\')
-                        if (!clean.isNullOrBlank() && clean != "null" && clean.startsWith("http")) {
-                            GlobalLog.append(Log.INFO, TAG, "WebView JS found media URL: $clean")
-                            if (!deferredMediaUrl.isCompleted) {
-                                deferredMediaUrl.complete(clean)
-                            }
-                        }
-                    }
+                    view?.evaluateJavascript(injectionScript, null)
                 }
             }
 
-            // Load originalUrl first to keep any share tokens (?stkn=...)
-            val primaryUrl = if (originalUrl.isNotBlank()) originalUrl else {
-                "https://www.instagram.com/reel/$shortcode/"
+            // Directly load captioned embed URL which renders video player DOM reliably without login walls
+            val primaryUrl = if (shortcode.isNotBlank()) {
+                "https://www.instagram.com/p/$shortcode/embed/captioned/"
+            } else {
+                originalUrl
             }
-            GlobalLog.append(Log.INFO, TAG, "WebView loading primary URL: $primaryUrl")
+            GlobalLog.append(Log.INFO, TAG, "WebView loading initial URL: $primaryUrl")
             webView.loadUrl(primaryUrl)
 
-            val maxWaitMs = 7500L
+            val maxWaitMs = 15000L
             val startTime = System.currentTimeMillis()
-            var embedFallbackTried = false
+            var secondaryTried = false
 
             while (!deferredMediaUrl.isCompleted && System.currentTimeMillis() - startTime < maxWaitMs) {
-                delay(400)
+                delay(300)
                 if (deferredMediaUrl.isCompleted) break
 
-                // If 3.5s elapsed and nothing found, try embed URL
-                if (!embedFallbackTried && System.currentTimeMillis() - startTime > 3500L && shortcode.isNotBlank()) {
-                    embedFallbackTried = true
-                    val embedUrl = "https://www.instagram.com/p/$shortcode/embed/captioned/"
-                    GlobalLog.append(Log.INFO, TAG, "WebView switching to embed fallback: $embedUrl")
-                    webView.loadUrl(embedUrl)
+                val elapsed = System.currentTimeMillis() - startTime
+                if (!secondaryTried && elapsed > 4500L && shortcode.isNotBlank()) {
+                    secondaryTried = true
+                    val fallbackUrl = "https://www.instagram.com/reel/$shortcode/embed/captioned/"
+                    GlobalLog.append(Log.INFO, TAG, "WebView trying alternate embed: $fallbackUrl")
+                    webView.loadUrl(fallbackUrl)
                 }
 
-                webView.evaluateJavascript("""
-                    (function() {
-                        var v = document.querySelector('video');
-                        if (v && (v.currentSrc || v.src)) {
-                            var s = v.currentSrc || v.src;
-                            if (s && !s.startsWith('blob:')) return s;
-                        }
-                        var a = document.querySelector('audio');
-                        if (a && (a.currentSrc || a.src)) {
-                            var s = a.currentSrc || a.src;
-                            if (s && !s.startsWith('blob:')) return s;
-                        }
-                        var vs = document.querySelector('video source');
-                        if (vs && vs.src && !vs.src.startsWith('blob:')) return vs.src;
-                        var asrc = document.querySelector('audio source');
-                        if (asrc && asrc.src && !asrc.src.startsWith('blob:')) return asrc.src;
-                        return null;
-                    })()
-                """.trimIndent()) { result ->
-                    val clean = result?.trim('"', ' ', '\'', '\\')
-                    if (!clean.isNullOrBlank() && clean != "null" && clean.startsWith("http")) {
-                        GlobalLog.append(Log.INFO, TAG, "WebView periodic poll found media URL: $clean")
-                        if (!deferredMediaUrl.isCompleted) {
-                            deferredMediaUrl.complete(clean)
-                        }
-                    }
-                }
+                webView.evaluateJavascript(injectionScript, null)
             }
 
             if (deferredMediaUrl.isCompleted) deferredMediaUrl.getCompleted() else null
@@ -381,13 +457,14 @@ class LinkMediaResolver(
 
     private fun isInstagramMediaUrl(url: String): Boolean {
         val lower = url.lowercase()
-        if (lower.contains(".jpg") || lower.contains(".jpeg") || lower.contains(".png") ||
-            lower.contains(".webp") || lower.contains("rsrc.php") || lower.contains(".js") ||
-            lower.contains(".css") || lower.contains("/v/t51.")
-        ) {
+        if (lower.contains("rsrc.php") || lower.contains(".js") || lower.contains(".css")) {
             return false
         }
-        val isMetaCdn = lower.contains("cdninstagram.com") || lower.contains("fbcdn.net")
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".webp") ||
+            lower.contains(".jpg?") || lower.contains(".jpeg?") || lower.contains(".png?") || lower.contains(".webp?")) {
+            return false
+        }
+        val isMetaCdn = lower.contains("cdninstagram.com") || lower.contains("fbcdn.net") || lower.contains("instagram.f")
         val isMedia = lower.contains(".mp4") || lower.contains(".m4a") || lower.contains(".mp3") ||
                 lower.contains("/v/t50.") || lower.contains("/v/t0.") || lower.contains("/v/t64.") ||
                 lower.contains("/m1/v/") || lower.contains("mime_type=video") || lower.contains("mime_type=audio") ||
@@ -598,6 +675,7 @@ class LinkMediaResolver(
 
     private fun extractMediaUrlFromHtml(html: String): String? {
         try {
+            val unescaped = html.replace("\\/", "/").replace("\\u0026", "&").replace("\\\"", "\"")
             val doc = Jsoup.parse(html)
             // 1. og:video / og:video:secure_url
             val ogVideo = doc.select("meta[property=og:video:secure_url]").attr("content").takeIf { it.isNotBlank() }
@@ -612,15 +690,25 @@ class LinkMediaResolver(
             val videoSrc = doc.select("video source").attr("src").takeIf { it.isNotBlank() }
                 ?: doc.select("video").attr("src").takeIf { it.isNotBlank() }
 
-            if (!videoSrc.isNullOrBlank()) {
+            if (!videoSrc.isNullOrBlank() && !videoSrc.startsWith("blob:")) {
                 return unescapeJsonString(videoSrc)
             }
 
-            // 3. Regex for JSON / embedded video_url
-            val jsonVideoRegex = Regex("""(?:video_url|videoUrl)["']?\s*:\s*["'](https:[^"'\\]+?)["']""")
-            val jsonMatch = jsonVideoRegex.find(html)
-            if (jsonMatch != null) {
-                return unescapeJsonString(jsonMatch.groupValues[1])
+            // 3. Regex for JSON / embedded video_url in unescaped HTML
+            val patterns = listOf(
+                Regex("""(?:"video_url"|"playback_url"|"playable_url"|"playable_url_quality_hd")\s*:\s*"([^"]+)""""),
+                Regex("""https://[a-zA-Z0-9.-]*(?:cdninstagram\.com|fbcdn\.net)/[^\s"']+\.mp4[^\s"']*"""),
+                Regex("""https://[a-zA-Z0-9.-]*(?:cdninstagram\.com|fbcdn\.net)/v/t50[^\s"']*""")
+            )
+
+            for (pattern in patterns) {
+                val match = pattern.find(unescaped)
+                if (match != null) {
+                    val raw = if (match.groupValues.size > 1) match.groupValues[1] else match.value
+                    if (raw.isNotBlank() && raw.startsWith("http")) {
+                        return unescapeJsonString(raw)
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "HTML parsing error", e)
@@ -628,15 +716,21 @@ class LinkMediaResolver(
         return null
     }
 
-    private suspend fun downloadMediaChunk(
+    suspend fun downloadMediaChunk(
         mediaUrl: String,
         targetFile: File,
         maxBytes: Long = MAX_CHUNK_BYTES,
         customUserAgent: String? = null
     ): Boolean = withContext(Dispatchers.IO) {
+        val isInstagram = mediaUrl.contains("cdninstagram.com") || mediaUrl.contains("fbcdn.net") || mediaUrl.contains("instagram.com")
+        if (isInstagram) {
+            // Instagram CDN rejects Range headers with 403/416; perform direct full chunk download with Referer
+            return@withContext downloadWithoutRange(mediaUrl, targetFile, maxBytes, customUserAgent)
+        }
+
         try {
             val hasRangeInUrl = mediaUrl.contains("range=") || mediaUrl.contains("bytestart=")
-            val defaultUa = "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+            val defaultUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
             val reqBuilder = Request.Builder()
                 .url(mediaUrl)
                 .addHeader("User-Agent", customUserAgent ?: defaultUa)
@@ -684,13 +778,18 @@ class LinkMediaResolver(
         customUserAgent: String? = null
     ): Boolean {
         return try {
-            val defaultUa = "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
-            val request = Request.Builder()
+            val isInstagram = mediaUrl.contains("cdninstagram.com") || mediaUrl.contains("fbcdn.net") || mediaUrl.contains("instagram.com")
+            val defaultUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            val reqBuilder = Request.Builder()
                 .url(mediaUrl)
                 .addHeader("User-Agent", customUserAgent ?: defaultUa)
                 .addHeader("Accept", "*/*")
-                .build()
 
+            if (isInstagram) {
+                reqBuilder.addHeader("Referer", "https://www.instagram.com/")
+            }
+
+            val request = reqBuilder.build()
             okHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     GlobalLog.append(Log.ERROR, TAG, "Direct download failed with HTTP ${response.code}")

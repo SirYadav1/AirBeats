@@ -350,9 +350,7 @@ fun Modifier.bottomSheetDraggable(
 ): Modifier {
     val playerConnection = com.darkxvenom.airbeats.LocalPlayerConnection.current
     val actualOnDismiss: () -> Unit = onDismiss ?: {
-        playerConnection?.service?.clearAutomix()
-        playerConnection?.player?.stop()
-        playerConnection?.player?.clearMediaItems()
+        playerConnection?.service?.stopPlayback()
     }
     return this.pointerInput(state) {
         val velocityTracker = VelocityTracker()

@@ -68,25 +68,43 @@ class YouTubeQueue(
 
         val nextResult =
             withContext(IO) {
-                YouTube.next(endpoint, continuation).getOrThrow()
+                runCatching {
+                    YouTube.next(endpoint, continuation).getOrThrow()
+                }.getOrNull()
             }
+
+        if (nextResult == null) {
+            val singleItem = preloadItem?.toMediaItem()
+            val items = if (singleItem != null) listOf(singleItem) else emptyList()
+            return Queue.Status(
+                title = preloadItem?.title,
+                items = items,
+                mediaItemIndex = 0,
+            )
+        }
+
+        val seedVideoId = endpoint.videoId ?: preloadItem?.id
         endpoint = nextResult.endpoint
         continuation = nextResult.continuation
 
-        val targetId = endpoint.videoId ?: preloadItem?.id
         val rawItems = nextResult.items.map { it.toMediaItem() }
+        val targetId = seedVideoId
 
         val targetIndex = if (targetId != null) {
             rawItems.indexOfFirst { it.mediaId == targetId }
         } else -1
 
         val (finalItems, finalIndex) = when {
+            preloadItem != null -> {
+                if (targetIndex != -1) {
+                    rawItems to targetIndex
+                } else {
+                    val prepended = listOf(preloadItem.toMediaItem()) + rawItems.filter { it.mediaId != preloadItem.id }
+                    prepended to 0
+                }
+            }
             targetIndex != -1 -> {
                 rawItems to targetIndex
-            }
-            preloadItem != null -> {
-                val prepended = listOf(preloadItem.toMediaItem()) + rawItems.filter { it.mediaId != preloadItem.id }
-                prepended to 0
             }
             else -> {
                 rawItems to (nextResult.currentIndex ?: 0).coerceIn(0, (rawItems.size - 1).coerceAtLeast(0))
@@ -105,8 +123,10 @@ class YouTubeQueue(
     override suspend fun nextPage(): List<MediaItem> {
         val nextResult =
             withContext(IO) {
-                YouTube.next(endpoint, continuation).getOrThrow()
-            }
+                runCatching {
+                    YouTube.next(endpoint, continuation).getOrThrow()
+                }.getOrNull()
+            } ?: return emptyList()
         endpoint = nextResult.endpoint
         continuation = nextResult.continuation
         return nextResult.items.map { it.toMediaItem() }

@@ -1034,9 +1034,7 @@ fun BottomSheetPlayer(
             }
         },
         onDismiss = {
-            playerConnection.service.clearAutomix()
-            playerConnection.player.stop()
-            playerConnection.player.clearMediaItems()
+            playerConnection.service.stopPlayback()
         },
         collapsedContent = {
             val (navBarStyle, _) = com.darkxvenom.airbeats.utils.rememberEnumPreference<com.darkxvenom.airbeats.constants.NavBarStyle>(

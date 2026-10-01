@@ -237,9 +237,14 @@ fun SpotifyHomeScreen(
                             title = "Smart Radio",
                             subtitle = "Endless discovery tuned to your vibes",
                             onPlayRadio = {
-                                quickPicks?.firstOrNull()?.let { firstTrack ->
-                                    playerConnection.playQueue(YouTubeQueue.radio(firstTrack.toMediaMetadata()))
-                                }
+                                com.darkxvenom.airbeats.ui.component.InfiniteRadioHelper.playShuffledRadio(
+                                    playerConnection = playerConnection,
+                                    currentSongId = playerConnection.mediaMetadata.value?.id,
+                                    quickPicks = quickPicks,
+                                    forgottenFavorites = forgottenFavorites,
+                                    keepListening = keepListening,
+                                    homeSongs = homePage?.sections?.flatMap { it.items }?.filterIsInstance<com.darkxvenom.airbeats.innertube.models.SongItem>()
+                                )
                             },
                             style = HomeThemeStyle.SPOTIFY,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)

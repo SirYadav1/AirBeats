@@ -16,6 +16,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import timber.log.Timber
+import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.util.UUID
@@ -68,6 +70,67 @@ class LanTogetherServer(
             name = hostDisplayName,
             isHost = true
         )
+    }
+
+    private var discoveryThread: Thread? = null
+    private var discoverySocket: DatagramSocket? = null
+    private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
+
+    override fun start(timeout: Int, daemon: Boolean) {
+        super.start(timeout, daemon)
+        startUdpDiscoveryResponder()
+    }
+
+    override fun stop() {
+        stopUdpDiscoveryResponder()
+        super.stop()
+    }
+
+    private fun startUdpDiscoveryResponder() {
+        stopUdpDiscoveryResponder()
+        runCatching {
+            val wifiManager = context?.applicationContext?.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+            multicastLock = wifiManager?.createMulticastLock("airbeats_lan_host_discovery")?.apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        }
+        discoveryThread = Thread {
+            try {
+                val socket = DatagramSocket(port)
+                discoverySocket = socket
+                socket.broadcast = true
+                val buf = ByteArray(512)
+                while (!socket.isClosed) {
+                    val packet = DatagramPacket(buf, buf.size)
+                    socket.receive(packet)
+                    val msg = String(packet.data, 0, packet.length, Charsets.UTF_8).trim()
+                    if (msg.startsWith("AIRBEATS_DISCOVER")) {
+                        val replyMsg = "AIRBEATS_HOST:$port:$hostDisplayName:$sessionId:${participants.size}"
+                        val replyData = replyMsg.toByteArray(Charsets.UTF_8)
+                        val replyPacket = DatagramPacket(replyData, replyData.size, packet.address, packet.port)
+                        socket.send(replyPacket)
+                    }
+                }
+            } catch (_: Exception) {}
+        }.apply {
+            isDaemon = true
+            name = "LanTogether-Discovery"
+            start()
+        }
+    }
+
+    private fun stopUdpDiscoveryResponder() {
+        runCatching {
+            discoverySocket?.close()
+            discoverySocket = null
+            discoveryThread?.interrupt()
+            discoveryThread = null
+            if (multicastLock?.isHeld == true) {
+                multicastLock?.release()
+            }
+            multicastLock = null
+        }
     }
 
     override fun serve(session: IHTTPSession): Response {
