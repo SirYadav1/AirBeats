@@ -373,7 +373,7 @@ object AutoBackupManager {
                 false
             }
         } catch (e: Exception) {
-            Timber.e(e, "AutoBackupManager: Failed to save backup to Documents/AirBeats")
+            Timber.w("AutoBackupManager: Could not save backup to Documents/AirBeats: ${e.message}")
             false
         }
     }
