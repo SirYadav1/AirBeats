@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioDeviceInfo
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -12,6 +13,11 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.darkxvenom.airbeats.LocalRingtoneViewModel
+import com.darkxvenom.airbeats.ui.player.DeviceSelectionBottomSheet
+import com.darkxvenom.airbeats.ui.player.getAvailableDevices
+import com.darkxvenom.airbeats.ui.player.getActiveDevice
+import com.darkxvenom.airbeats.ui.player.isBluetoothOutput
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -327,6 +333,55 @@ fun PlayerMenu(
     var showDolbyAtmosSheet by rememberSaveable { mutableStateOf(false) }
     var showEightDAudioSheet by rememberSaveable { mutableStateOf(false) }
     var showListenTogetherSheet by rememberSaveable { mutableStateOf(false) }
+    var showOutputDeviceSheet by rememberSaveable { mutableStateOf(false) }
+
+    val availableAudioDevices by playerConnection.service.availableAudioDevices.collectAsState()
+    val preferredAudioDevice by playerConnection.service.preferredAudioDevice.collectAsState()
+
+    val fallbackDevices = remember { getAvailableDevices(context) }
+    val displayDevices = if (availableAudioDevices.isNotEmpty()) availableAudioDevices else fallbackDevices
+    val activeDevice = preferredAudioDevice ?: remember(displayDevices) { getActiveDevice(displayDevices) }
+    val isBluetooth = activeDevice?.let { with(it) { isBluetoothOutput() } } ?: false
+    val isCasting by playerConnection.service.isCasting.collectAsState()
+    val castDeviceName by playerConnection.service.castDeviceName.collectAsState()
+
+    val hasBluetoothPermission = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+    }
+    var bluetoothPermissionGranted by remember { mutableStateOf(hasBluetoothPermission) }
+
+    val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        bluetoothPermissionGranted = isGranted
+        playerConnection.service.refreshAudioOutputDevices()
+        showOutputDeviceSheet = true
+    }
+
+    val ringtoneViewModel = LocalRingtoneViewModel.current
+
+    if (showOutputDeviceSheet) {
+        DeviceSelectionBottomSheet(
+            onDismiss = { showOutputDeviceSheet = false },
+            availableDevices = displayDevices,
+            activeDevice = activeDevice,
+            preferredDevice = preferredAudioDevice,
+            onSelectDevice = { device ->
+                playerConnection.service.setPreferredOutputDevice(device)
+            },
+            hasBluetoothPermission = bluetoothPermissionGranted,
+            onRequestBluetoothPermission = {
+                bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
@@ -760,6 +815,61 @@ fun PlayerMenu(
                             colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent),
                             modifier = Modifier.clickable {
                                 showEqualizerSheet = true
+                            }
+                        )
+                    }
+
+                    item {
+                        val deviceName = when {
+                            isCasting -> castDeviceName ?: "Cast device"
+                            activeDevice != null -> activeDevice.productName.toString()
+                            else -> "Phone Speaker"
+                        }
+                        val deviceIcon = when {
+                            isCasting -> R.drawable.ic_cast_connected
+                            isBluetooth -> R.drawable.ic_bluetooth
+                            else -> R.drawable.airplay
+                        }
+                        androidx.compose.material3.ListItem(
+                            headlineContent = { Text("Output audio device") },
+                            supportingContent = { Text(deviceName) },
+                            leadingContent = {
+                                Icon(
+                                    painter = painterResource(deviceIcon),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            },
+                            colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.clickable {
+                                showOutputDeviceSheet = true
+                            }
+                        )
+                    }
+
+                    item {
+                        androidx.compose.material3.ListItem(
+                            headlineContent = { Text("Set as Ringtone") },
+                            leadingContent = {
+                                Icon(
+                                    painter = painterResource(R.drawable.notification),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            },
+                            colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.clickable {
+                                if (ringtoneViewModel.hasSettingsPermission(context)) {
+                                    ringtoneViewModel.showTrimmer(
+                                        mediaMetadata.id,
+                                        mediaMetadata.title,
+                                        mediaMetadata.artists.joinToString { it.name },
+                                        mediaMetadata.duration.toLong()
+                                    )
+                                } else {
+                                    ringtoneViewModel.requestSettingsPermission(context)
+                                }
+                                onDismiss()
                             }
                         )
                     }

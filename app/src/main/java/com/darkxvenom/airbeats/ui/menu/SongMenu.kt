@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import com.darkxvenom.airbeats.LocalRingtoneViewModel
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -147,6 +148,8 @@ fun SongMenu(
     var showSnippetStudioDialog by rememberSaveable {
         mutableStateOf(false)
     }
+
+    val ringtoneViewModel = LocalRingtoneViewModel.current
 
     if (showEditDialog) {
         TextFieldDialog(
@@ -585,6 +588,31 @@ fun SongMenu(
                     } else {
                         permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     }
+                }
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text(text = "Set as Ringtone") },
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.notification),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                },
+                modifier = Modifier.clickable {
+                    if (ringtoneViewModel.hasSettingsPermission(context)) {
+                        ringtoneViewModel.showTrimmer(
+                            song.song.id,
+                            song.song.title,
+                            song.artists.joinToString { it.name },
+                            song.song.duration.toLong()
+                        )
+                    } else {
+                        ringtoneViewModel.requestSettingsPermission(context)
+                    }
+                    onDismiss()
                 }
             )
         }

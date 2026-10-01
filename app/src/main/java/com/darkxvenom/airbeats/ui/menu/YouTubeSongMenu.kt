@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import com.darkxvenom.airbeats.LocalRingtoneViewModel
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -109,6 +110,8 @@ fun YouTubeSongMenu(
     var showSnippetStudioDialog by rememberSaveable {
         mutableStateOf(false)
     }
+
+    val ringtoneViewModel = LocalRingtoneViewModel.current
 
     val notAddedList by remember {
         mutableStateOf(mutableListOf<MediaMetadata>())
@@ -338,6 +341,22 @@ fun YouTubeSongMenu(
             } else {
                 permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             }
+        }
+        GridMenuItem(
+            icon = R.drawable.notification,
+            title = R.string.set_as_ringtone,
+        ) {
+            if (ringtoneViewModel.hasSettingsPermission(context)) {
+                ringtoneViewModel.showTrimmer(
+                    song.id,
+                    song.title,
+                    song.artists.joinToString { it.name },
+                    song.duration?.toLong() ?: 0L
+                )
+            } else {
+                ringtoneViewModel.requestSettingsPermission(context)
+            }
+            onDismiss()
         }
         GridMenuItem(
             icon = R.drawable.content_cut,

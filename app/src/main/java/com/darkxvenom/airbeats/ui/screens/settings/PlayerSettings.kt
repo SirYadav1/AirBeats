@@ -1,6 +1,17 @@
 package com.darkxvenom.airbeats.ui.screens.settings
 
-
+import android.Manifest
+import android.content.pm.PackageManager
+import android.media.AudioDeviceInfo
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.core.content.ContextCompat
+import com.darkxvenom.airbeats.ui.player.DeviceSelectionBottomSheet
+import com.darkxvenom.airbeats.ui.player.getAvailableDevices
+import com.darkxvenom.airbeats.ui.player.getActiveDevice
+import com.darkxvenom.airbeats.ui.player.isBluetoothOutput
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -200,6 +211,38 @@ fun PlayerSettings(
     val djFilterSweep by service?.djFilterSweep?.collectAsState() ?: remember { mutableFloatStateOf(0.0f) }
     var showAudioFxModal by remember { mutableStateOf(false) }
 
+    var showDeviceSheet by rememberSaveable { mutableStateOf(false) }
+
+    val availableAudioDevices by (playerConnection?.service?.availableAudioDevices?.collectAsState() ?: remember { mutableStateOf(emptyList()) })
+    val preferredAudioDevice by (playerConnection?.service?.preferredAudioDevice?.collectAsState() ?: remember { mutableStateOf(null) })
+
+    val fallbackDevices = remember { getAvailableDevices(context) }
+    val displayDevices = if (availableAudioDevices.isNotEmpty()) availableAudioDevices else fallbackDevices
+    val activeDevice = preferredAudioDevice ?: remember(displayDevices) { getActiveDevice(displayDevices) }
+    val isBluetooth = activeDevice?.let { with(it) { isBluetoothOutput() } } ?: false
+    val isCasting by (playerConnection?.service?.isCasting?.collectAsState() ?: remember { mutableStateOf(false) })
+    val castDeviceName by (playerConnection?.service?.castDeviceName?.collectAsState() ?: remember { mutableStateOf<String?>(null) })
+
+    val hasBluetoothPermission = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+    }
+    var bluetoothPermissionGranted by remember { mutableStateOf(hasBluetoothPermission) }
+
+    val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        bluetoothPermissionGranted = isGranted
+        playerConnection?.service?.refreshAudioOutputDevices()
+        showDeviceSheet = true
+    }
+
     SettingsPage(
         title = stringResource(R.string.player_and_audio),
         navController = navController,
@@ -208,6 +251,31 @@ fun PlayerSettings(
         SettingsGeneralCategory(
             title = stringResource(R.string.player),
             items = listOf(
+                {
+                    val deviceName = when {
+                        isCasting -> castDeviceName ?: "Cast device"
+                        activeDevice != null -> activeDevice.productName.toString()
+                        else -> "Phone Speaker"
+                    }
+                    val deviceIcon = when {
+                        isCasting -> R.drawable.ic_cast_connected
+                        isBluetooth -> R.drawable.ic_bluetooth
+                        else -> R.drawable.airplay
+                    }
+                    PreferenceEntry(
+                        title = { Text("Output audio device") },
+                        description = deviceName,
+                        icon = {
+                            Icon(
+                                painter = painterResource(deviceIcon),
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        },
+                        onClick = { showDeviceSheet = true }
+                    )
+                },
+
                 {
                     val streamingQualitySubtitle = when (streamingQualityPreset) {
                         QualityTiers.QUALITY_DOLBY_ATMOS -> "Dolby Atmos • Spatial Audio"
@@ -860,6 +928,22 @@ fun PlayerSettings(
     if (showAudioFxModal) {
         com.darkxvenom.airbeats.ui.menu.InAppAudioFxSheet(
             onDismiss = { showAudioFxModal = false }
+        )
+    }
+
+    if (showDeviceSheet) {
+        DeviceSelectionBottomSheet(
+            onDismiss = { showDeviceSheet = false },
+            availableDevices = displayDevices,
+            activeDevice = activeDevice,
+            preferredDevice = preferredAudioDevice,
+            onSelectDevice = { device ->
+                playerConnection?.service?.setPreferredOutputDevice(device)
+            },
+            hasBluetoothPermission = bluetoothPermissionGranted,
+            onRequestBluetoothPermission = {
+                bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+            }
         )
     }
 }

@@ -1080,7 +1080,9 @@
     <string name="import_playlist_option">Import playlist</string>
     <string name="download_canceled">Download canceled</string>
     <string name="charts">Charts</string>
-    <!-- Snippet Studio -->
+    <!-- Snippet Studio & Ringtone -->
+    <string name="set_as_ringtone">Set as Ringtone</string>
+    <string name="output_audio_device">Output audio device</string>
     <string name="ringtone_studio">Snippet Studio</string>
     <string name="ringtone_studio_desc">Trim and export audio clips</string>
     <string name="share_clip">Share</string>

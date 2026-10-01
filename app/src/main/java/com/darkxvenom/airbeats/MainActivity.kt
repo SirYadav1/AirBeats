@@ -133,6 +133,10 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.darkxvenom.airbeats.viewmodels.RingtoneViewModel
+import com.darkxvenom.airbeats.ui.component.RingtoneTrimmerDialog
+import com.darkxvenom.airbeats.ui.component.RingtoneProgressDialog
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -1204,6 +1208,7 @@ class MainActivity : FragmentActivity() {
                             }
                             val baseBg = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer
                             val insetBg = if (playerBottomSheetState.progress > 0f) Color.Transparent else baseBg
+                            val ringtoneViewModel: RingtoneViewModel = viewModel()
 
                             CompositionLocalProvider(
                                 LocalDatabase provides database,
@@ -1214,6 +1219,7 @@ class MainActivity : FragmentActivity() {
                                 LocalShimmerTheme provides ShimmerTheme,
                                 LocalSyncUtils provides syncUtils,
                                 LocalBackdrop provides backdrop,
+                                LocalRingtoneViewModel provides ringtoneViewModel,
                             ) {
                                 var showRealNavBar by remember { mutableStateOf(false) }
                                 var playIntroAnimation by remember { mutableStateOf(true) }
@@ -1975,6 +1981,30 @@ class MainActivity : FragmentActivity() {
                                         }
                                     )
                                 }
+
+                                val ringtoneUiState by ringtoneViewModel.uiState.collectAsState()
+
+                                RingtoneTrimmerDialog(
+                                    isVisible = ringtoneUiState.showTrimmer,
+                                    songId = ringtoneUiState.targetSongId,
+                                    songTitle = ringtoneUiState.targetSongTitle,
+                                    duration = ringtoneUiState.targetSongDuration,
+                                    onDismiss = { ringtoneViewModel.hideTrimmer() },
+                                    onResolveStreamUrl = { ringtoneViewModel.getStreamUrl(this@MainActivity, it) },
+                                    onConfirm = { start, end -> ringtoneViewModel.setAsRingtone(this@MainActivity, start, end) }
+                                )
+
+                                if (ringtoneUiState.showProgress) {
+                                    RingtoneProgressDialog(
+                                        isVisible = ringtoneUiState.showProgress,
+                                        progress = ringtoneUiState.progress,
+                                        statusMessage = ringtoneUiState.statusMessage,
+                                        isComplete = ringtoneUiState.isComplete,
+                                        isSuccess = ringtoneUiState.isSuccess,
+                                        onDismiss = { ringtoneViewModel.dismissProgress() },
+                                        onOpenSettings = { ringtoneViewModel.openRingtoneSettings(this@MainActivity) }
+                                    )
+                                }
                             }
 
                             LaunchedEffect(shouldShowSearchBar, openSearchImmediately) {
@@ -2071,6 +2101,7 @@ val LocalPlayerAwareWindowInsets =
     compositionLocalOf<WindowInsets> { error("No WindowInsets provided") }
 val LocalDownloadUtil = staticCompositionLocalOf<DownloadUtil> { error("No DownloadUtil provided") }
 val LocalSyncUtils = staticCompositionLocalOf<SyncUtils> { error("No SyncUtils provided") }
+val LocalRingtoneViewModel = staticCompositionLocalOf<RingtoneViewModel> { error("No RingtoneViewModel provided") }
 
 
 @Composable
