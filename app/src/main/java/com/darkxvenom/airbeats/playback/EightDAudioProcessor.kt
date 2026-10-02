@@ -25,6 +25,9 @@ class EightDAudioProcessor : BaseAudioProcessor() {
     @Volatile
     var enabled: Boolean = false
 
+    @Volatile
+    var bypass: Boolean = false
+
     /**
      * Effect intensity level from 1 to 16 (default 8 = classic 8D audio).
      * Level 1: Gentle, slow ambient rotation (~25s per circle).
@@ -85,7 +88,7 @@ class EightDAudioProcessor : BaseAudioProcessor() {
         resetState()
     }
 
-    private fun resetState() {
+    fun resetState() {
         delayBufferL.fill(0)
         delayBufferR.fill(0)
         delayWriteIndex = 0
@@ -100,15 +103,16 @@ class EightDAudioProcessor : BaseAudioProcessor() {
         diffIdx3 = 0
         diffIdx4 = 0
         orbitPhase = 0.0
-        currentEnabledAlpha = if (enabled) 1f else 0f
+        currentEnabledAlpha = 0f
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         val remaining = inputBuffer.remaining()
         if (remaining == 0) return
 
-        // If completely disabled and fully crossfaded out, pass through untouched
-        if (!enabled && currentEnabledAlpha <= 0f) {
+        // If bypass is active or effect disabled, pass through untouched immediately
+        if (bypass || !enabled) {
+            currentEnabledAlpha = 0f
             val outputBuffer = replaceOutputBuffer(remaining)
             outputBuffer.put(inputBuffer)
             outputBuffer.flip()

@@ -30,6 +30,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import com.darkxvenom.airbeats.LocalPlayerConnection
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -158,6 +163,8 @@ fun AudioPipelineDialog(
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val playerConnection = LocalPlayerConnection.current
+    val bypassAllAudioEffects by (playerConnection?.service?.bypassAllAudioEffects?.collectAsState() ?: remember { mutableStateOf(false) })
 
     val isLocal = mediaMetadata?.id?.startsWith("local:") == true ||
         currentFormat?.playbackUrl?.startsWith("content://") == true ||
@@ -288,10 +295,12 @@ fun AudioPipelineDialog(
                 isFirst = false,
                 isLast = false,
                 items = listOf(
+                    "Mode" to if (bypassAllAudioEffects) "Pure Audio (Direct Source Bypass)" else "Standard DSP",
+                    "Effects Status" to if (bypassAllAudioEffects) "Locked (Untouched Source)" else "Active / Ready",
                     "PCM Format" to "16-bit PCM",
                     "Sample Rate" to "$sampleRate Hz",
-                    "EQ Preset" to "Flat",
-                    "Stereo Expand" to "100%",
+                    "EQ Preset" to if (bypassAllAudioEffects) "Bypassed" else "Flat",
+                    "Stereo Expand" to if (bypassAllAudioEffects) "Untouched (100%)" else "100%",
                     "Buffers" to "2x (500ms, ${sampleRate / 2} frames)",
                     "Output API" to "AudioTrack"
                 )

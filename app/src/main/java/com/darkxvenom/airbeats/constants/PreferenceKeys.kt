@@ -450,6 +450,8 @@ val LyricsClickKey = booleanPreferencesKey("lyricsClick")
 val TranslateLyricsKey = booleanPreferencesKey("translateLyrics")
 
 val PlayerVolumeKey = floatPreferencesKey("playerVolume")
+val BypassAllAudioEffectsKey = booleanPreferencesKey("bypass_all_audio_effects")
+val AudioFxAndDjEnabledKey = booleanPreferencesKey("audio_fx_and_dj_enabled")
 val EqualizerEnabledKey = booleanPreferencesKey("equalizerEnabled")
 val EqualizerPresetKey = stringPreferencesKey("equalizerPreset")
 

@@ -80,6 +80,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.material3.SliderDefaults
 import kotlin.math.roundToInt
+import com.darkxvenom.airbeats.constants.BypassAllAudioEffectsKey
+import com.darkxvenom.airbeats.constants.AudioFxAndDjEnabledKey
 import com.darkxvenom.airbeats.constants.DolbyAtmosEnabledKey
 import com.darkxvenom.airbeats.constants.SpatialAudioEnabledKey
 import com.darkxvenom.airbeats.constants.EightDAudioEnabledKey
@@ -116,9 +118,17 @@ fun PlayerSettings(
 ) {
     val context = LocalContext.current
     val playerConnection = LocalPlayerConnection.current
+    val (bypassAllAudioEffects, onBypassAllAudioEffectsChange) = rememberPreference(
+        BypassAllAudioEffectsKey,
+        defaultValue = false
+    )
+    val (audioFxAndDjEnabled, onAudioFxAndDjEnabledChange) = rememberPreference(
+        AudioFxAndDjEnabledKey,
+        defaultValue = false
+    )
     val (dolbyAtmos, onDolbyAtmosChange) = rememberPreference(
         DolbyAtmosEnabledKey,
-        defaultValue = true
+        defaultValue = false
     )
     val dolbyAtmosSupported = remember { DeviceCodecs.playsDolbyAtmos }
 
@@ -165,7 +175,7 @@ fun PlayerSettings(
     )
     val (audioNormalization, onAudioNormalizationChange) = rememberPreference(
         AudioNormalizationKey,
-        defaultValue = true
+        defaultValue = false
     )
     val (autoLoadMore, onAutoLoadMoreChange) = rememberPreference(
         AutoLoadMoreKey,
@@ -204,6 +214,10 @@ fun PlayerSettings(
     val haptic = LocalHapticFeedback.current
 
     val service = playerConnection?.service
+    val serviceBypassAllAudioEffects by service?.bypassAllAudioEffects?.collectAsState() ?: remember { mutableStateOf(false) }
+    val isBypassActive = bypassAllAudioEffects || serviceBypassAllAudioEffects
+    val serviceAudioFxAndDjEnabled by service?.audioFxAndDjEnabled?.collectAsState() ?: remember { mutableStateOf(false) }
+    val isAudioFxAndDjOn = (!isBypassActive) && (audioFxAndDjEnabled || serviceAudioFxAndDjEnabled)
     val audioBoostEnabled by service?.audioBoostEnabled?.collectAsState() ?: remember { mutableStateOf(false) }
     val audioBoostPercent by service?.audioBoostPercent?.collectAsState() ?: remember { mutableIntStateOf(100) }
     val echoEnabled by service?.echoEnabled?.collectAsState() ?: remember { mutableStateOf(false) }
@@ -306,10 +320,28 @@ fun PlayerSettings(
 
                 {
                     SwitchPreference(
+                        title = { Text("Pure Audio (Direct Source Bypass)") },
+                        description = if (isBypassActive) {
+                            "ACTIVE • All audio effects, filters, and processors are locked. Bit-exact source audio stream."
+                        } else {
+                            "Disable and lock every audio effect (Dolby, Spatial, DJ FX, 8D, EQ, Normalization) to play pure untouched audio from source."
+                        },
+                        icon = { Icon(painterResource(R.drawable.auto_awesome), null) },
+                        checked = isBypassActive,
+                        onCheckedChange = { enabled ->
+                            onBypassAllAudioEffectsChange(enabled)
+                            playerConnection?.service?.setBypassAllAudioEffects(enabled)
+                        }
+                    )
+                },
+
+                {
+                    SwitchPreference(
                         title = { Text("Bit-Perfect Output") },
                         description = "Bypasses Android audio resampling, software volume scaling, and equalizer when connected to a compatible USB DAC (Android 14+).",
                         icon = { Icon(painterResource(R.drawable.tune), null) },
                         checked = bitPerfect,
+                        isEnabled = !isBypassActive,
                         onCheckedChange = { enabled ->
                             onBitPerfectChange(enabled)
                             playerConnection?.service?.setBitPerfectEnabled(enabled)
@@ -334,15 +366,20 @@ fun PlayerSettings(
 
                 {SwitchPreference(
                     title = { Text(stringResource(R.string.dolby_atmos)) },
-                    description = stringResource(
-                        if (dolbyAtmosSupported) {
-                            R.string.dolby_atmos_subtitle
-                        } else {
-                            R.string.dolby_atmos_unavailable
-                        }
-                    ),
+                    description = if (isBypassActive) {
+                        "Locked by Pure Audio Bypass"
+                    } else {
+                        stringResource(
+                            if (dolbyAtmosSupported) {
+                                R.string.dolby_atmos_subtitle
+                            } else {
+                                R.string.dolby_atmos_unavailable
+                            }
+                        )
+                    },
                     icon = { Icon(painterResource(R.drawable.ic_dolby_atmos), null) },
-                    checked = dolbyAtmos,
+                    checked = if (isBypassActive) false else dolbyAtmos,
+                    isEnabled = !isBypassActive,
                     onCheckedChange = { enabled ->
                         onDolbyAtmosChange(enabled)
                         playerConnection?.service?.setDolbyAtmosEnabled(enabled)
@@ -351,9 +388,10 @@ fun PlayerSettings(
 
                 {SwitchPreference(
                     title = { Text(stringResource(R.string.spatial_audio)) },
-                    description = stringResource(R.string.spatial_audio_subtitle),
+                    description = if (isBypassActive) "Locked by Pure Audio Bypass" else stringResource(R.string.spatial_audio_subtitle),
                     icon = { Icon(painterResource(R.drawable.graphic_eq), null) },
-                    checked = spatialAudio,
+                    checked = if (isBypassActive) false else spatialAudio,
+                    isEnabled = !isBypassActive,
                     onCheckedChange = { enabled ->
                         onSpatialAudioChange(enabled)
                         playerConnection?.service?.setSpatialAudioEnabled(enabled)
@@ -364,19 +402,22 @@ fun PlayerSettings(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         SwitchPreference(
                             title = { Text("Audio FX & DJ Studio") },
-                            description = if (audioBoostEnabled) "${audioBoostPercent}% Boost Active • Tap to expand controls" else "Studio DJ effects: 200% Volume Boost, Echo & Delay, Club Filters, and Slowed/Nightcore",
+                            description = when {
+                                isBypassActive -> "Locked by Pure Audio Bypass"
+                                isAudioFxAndDjOn -> if (audioBoostEnabled) "${audioBoostPercent}% Boost Active • Tap to expand controls" else "Studio DJ effects active • Tap to expand controls"
+                                else -> "Studio DJ effects: 200% Volume Boost, Echo & Delay, Club Filters, and Slowed/Nightcore"
+                            },
                             icon = { Icon(painterResource(R.drawable.ic_dj_console), null) },
-                            checked = audioBoostEnabled,
+                            checked = isAudioFxAndDjOn,
+                            isEnabled = !isBypassActive,
                             onCheckedChange = { enabled ->
-                                service?.setAudioBoostEnabled(enabled)
-                                if (enabled && audioBoostPercent <= 100) {
-                                    service?.setAudioBoostPercent(150)
-                                }
+                                onAudioFxAndDjEnabledChange(enabled)
+                                playerConnection?.service?.setAudioFxAndDjEnabled(enabled)
                             }
                         )
 
                         AnimatedVisibility(
-                            visible = audioBoostEnabled,
+                            visible = isAudioFxAndDjOn,
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut()
                         ) {
@@ -396,22 +437,40 @@ fun PlayerSettings(
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
-                                    Text(
-                                        text = "${audioBoostPercent}%",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFFF2A6D)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = if (audioBoostEnabled) "${audioBoostPercent}%" else "OFF",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (audioBoostEnabled) Color(0xFFFF2A6D) else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Switch(
+                                            checked = audioBoostEnabled,
+                                            onCheckedChange = { boostOn ->
+                                                service?.setAudioBoostEnabled(boostOn)
+                                                if (boostOn && audioBoostPercent <= 100) {
+                                                    service?.setAudioBoostPercent(150)
+                                                }
+                                            },
+                                            colors = SwitchDefaults.colors(
+                                                checkedThumbColor = Color.White,
+                                                checkedTrackColor = Color(0xFFFF2A6D)
+                                            )
+                                        )
+                                    }
+                                }
+                                if (audioBoostEnabled) {
+                                    Slider(
+                                        value = audioBoostPercent.toFloat(),
+                                        onValueChange = { service?.setAudioBoostPercent(it.toInt()) },
+                                        valueRange = 100f..200f,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = Color(0xFFFF2A6D),
+                                            activeTrackColor = Color(0xFFFF2A6D)
+                                        )
                                     )
                                 }
-                                Slider(
-                                    value = audioBoostPercent.toFloat(),
-                                    onValueChange = { service?.setAudioBoostPercent(it.toInt()) },
-                                    valueRange = 100f..200f,
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = Color(0xFFFF2A6D),
-                                        activeTrackColor = Color(0xFFFF2A6D)
-                                    )
-                                )
 
                                 Spacer(Modifier.height(8.dp))
 
@@ -518,9 +577,14 @@ fun PlayerSettings(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         SwitchPreference(
                             title = { Text("8D Audio") },
-                            description = if (eightDAudio) "${eightDAudioLevel}D Spatial Orbit • Best with headphones or dual speakers" else "Rotates music in a 360° circle around your head (requires headphones or dual speakers)",
+                            description = when {
+                                isBypassActive -> "Locked by Pure Audio Bypass"
+                                eightDAudio -> "${eightDAudioLevel}D Spatial Orbit • Best with headphones or dual speakers"
+                                else -> "Rotates music in a 360° circle around your head (requires headphones or dual speakers)"
+                            },
                             icon = { Icon(painterResource(R.drawable.graphic_eq), null) },
-                            checked = eightDAudio,
+                            checked = if (isBypassActive) false else eightDAudio,
+                            isEnabled = !isBypassActive,
                             onCheckedChange = { enabled ->
                                 onEightDAudioChange(enabled)
                                 playerConnection?.service?.setEightDAudioEnabled(enabled)
@@ -528,7 +592,7 @@ fun PlayerSettings(
                         )
 
                         AnimatedVisibility(
-                            visible = eightDAudio,
+                            visible = (!isBypassActive) && eightDAudio,
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut()
                         ) {
@@ -673,8 +737,10 @@ fun PlayerSettings(
 
                 {SwitchPreference(
                     title = { Text(stringResource(R.string.audio_normalization)) },
+                    description = if (isBypassActive) "Locked by Pure Audio Bypass" else null,
                     icon = { Icon(painterResource(R.drawable.volume_up), null) },
-                    checked = audioNormalization,
+                    checked = if (isBypassActive) false else audioNormalization,
+                    isEnabled = !isBypassActive,
                     onCheckedChange = onAudioNormalizationChange
                 )},
 

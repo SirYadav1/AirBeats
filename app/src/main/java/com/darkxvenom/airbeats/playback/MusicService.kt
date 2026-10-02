@@ -110,6 +110,8 @@ import com.darkxvenom.airbeats.constants.DolbyAtmosEnabledKey
 import com.darkxvenom.airbeats.constants.SpatialAudioEnabledKey
 import com.darkxvenom.airbeats.constants.EightDAudioEnabledKey
 import com.darkxvenom.airbeats.constants.EightDAudioLevelKey
+import com.darkxvenom.airbeats.constants.BypassAllAudioEffectsKey
+import com.darkxvenom.airbeats.constants.AudioFxAndDjEnabledKey
 import com.darkxvenom.airbeats.constants.BitPerfectEnabledKey
 import com.darkxvenom.airbeats.constants.StreamingQualityPresetKey
 import com.darkxvenom.airbeats.constants.QualityTiers
@@ -404,17 +406,19 @@ class MusicService :
     val echoEnabled = MutableStateFlow(false)
     val echoDelayMs = MutableStateFlow(280)
     val echoFeedback = MutableStateFlow(0.40f)
-    val echoWetMix = MutableStateFlow(0.45f)
-    val echoPingPong = MutableStateFlow(true)
+    val echoWetMix = MutableStateFlow(0.0f)
+    val echoPingPong = MutableStateFlow(false)
     val djFilterSweep = MutableStateFlow(0.0f)
     val djFlangerEnabled = MutableStateFlow(false)
     val djFlangerRate = MutableStateFlow(0.5f)
-    val djFlangerDepth = MutableStateFlow(0.5f)
+    val djFlangerDepth = MutableStateFlow(0.0f)
     val djSaturation = MutableStateFlow(0.0f)
     val djTempoSpeed = MutableStateFlow(1.0f)
     val djPitch = MutableStateFlow(1.0f)
     val djTurntableLinked = MutableStateFlow(false)
-    val dolbyAtmosEnabled = MutableStateFlow(true)
+    val audioFxAndDjEnabled = MutableStateFlow(false)
+    val bypassAllAudioEffects = MutableStateFlow(false)
+    val dolbyAtmosEnabled = MutableStateFlow(false)
     val spatialAudioEnabled = MutableStateFlow(false)
     val eightDAudioEnabled = MutableStateFlow(false)
     val eightDAudioLevel = MutableStateFlow(8)
@@ -619,7 +623,7 @@ class MusicService :
             }
 
         dataStore.data
-            .map { it[DolbyAtmosEnabledKey] ?: true }
+            .map { it[DolbyAtmosEnabledKey] ?: false }
             .distinctUntilChanged()
             .collectLatest(scope) { enabled ->
                 dolbyAtmosEnabled.value = enabled
@@ -691,7 +695,26 @@ class MusicService :
             }
 
         dataStore.data
-            .map { it[EchoWetMixKey] ?: 0.45f }
+            .map { it[BypassAllAudioEffectsKey] ?: false }
+            .distinctUntilChanged()
+            .collectLatest(scope) { bypass ->
+                bypassAllAudioEffects.value = bypass
+                applyBypassState(bypass)
+            }
+
+        dataStore.data
+            .map { it[AudioFxAndDjEnabledKey] ?: false }
+            .distinctUntilChanged()
+            .collectLatest(scope) { enabled ->
+                audioFxAndDjEnabled.value = enabled
+                djAudioProcessor.enabled = enabled && !bypassAllAudioEffects.value
+                if (!enabled) {
+                    resetDjFx()
+                }
+            }
+
+        dataStore.data
+            .map { it[EchoWetMixKey] ?: 0.0f }
             .distinctUntilChanged()
             .collectLatest(scope) { wet ->
                 echoWetMix.value = wet
@@ -699,7 +722,7 @@ class MusicService :
             }
 
         dataStore.data
-            .map { it[EchoPingPongKey] ?: true }
+            .map { it[EchoPingPongKey] ?: false }
             .distinctUntilChanged()
             .collectLatest(scope) { pingPong ->
                 echoPingPong.value = pingPong
@@ -731,7 +754,7 @@ class MusicService :
             }
 
         dataStore.data
-            .map { it[DjFlangerDepthKey] ?: 0.5f }
+            .map { it[DjFlangerDepthKey] ?: 0.0f }
             .distinctUntilChanged()
             .collectLatest(scope) { depth ->
                 djFlangerDepth.value = depth
@@ -872,7 +895,7 @@ class MusicService :
         combine(
             currentFormat,
             dataStore.data
-                .map { it[AudioNormalizationKey] ?: true }
+                .map { it[AudioNormalizationKey] ?: false }
                 .distinctUntilChanged(),
         ) { format, normalizeAudio ->
             format to normalizeAudio
@@ -1892,7 +1915,7 @@ class MusicService :
     }
 
     private fun setupLoudnessEnhancer() {
-        if (bitPerfectEnabled.value && isBitPerfectActive.value) {
+        if (bypassAllAudioEffects.value || (bitPerfectEnabled.value && isBitPerfectActive.value)) {
             loudnessEnhancer?.enabled = false
             return
         }
@@ -1922,7 +1945,7 @@ class MusicService :
                 }
 
                 val normalizeAudio = withContext(Dispatchers.IO) {
-                    dataStore.data.map { it[AudioNormalizationKey] ?: true }.first()
+                    dataStore.data.map { it[AudioNormalizationKey] ?: false }.first()
                 }
 
                 var normGain = 0
@@ -1982,7 +2005,7 @@ class MusicService :
     }
 
     private fun setupEqualizer() {
-        if (bitPerfectEnabled.value && isBitPerfectActive.value) {
+        if (bypassAllAudioEffects.value || (bitPerfectEnabled.value && isBitPerfectActive.value)) {
             equalizer?.enabled = false
             equalizerState.value = equalizerState.value.copy(enabled = false)
             return
@@ -2037,6 +2060,7 @@ class MusicService :
     }
 
     fun setEqualizerEnabled(enabled: Boolean) {
+        if (bypassAllAudioEffects.value && enabled) return
         setupEqualizer()
         try {
             equalizer?.enabled = enabled
@@ -2055,6 +2079,7 @@ class MusicService :
         index: Int,
         level: Short,
     ) {
+        if (bypassAllAudioEffects.value) return
         setupEqualizer()
         val state = equalizerState.value
         if (index !in state.bandLevels.indices) return
@@ -2082,6 +2107,7 @@ class MusicService :
     }
 
     fun resetEqualizer() {
+        setEqualizerEnabled(false)
         setupEqualizer()
         equalizerState.value.bandLevels.indices.forEach { index ->
             setEqualizerBandLevel(index, 0)
@@ -2129,6 +2155,7 @@ class MusicService :
     }
 
     fun setDolbyAtmosEnabled(enabled: Boolean) {
+        if (bypassAllAudioEffects.value && enabled) return
         dolbyAtmosEnabled.value = enabled
         scope.launch {
             dataStore.edit { settings ->
@@ -2139,6 +2166,7 @@ class MusicService :
     }
 
     fun setSpatialAudioEnabled(enabled: Boolean) {
+        if (bypassAllAudioEffects.value && enabled) return
         spatialAudioEnabled.value = enabled
         scope.launch {
             dataStore.edit { settings ->
@@ -2171,7 +2199,7 @@ class MusicService :
     }
 
     fun updateSpatialAudio() {
-        if (bitPerfectEnabled.value && isBitPerfectActive.value) {
+        if (bypassAllAudioEffects.value || (bitPerfectEnabled.value && isBitPerfectActive.value)) {
             spatialAudioProcessor.enabled = false
             return
         }
@@ -2180,6 +2208,7 @@ class MusicService :
     }
 
     fun setEightDAudioEnabled(enabled: Boolean) {
+        if (bypassAllAudioEffects.value && enabled) return
         eightDAudioEnabled.value = enabled
         updateEightDAudio()
         scope.launch {
@@ -2201,7 +2230,7 @@ class MusicService :
     }
 
     fun updateEightDAudio() {
-        if (bitPerfectEnabled.value && isBitPerfectActive.value) {
+        if (bypassAllAudioEffects.value || (bitPerfectEnabled.value && isBitPerfectActive.value)) {
             eightDAudioProcessor.enabled = false
             return
         }
@@ -2209,6 +2238,7 @@ class MusicService :
     }
 
     fun setAudioBoostEnabled(enabled: Boolean) {
+        if (bypassAllAudioEffects.value && enabled) return
         audioBoostEnabled.value = enabled
         setupLoudnessEnhancer()
         scope.launch {
@@ -2322,18 +2352,20 @@ class MusicService :
         setEchoEnabled(false)
         setEchoDelayMs(280)
         setEchoFeedback(0.40f)
-        setEchoWetMix(0.45f)
-        setEchoPingPong(true)
+        setEchoWetMix(0.0f)
+        setEchoPingPong(false)
         setDjFilterSweep(0.0f)
         setDjFlangerEnabled(false)
         setDjFlangerRate(0.5f)
-        setDjFlangerDepth(0.5f)
+        setDjFlangerDepth(0.0f)
         setDjSaturation(0.0f)
         setDjTurntableLinked(false)
         setDjTempoAndPitch(1.0f, 1.0f)
+        djAudioProcessor.resetFx()
     }
 
     fun applyDjPreset(preset: DjPreset) {
+        if (bypassAllAudioEffects.value) return
         when (preset) {
             DjPreset.DEFAULT -> {
                 resetDjFx()
@@ -2410,6 +2442,66 @@ class MusicService :
         setAudioBoostEnabled(false)
         resetEqualizer()
         resetDjFx()
+        djAudioProcessor.enabled = false
+    }
+
+    fun setAudioFxAndDjEnabled(enabled: Boolean) {
+        audioFxAndDjEnabled.value = enabled
+        djAudioProcessor.enabled = enabled && !bypassAllAudioEffects.value
+        if (!enabled) {
+            resetAudioFx()
+        }
+        scope.launch {
+            dataStore.edit { it[AudioFxAndDjEnabledKey] = enabled }
+        }
+    }
+
+    fun setBypassAllAudioEffects(enabled: Boolean) {
+        bypassAllAudioEffects.value = enabled
+        applyBypassState(enabled)
+        scope.launch {
+            dataStore.edit { it[BypassAllAudioEffectsKey] = enabled }
+        }
+    }
+
+    private fun applyBypassState(bypass: Boolean) {
+        spatialAudioProcessor.bypass = bypass
+        eightDAudioProcessor.bypass = bypass
+        djAudioProcessor.bypass = bypass
+        if (bypass) {
+            spatialAudioProcessor.enabled = false
+            spatialAudioProcessor.resetState()
+            eightDAudioProcessor.enabled = false
+            eightDAudioProcessor.resetState()
+            djAudioProcessor.enabled = false
+            djAudioProcessor.resetFx()
+            simultaneousAudioProcessor.setEnabled(false)
+            try {
+                equalizer?.enabled = false
+                releaseEqualizer()
+            } catch (e: Exception) {
+                reportException(e)
+            }
+            equalizerState.value = equalizerState.value.copy(enabled = false)
+            try {
+                loudnessEnhancer?.enabled = false
+                releaseLoudnessEnhancer()
+            } catch (e: Exception) {
+                reportException(e)
+            }
+            audioBoostEnabled.value = false
+            audioBoostPercent.value = 100
+            player.playbackParameters = androidx.media3.common.PlaybackParameters.DEFAULT
+            djTempoSpeed.value = 1.0f
+            djPitch.value = 1.0f
+            djTurntableLinked.value = false
+        } else {
+            djAudioProcessor.enabled = audioFxAndDjEnabled.value
+            updateSpatialAudio()
+            updateEightDAudio()
+            setupEqualizer()
+            setupLoudnessEnhancer()
+        }
     }
 
     fun ensureVisualizer() {

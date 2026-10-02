@@ -1426,6 +1426,7 @@ private fun ListenTogetherStatusCard(
 internal fun InAppEqualizerSheet(onDismiss: () -> Unit) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val equalizerState by playerConnection.service.equalizerState.collectAsState()
+    val bypassAllAudioEffects by playerConnection.service.bypassAllAudioEffects.collectAsState()
     val (equalizerPreset, onEqualizerPresetChange) = rememberPreference(EqualizerPresetKey, "Flat")
     val (enableLiquidGlass) = rememberPreference(LiquidGlassKey, false)
     val isFrosted = isFrostedGlassUiEnabled()
@@ -1481,6 +1482,34 @@ internal fun InAppEqualizerSheet(onDismiss: () -> Unit) {
                 .padding(horizontal = 20.dp)
                 .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 18.dp)
         ) {
+            if (bypassAllAudioEffects) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.auto_awesome),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "Pure Audio Bypass is active. Equalizer is locked for bit-exact sound.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -1502,15 +1531,15 @@ internal fun InAppEqualizerSheet(onDismiss: () -> Unit) {
                     )
                 }
                 Switch(
-                    checked = equalizerState.enabled,
-                    enabled = equalizerState.isAvailable,
+                    checked = if (bypassAllAudioEffects) false else equalizerState.enabled,
+                    enabled = equalizerState.isAvailable && !bypassAllAudioEffects,
                     onCheckedChange = playerConnection.service::setEqualizerEnabled,
                 )
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            if (equalizerState.isAvailable) {
+            if (equalizerState.isAvailable && !bypassAllAudioEffects) {
                 AudioEffectPresets(
                     selectedPreset = equalizerPreset,
                     onPresetSelected = { preset ->
@@ -1813,6 +1842,7 @@ internal fun InAppDolbyAtmosSheet(onDismiss: () -> Unit) {
     val dolbyAtmosEnabled by playerConnection.service.dolbyAtmosEnabled.collectAsState()
     val isTrackDolbyAtmos by playerConnection.service.isTrackDolbyAtmos.collectAsState()
     val spatialAudioEnabled by playerConnection.service.spatialAudioEnabled.collectAsState()
+    val bypassAllAudioEffects by playerConnection.service.bypassAllAudioEffects.collectAsState()
     val dolbyAtmosSupported = remember { DeviceCodecs.playsDolbyAtmos }
     val (enableLiquidGlass) = rememberPreference(LiquidGlassKey, false)
     val isFrosted = isFrostedGlassUiEnabled()
@@ -1864,6 +1894,34 @@ internal fun InAppDolbyAtmosSheet(onDismiss: () -> Unit) {
                 .padding(horizontal = 20.dp)
                 .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp)
         ) {
+            if (bypassAllAudioEffects) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.auto_awesome),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "Pure Audio Bypass is active. Dolby Atmos & Spatial Virtualizer are locked for bit-exact sound.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -1903,7 +1961,8 @@ internal fun InAppDolbyAtmosSheet(onDismiss: () -> Unit) {
                 }
 
                 Switch(
-                    checked = dolbyAtmosEnabled,
+                    checked = if (bypassAllAudioEffects) false else dolbyAtmosEnabled,
+                    enabled = !bypassAllAudioEffects,
                     onCheckedChange = playerConnection.service::setDolbyAtmosEnabled,
                 )
             }
@@ -1997,7 +2056,8 @@ internal fun InAppDolbyAtmosSheet(onDismiss: () -> Unit) {
                             )
                         }
                         Switch(
-                            checked = spatialAudioEnabled,
+                            checked = if (bypassAllAudioEffects) false else spatialAudioEnabled,
+                            enabled = !bypassAllAudioEffects,
                             onCheckedChange = playerConnection.service::setSpatialAudioEnabled
                         )
                     }
@@ -2037,6 +2097,7 @@ internal fun InAppEightDAudioSheet(onDismiss: () -> Unit) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val eightDAudioEnabled by playerConnection.service.eightDAudioEnabled.collectAsState()
     val eightDAudioLevel by playerConnection.service.eightDAudioLevel.collectAsState()
+    val bypassAllAudioEffects by playerConnection.service.bypassAllAudioEffects.collectAsState()
     val (enableLiquidGlass) = rememberPreference(LiquidGlassKey, false)
     val isFrosted = isFrostedGlassUiEnabled()
     val backdrop = LocalBackdrop.current
@@ -2088,6 +2149,34 @@ internal fun InAppEightDAudioSheet(onDismiss: () -> Unit) {
                 .padding(horizontal = 20.dp)
                 .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp)
         ) {
+            if (bypassAllAudioEffects) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.auto_awesome),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "Pure Audio Bypass is active. 8D Audio is locked for bit-exact sound.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
             // Header Row with Icon, Title, and Switch
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -2124,7 +2213,8 @@ internal fun InAppEightDAudioSheet(onDismiss: () -> Unit) {
                 }
 
                 Switch(
-                    checked = eightDAudioEnabled,
+                    checked = if (bypassAllAudioEffects) false else eightDAudioEnabled,
+                    enabled = !bypassAllAudioEffects,
                     onCheckedChange = playerConnection.service::setEightDAudioEnabled,
                 )
             }

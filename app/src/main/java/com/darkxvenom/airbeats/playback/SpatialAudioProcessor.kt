@@ -18,6 +18,9 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
     @Volatile
     var enabled: Boolean = false
 
+    @Volatile
+    var bypass: Boolean = false
+
     /** How much wider the stereo image gets. 1.0 = untouched. */
     private val widthGain = 2.5f
 
@@ -59,11 +62,19 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
         lowpassRight = 0f
     }
 
+    fun resetState() {
+        delayLeft.fill(0)
+        delayRight.fill(0)
+        delayIndex = 0
+        lowpassLeft = 0f
+        lowpassRight = 0f
+    }
+
     override fun queueInput(inputBuffer: java.nio.ByteBuffer) {
         val remaining = inputBuffer.remaining()
         if (remaining == 0) return
 
-        if (!enabled) {
+        if (bypass || !enabled) {
             val outputBuffer = replaceOutputBuffer(remaining)
             outputBuffer.put(inputBuffer)
             outputBuffer.flip()

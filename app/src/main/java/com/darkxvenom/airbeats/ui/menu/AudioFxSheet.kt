@@ -35,10 +35,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
@@ -88,6 +91,9 @@ import kotlin.math.sin
 fun InAppAudioFxSheet(onDismiss: () -> Unit) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val service = playerConnection.service
+
+    val bypassAllAudioEffects by service.bypassAllAudioEffects.collectAsState()
+    val audioFxAndDjEnabled by service.audioFxAndDjEnabled.collectAsState()
 
     val boostPercent by service.audioBoostPercent.collectAsState()
     val boostEnabled by service.audioBoostEnabled.collectAsState()
@@ -248,8 +254,98 @@ fun InAppAudioFxSheet(onDismiss: () -> Unit) {
                 }
             }
 
-            // Studio Navigation Tabs
-            StudioTabs(
+            if (bypassAllAudioEffects) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2230)),
+                    border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.4f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                painter = painterResource(R.drawable.auto_awesome),
+                                contentDescription = null,
+                                tint = Color(0xFF00E5FF),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Pure Audio Bypass Active",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "All DJ effects, audio filters, and equalizers are locked. The audio is playing 100% pure directly from the original source without alteration.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFA0A5B5)
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = { service.setBypassAllAudioEffects(false) },
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f))
+                        ) {
+                            Text("Disable Pure Audio Bypass", color = Color(0xFF00E5FF), style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            } else {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = if (audioFxAndDjEnabled) Color(0xFF28131C) else Color(0xFF1E1F24)),
+                    border = BorderStroke(1.dp, if (audioFxAndDjEnabled) Color(0xFFFF2A6D).copy(alpha = 0.4f) else Color.White.copy(alpha = 0.08f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Studio FX Engine",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = if (audioFxAndDjEnabled) "Active • Custom DSP processing enabled" else "Turned Off • All options reset to pure source playback",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (audioFxAndDjEnabled) Color(0xFFFF2A6D) else Color(0xFF888B96)
+                            )
+                        }
+                        Switch(
+                            checked = audioFxAndDjEnabled,
+                            onCheckedChange = { enabled ->
+                                service.setAudioFxAndDjEnabled(enabled)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFFFF2A6D)
+                            )
+                        )
+                    }
+                }
+            }
+
+            AnimatedVisibility(
+                visible = !bypassAllAudioEffects && audioFxAndDjEnabled,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Studio Navigation Tabs
+                    StudioTabs(
                 selectedTab = selectedTab,
                 onTabSelect = { selectedTab = it },
                 echoActive = echoEnabled,
@@ -383,6 +479,8 @@ fun InAppAudioFxSheet(onDismiss: () -> Unit) {
             }
         }
     }
+}
+}
 }
 
 private data class StudioTabItem(

@@ -38,7 +38,10 @@ enum class DjPreset(val title: String, val subtitle: String, @DrawableRes val ic
 class DjAudioProcessor : BaseAudioProcessor() {
 
     @Volatile
-    var enabled: Boolean = true
+    var enabled: Boolean = false
+
+    @Volatile
+    var bypass: Boolean = false
 
     // ==========================================
     // Echo / Delay Parameters
@@ -148,7 +151,7 @@ class DjAudioProcessor : BaseAudioProcessor() {
         resetState()
     }
 
-    private fun resetState() {
+    fun resetState() {
         delayBufL.fill(0f)
         delayBufR.fill(0f)
         delayWritePos = 0
@@ -162,19 +165,34 @@ class DjAudioProcessor : BaseAudioProcessor() {
         flangerPhase = 0.0
     }
 
+    fun resetFx() {
+        enabled = false
+        echoEnabled = false
+        echoDelayMs = 280
+        echoFeedback = 0.40f
+        echoWetMix = 0.0f
+        echoPingPong = false
+        filterSweep = 0.0f
+        flangerEnabled = false
+        flangerRate = 0.5f
+        flangerDepth = 0.0f
+        saturation = 0.0f
+        resetState()
+    }
+
     override fun queueInput(inputBuffer: ByteBuffer) {
         val remaining = inputBuffer.remaining()
         if (remaining == 0) return
 
         val outputBuffer = replaceOutputBuffer(remaining)
 
-        // If all features disabled, fast copy
+        // If bypass is active or all features disabled, fast untouched copy
         val isEchoOn = echoEnabled && echoWetMix > 0.01f
         val isFilterOn = abs(filterSweep) > 0.02f
         val isFlangerOn = flangerEnabled && flangerDepth > 0.01f
         val isSatOn = saturation > 0.02f
 
-        if (!enabled || (!isEchoOn && !isFilterOn && !isFlangerOn && !isSatOn)) {
+        if (bypass || !enabled || (!isEchoOn && !isFilterOn && !isFlangerOn && !isSatOn)) {
             outputBuffer.put(inputBuffer)
             outputBuffer.flip()
             return
