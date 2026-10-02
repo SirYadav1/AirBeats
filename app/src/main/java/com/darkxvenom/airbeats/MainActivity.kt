@@ -1967,7 +1967,34 @@ class MainActivity : FragmentActivity() {
                                     }
                                 }
 
+                                var showNoInternetDialog by rememberSaveable { mutableStateOf(false) }
+                                var hasCheckedInternetOnOpen by rememberSaveable { mutableStateOf(false) }
+
+                                LaunchedEffect(hasSettledOnMainScreen, isOnboardingOrAuth) {
+                                    if (hasSettledOnMainScreen && !isOnboardingOrAuth && !hasCheckedInternetOnOpen) {
+                                        hasCheckedInternetOnOpen = true
+                                        delay(400)
+                                        if (!com.darkxvenom.airbeats.utils.isInternetAvailable(this@MainActivity)) {
+                                            showNoInternetDialog = true
+                                        }
+                                    }
+                                }
+
                                 if (hasSettledOnMainScreen && !isOnboardingOrAuth) {
+                                    if (showNoInternetDialog) {
+                                        com.darkxvenom.airbeats.ui.component.NoInternetDialog(
+                                            onDismiss = { showNoInternetDialog = false },
+                                            onListenCached = {
+                                                showNoInternetDialog = false
+                                                navController.navigate("cache_playlist/cached")
+                                            },
+                                            onGoToLibrary = {
+                                                showNoInternetDialog = false
+                                                navController.navigate(Screens.Library.route)
+                                            }
+                                        )
+                                    }
+
                                     updateInfoState?.let { info ->
                                         UpdateAvailableDialog(
                                             updateInfo = info,
