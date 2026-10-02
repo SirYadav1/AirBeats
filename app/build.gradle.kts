@@ -45,8 +45,8 @@ android {
         applicationId = "com.darkxvenom.airbeats"
         minSdk = 24
         targetSdk = 35
-        versionCode = 229
-        versionName = "6.1.9"
+        versionCode = 230
+        versionName = "6.1.10"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Strip out language resources from libraries that the app doesn't support
