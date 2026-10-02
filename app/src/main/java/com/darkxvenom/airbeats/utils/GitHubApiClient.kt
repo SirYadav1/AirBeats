@@ -192,4 +192,91 @@ class GitHubApiClient {
             emptyList()
         }
     }
+
+    suspend fun getRecentReleases(owner: String = "d0x-dev", repo: String = "AirBeats", perPage: Int = 10): List<GitHubReleaseItem> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$baseUrl/repos/$owner/$repo/releases?per_page=$perPage")
+            .header("Accept", "application/vnd.github.v3+json")
+            .header("User-Agent", "AirBeats-App")
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: "[]"
+                    json.decodeFromString(body)
+                } else {
+                    emptyList()
+                }
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error fetching releases")
+            emptyList()
+        }
+    }
+
+    suspend fun getRecentCommits(owner: String = "d0x-dev", repo: String = "AirBeats", perPage: Int = 10): List<GitHubCommitSummary> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$baseUrl/repos/$owner/$repo/commits?per_page=$perPage")
+            .header("Accept", "application/vnd.github.v3+json")
+            .header("User-Agent", "AirBeats-App")
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: "[]"
+                    json.decodeFromString(body)
+                } else {
+                    emptyList()
+                }
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error fetching repo commits")
+            emptyList()
+        }
+    }
 }
+
+@Serializable
+data class GitHubReleaseItem(
+    val tag_name: String = "",
+    val name: String? = null,
+    val body: String? = null,
+    val published_at: String? = null,
+    val prerelease: Boolean = false,
+    val html_url: String = "",
+    val assets: List<GitHubReleaseAsset> = emptyList()
+)
+
+@Serializable
+data class GitHubReleaseAsset(
+    val name: String = "",
+    val browser_download_url: String = "",
+    val size: Long = 0L
+)
+
+@Serializable
+data class GitHubCommitSummary(
+    val sha: String = "",
+    val commit: CommitSummaryDetails,
+    val html_url: String = "",
+    val author: CommitUser? = null
+) {
+    @Serializable
+    data class CommitSummaryDetails(
+        val message: String = "",
+        val author: CommitSummaryAuthor
+    )
+    @Serializable
+    data class CommitSummaryAuthor(
+        val name: String = "",
+        val date: String = ""
+    )
+    @Serializable
+    data class CommitUser(
+        val login: String = "",
+        val avatar_url: String = ""
+    )
+}
+

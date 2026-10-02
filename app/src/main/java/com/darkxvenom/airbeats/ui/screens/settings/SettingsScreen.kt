@@ -408,7 +408,7 @@ fun getAppVersion(context: Context): String {
 }
 
 @Composable
-fun VersionCard(uriHandler: UriHandler) {
+fun VersionCard(uriHandler: UriHandler, navController: NavController? = null) {
     val context = LocalContext.current
     val appVersion = remember { getAppVersion(context) }
 
@@ -468,7 +468,13 @@ fun VersionCard(uriHandler: UriHandler) {
                                 )
                             }
                         },
-                        onClick = { uriHandler.openUri(com.darkxvenom.airbeats.utils.RemoteConfigManager.getLatestReleasePageUrl()) }
+                        onClick = {
+                            if (navController != null) {
+                                navController.navigate("settings/app_info")
+                            } else {
+                                uriHandler.openUri(com.darkxvenom.airbeats.utils.RemoteConfigManager.getLatestReleasePageUrl())
+                            }
+                        }
                     ),
                     isLast = false
                 )
@@ -1155,7 +1161,7 @@ fun SettingsScreen(
                 UpdateCard()
 
                 // Version Card
-                VersionCard(uriHandler)
+                VersionCard(uriHandler, navController)
 
                 Spacer(Modifier.height(32.dp))
             }

@@ -18,7 +18,7 @@ object Updater {
     var lastCheckTime = -1L
         private set
 
-    private fun extractApkUrl(releaseObj: JSONObject, versionName: String): String {
+    private fun extractApkUrl(releaseObj: JSONObject, versionName: String, isNightly: Boolean): String {
         val assets = releaseObj.optJSONArray("assets")
         if (assets != null && assets.length() > 0) {
             var fallbackApkUrl = ""
@@ -27,11 +27,15 @@ object Updater {
                 val name = asset.optString("name", "")
                 val url = asset.optString("browser_download_url", "")
                 if (name.endsWith(".apk", ignoreCase = true) && url.isNotBlank()) {
-                    if (name.contains("universal", ignoreCase = true) ||
+                    if (isNightly && name.contains("nightly", ignoreCase = true)) {
+                        return url
+                    }
+                    if (!isNightly && (
+                        name.contains("universal", ignoreCase = true) ||
                         name.contains("signed", ignoreCase = true) ||
                         name.contains("release", ignoreCase = true) ||
                         name.contains("airbeats", ignoreCase = true)
-                    ) {
+                    )) {
                         return url
                     }
                     if (fallbackApkUrl.isBlank()) {
@@ -45,12 +49,12 @@ object Updater {
         }
 
         // Direct download fallback URL based on build type & tag
-        return RemoteConfigManager.getApkDownloadUrl(versionName, com.darkxvenom.airbeats.BuildConfig.IS_NIGHTLY)
+        return RemoteConfigManager.getApkDownloadUrl(versionName, isNightly)
     }
 
-    suspend fun getLatestUpdateInfo(): Result<UpdateInfo> =
+    suspend fun getLatestUpdateInfo(isNightly: Boolean = com.darkxvenom.airbeats.BuildConfig.IS_NIGHTLY): Result<UpdateInfo> =
         runCatching {
-            if (com.darkxvenom.airbeats.BuildConfig.IS_NIGHTLY) {
+            if (isNightly) {
                 val response = client.get(RemoteConfigManager.getLatestReleaseApiUrl(isNightly = true)).bodyAsText()
                 val jsonArray = JSONArray(response)
                 var versionName = ""
@@ -63,7 +67,7 @@ object Updater {
                         versionName = release.getString("tag_name").removePrefix("v").removeSuffix("-nightly").trim()
                         releaseNotes = release.optString("body", "").trim()
                         releaseUrl = release.optString("html_url", RemoteConfigManager.getReleasesPageUrl())
-                        apkDownloadUrl = extractApkUrl(release, versionName)
+                        apkDownloadUrl = extractApkUrl(release, versionName, isNightly = true)
                         break
                     }
                 }
@@ -75,7 +79,7 @@ object Updater {
                 val versionName = json.getString("tag_name").removePrefix("v").trim()
                 val releaseNotes = json.optString("body", "").trim()
                 val releaseUrl = json.optString("html_url", RemoteConfigManager.getLatestReleasePageUrl())
-                val apkDownloadUrl = extractApkUrl(json, versionName)
+                val apkDownloadUrl = extractApkUrl(json, versionName, isNightly = false)
                 lastCheckTime = System.currentTimeMillis()
                 UpdateInfo(versionName, releaseNotes, releaseUrl, apkDownloadUrl)
             }

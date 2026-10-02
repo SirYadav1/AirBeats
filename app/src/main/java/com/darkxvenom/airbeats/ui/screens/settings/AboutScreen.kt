@@ -588,22 +588,7 @@ fun AboutScreen(
                             modifier = Modifier
                                 .clip(CircleShape)
                                 .clickable {
-                                    versionTapCount++
-                                    if (versionTapCount in 1..4) {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            "Tap ${5 - versionTapCount} more times to trigger test crash",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                    } else if (versionTapCount >= 5) {
-                                        versionTapCount = 0
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            "Triggering test crash...",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                        throw RuntimeException("AirBeats Test Crash for Telegram Topic 224")
-                                    }
+                                    navController.navigate("settings/app_info")
                                 }
                                 .border(
                                     width = 1.dp,

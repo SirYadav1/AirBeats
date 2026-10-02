@@ -432,6 +432,9 @@ fun NavGraphBuilder.navigationBuilder(
     composable("settings/about") {
         AboutScreen(navController, scrollBehavior)
     }
+    composable("settings/app_info") {
+        com.darkxvenom.airbeats.ui.screens.settings.AppInfoScreen(navController, scrollBehavior)
+    }
     composable("settings/developer_news") {
         com.darkxvenom.airbeats.ui.screens.settings.DeveloperNewsScreen(navController, scrollBehavior)
     }

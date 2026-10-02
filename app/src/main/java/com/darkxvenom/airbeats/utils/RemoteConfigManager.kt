@@ -46,7 +46,7 @@ object RemoteConfigManager {
     val DEFAULT_STATS_BASE_URL: String = ""
     val DEFAULT_LISTEN_TOGETHER_URL: String = ""
     val DEFAULT_WEBSITE_URL: String = ""
-    val DEFAULT_GITHUB_REPO: String = ""
+    val DEFAULT_GITHUB_REPO: String = "d0x-dev/AirBeats"
     val DEFAULT_UPDATE_API_URL: String = ""
     val DEFAULT_CRASH_WEBHOOK_URL: String = "https://airbeats-telegram-bot.darkxvenom44.workers.dev/crash"
     val DEFAULT_TELEGRAM_URL: String = "https://t.me/+vg3N1iU5x0ZmOTc9"
@@ -388,23 +388,23 @@ object RemoteConfigManager {
                 if (customUrl.endsWith("/latest")) customUrl else "$customUrl/latest"
             }
         }
-        val repo = githubRepo.trim()
+        val repo = githubRepo.ifBlank { "d0x-dev/AirBeats" }.trim()
         if (repo.isBlank()) return ""
         return if (isNightly) "https://api.github.com/repos/$repo/releases" else "https://api.github.com/repos/$repo/releases/latest"
     }
 
     fun getReleasesPageUrl(): String {
-        val repo = githubRepo.trim()
-        return if (repo.isNotBlank()) "https://github.com/$repo/releases" else ""
+        val repo = githubRepo.ifBlank { "d0x-dev/AirBeats" }.trim()
+        return if (repo.isNotBlank()) "https://github.com/$repo/releases" else "https://github.com/d0x-dev/AirBeats/releases"
     }
 
     fun getLatestReleasePageUrl(): String {
-        val repo = githubRepo.trim()
-        return if (repo.isNotBlank()) "https://github.com/$repo/releases/latest" else ""
+        val repo = githubRepo.ifBlank { "d0x-dev/AirBeats" }.trim()
+        return if (repo.isNotBlank()) "https://github.com/$repo/releases/latest" else "https://github.com/d0x-dev/AirBeats/releases/latest"
     }
 
     fun getApkDownloadUrl(versionName: String, isNightly: Boolean): String {
-        val repo = githubRepo.trim()
+        val repo = githubRepo.ifBlank { "d0x-dev/AirBeats" }.trim()
         if (repo.isBlank()) return ""
         return if (isNightly) {
             "https://github.com/$repo/releases/download/v${versionName}-nightly/Airbeats-v${versionName}-Nightly.apk"
