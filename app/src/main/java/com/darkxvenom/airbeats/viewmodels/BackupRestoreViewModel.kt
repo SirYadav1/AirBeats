@@ -67,7 +67,7 @@ class BackupRestoreViewModel @Inject constructor(
     private val _backupSizeString = MutableStateFlow("~0 KB")
     val backupSizeString: StateFlow<String> = _backupSizeString.asStateFlow()
 
-    private val _isAutoBackupToStorage = MutableStateFlow(true)
+    private val _isAutoBackupToStorage = MutableStateFlow(false)
     val isAutoBackupToStorage: StateFlow<Boolean> = _isAutoBackupToStorage.asStateFlow()
 
     fun loadOsBackupState(context: Context) {

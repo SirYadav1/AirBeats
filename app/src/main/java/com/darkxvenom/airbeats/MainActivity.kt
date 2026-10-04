@@ -554,6 +554,7 @@ class MainActivity : FragmentActivity() {
                 lifecycleScope.launch(Dispatchers.IO) {
                     val storageFile = AutoBackupManager.findStorageBackupFile()
                     if (storageFile != null && storageFile.exists() && storageFile.length() > 0L) {
+                        AutoBackupManager.markInitialStorageRestoreCheckComplete(this@MainActivity)
                         withContext(Dispatchers.Main) {
                             splashStatusText = "Restoring backup from storage..."
                             showSplash = true
@@ -575,6 +576,7 @@ class MainActivity : FragmentActivity() {
                             val cloudRestored = AutoBackupManager.checkAndRestoreDeviceCloudBackup(this@MainActivity)
                             withContext(Dispatchers.Main) {
                                 if (!cloudRestored) {
+                                    AutoBackupManager.markInitialStorageRestoreCheckComplete(this@MainActivity)
                                     splashStatusText = null
                                     delay(400)
                                     showSplash = false
@@ -582,6 +584,7 @@ class MainActivity : FragmentActivity() {
                             }
                         } else {
                             withContext(Dispatchers.Main) {
+                                AutoBackupManager.markInitialStorageRestoreCheckComplete(this@MainActivity)
                                 splashStatusText = null
                                 delay(400)
                                 showSplash = false
@@ -631,9 +634,11 @@ class MainActivity : FragmentActivity() {
             }
 
             val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-            DisposableEffect(lifecycleOwner, isNameSet, storageRestoreAttempted) {
+            DisposableEffect(lifecycleOwner, storageRestoreAttempted) {
                 val observer = LifecycleEventObserver { _, event ->
-                    if (event == Lifecycle.Event.ON_RESUME && isNameSet == false) {
+                    if (event == Lifecycle.Event.ON_RESUME &&
+                        !AutoBackupManager.hasCompletedInitialStorageRestoreCheck(this@MainActivity)
+                    ) {
                         if (AutoBackupManager.hasStoragePermission(this@MainActivity)) {
                             showStoragePermissionDialog = false
                             if (!storageRestoreAttempted) {
@@ -649,8 +654,8 @@ class MainActivity : FragmentActivity() {
                 }
             }
 
-            LaunchedEffect(isNameSet) {
-                if (isNameSet == false) {
+            LaunchedEffect(Unit) {
+                if (!AutoBackupManager.hasCompletedInitialStorageRestoreCheck(this@MainActivity)) {
                     val hasPerm = AutoBackupManager.hasStoragePermission(this@MainActivity)
                     if (hasPerm) {
                         triggerStorageCheckAndRestore()

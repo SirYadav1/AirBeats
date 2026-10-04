@@ -374,17 +374,11 @@ internal class CrossfadeAudio(
         if (t >= 1f && !handoffActive) {
             playbackFadeFactor.value = 0f
             overlap.volume = baseOverlapVolume
-
-            // Crossfade duration has fully elapsed; proactively hand off to target track
-            val targetIdx = crossfadeTargetIndex
-            if (targetIdx != C.INDEX_UNSET && targetIdx < player.mediaItemCount) {
-                val overlapPos = overlap.currentPosition.coerceAtLeast(0L)
-                crossfadeActive = false
-                handoffActive = true
-                handoffStartElapsedMs = android.os.SystemClock.elapsedRealtime()
-                handoffFadeStartElapsedMs = 0L
-                player.seekTo(targetIdx, overlapPos)
-            }
+            // Let Media3 perform its natural end-of-item transition. Seeking
+            // early here interrupts the outgoing decoder and is the audible
+            // millisecond pause users heard near the end of each track.
+            // handleMediaItemTransition() performs the handoff after the real
+            // automatic transition, with the overlap player still audible.
         }
     }
 

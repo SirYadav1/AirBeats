@@ -4228,6 +4228,13 @@ class MusicService :
                     if (items.isNotEmpty()) {
                         withContext(Dispatchers.Main) {
                             automixItems.value = items
+                            // Crossfade only blends the queue the listener
+                            // already chose. Automix additionally builds a
+                            // related-song continuation, so it has a real
+                            // purpose even after the source queue ends.
+                            if (automixEnabled.value) {
+                                player.addMediaItems(items)
+                            }
                         }
                     }
                 }

@@ -306,6 +306,7 @@ object AutoBackupManager {
     const val STORAGE_FOLDER_NAME = "AirBeats"
     const val STORAGE_BACKUP_FILENAME = "airbeats_backup.backup"
     private const val KEY_AUTO_BACKUP_STORAGE = "auto_backup_to_storage"
+    private const val KEY_INITIAL_STORAGE_RESTORE_CHECKED = "initial_storage_restore_checked"
 
     fun getDocumentsBackupDir(): File {
         val docs = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS)
@@ -316,7 +317,20 @@ object AutoBackupManager {
 
     fun isAutoBackupToStorageEnabled(context: Context): Boolean {
         return context.getSharedPreferences("backup_settings", Context.MODE_PRIVATE)
-            .getBoolean(KEY_AUTO_BACKUP_STORAGE, true)
+            // A new install must never overwrite a user's surviving Documents
+            // backup before they have had a chance to restore it.
+            .getBoolean(KEY_AUTO_BACKUP_STORAGE, false)
+    }
+
+    fun hasCompletedInitialStorageRestoreCheck(context: Context): Boolean =
+        context.getSharedPreferences("backup_settings", Context.MODE_PRIVATE)
+            .getBoolean(KEY_INITIAL_STORAGE_RESTORE_CHECKED, false)
+
+    fun markInitialStorageRestoreCheckComplete(context: Context) {
+        context.getSharedPreferences("backup_settings", Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_INITIAL_STORAGE_RESTORE_CHECKED, true)
+            .apply()
     }
 
     fun hasStoragePermission(context: Context): Boolean {
@@ -537,8 +551,12 @@ object AutoBackupManager {
                     .putString(KEY_LAST_RESTORED_SIG, currentSig)
                     .commit()
 
-                // Save persistent external copy that survives app uninstall
-                savePersistentExternalBackup(context, targetFile)
+                // Documents/Downloads backup is explicitly opt-in. Keep the
+                // internal Android OS snapshot, but never overwrite a user's
+                // surviving external backup on a fresh install.
+                if (isAutoBackupToStorageEnabled(context)) {
+                    savePersistentExternalBackup(context, targetFile)
+                }
 
                 if (notifyBackupManager) {
                     runCatching {
@@ -589,6 +607,7 @@ object AutoBackupManager {
 
     fun restoreFromInputStream(context: Context, rawStream: InputStream, shouldRestart: Boolean = true): Boolean {
         return try {
+            var databaseFilesPrepared = false
             rawStream.zipInputStream().use { inputStream ->
                 var entry = tryOrNull { inputStream.nextEntry }
                 while (entry != null) {
@@ -685,6 +704,10 @@ object AutoBackupManager {
                         }
 
                         entry.name == InternalDatabase.DB_NAME -> {
+                            if (!databaseFilesPrepared) {
+                                prepareDatabaseFilesForRestore(context)
+                                databaseFilesPrepared = true
+                            }
                             val dbFile = context.getDatabasePath(InternalDatabase.DB_NAME)
                             dbFile.parentFile?.mkdirs()
                             FileOutputStream(dbFile).use { outputStream ->
@@ -737,7 +760,11 @@ object AutoBackupManager {
 
             runCatching {
                 val db = com.darkxvenom.airbeats.db.InternalDatabase.newInstance(context)
-                com.darkxvenom.airbeats.db.DatabaseSanitizer.sanitizeDatabase(db)
+                try {
+                    com.darkxvenom.airbeats.db.DatabaseSanitizer.sanitizeDatabase(db)
+                } finally {
+                    db.close()
+                }
             }
 
             if (shouldRestart) {
@@ -748,6 +775,22 @@ object AutoBackupManager {
             Timber.e(e, "AutoBackupManager: restoreFromInputStream failed")
             reportException(e)
             false
+        }
+    }
+
+    /** Close Room before replacing its files, then remove stale WAL/SHM files.
+     * A stale WAL can make a restored database appear empty after app restart. */
+    private fun prepareDatabaseFilesForRestore(context: Context) {
+        runCatching { context.stopService(Intent(context, MusicService::class.java)) }
+        runCatching { com.darkxvenom.airbeats.App.instance.database.close() }
+            .onFailure { Timber.w(it, "Could not close active database before restore") }
+
+        listOf(
+            InternalDatabase.DB_NAME,
+            "${InternalDatabase.DB_NAME}-wal",
+            "${InternalDatabase.DB_NAME}-shm",
+        ).forEach { name ->
+            runCatching { context.getDatabasePath(name).delete() }
         }
     }
 
