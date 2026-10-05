@@ -1,5 +1,8 @@
 package com.darkxvenom.airbeats.ui.component
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -26,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -70,8 +75,27 @@ fun BoxScope.HomeFloatingActions(
             )
             .then(modifier)
     ) {
+        val fabRotation by animateFloatAsState(
+            targetValue = if (expanded) 90f else 0f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = 500f,
+            ),
+            label = "homeFabRotation",
+        )
+        val fabScale by animateFloatAsState(
+            targetValue = if (expanded) 0.94f else 1f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = 500f,
+            ),
+            label = "homeFabScale",
+        )
+
         FloatingActionButton(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .padding(16.dp)
+                .scale(fabScale),
             onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 expanded = true
@@ -81,7 +105,8 @@ fun BoxScope.HomeFloatingActions(
         ) {
             Icon(
                 painter = painterResource(R.drawable.more_vert),
-                contentDescription = "Options"
+                contentDescription = "Options",
+                modifier = Modifier.rotate(fabRotation),
             )
         }
 
