@@ -1,6 +1,7 @@
 package com.darkxvenom.airbeats.ui.component
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
@@ -34,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -126,6 +128,11 @@ private fun MaterialNavItem(
         animationSpec = materialNavSpring(),
         label = "navItemContent",
     )
+    val iconScale by animateFloatAsState(
+        targetValue = if (selected) 1.06f else 1f,
+        animationSpec = materialNavSpring(),
+        label = "navItemIconScale",
+    )
 
     Surface(
         onClick = onClick,
@@ -146,7 +153,9 @@ private fun MaterialNavItem(
                 painter = painterResource(id = iconRes),
                 contentDescription = label,
                 tint = contentColor,
-                modifier = Modifier.size(26.dp),
+                modifier = Modifier
+                    .size(26.dp)
+                    .scale(iconScale),
             )
             AnimatedVisibility(
                 visible = selected && label.isNotEmpty(),
