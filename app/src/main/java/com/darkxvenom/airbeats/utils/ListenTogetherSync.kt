@@ -4,7 +4,6 @@ import android.content.Context
 import com.darkxvenom.airbeats.innertube.models.WatchEndpoint
 import com.darkxvenom.airbeats.playback.PlayerConnection
 import com.darkxvenom.airbeats.playback.queues.YouTubeQueue
-import com.darkxvenom.airbeats.extensions.metadata
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -12,7 +11,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -220,48 +218,6 @@ object ListenTogetherSync {
                     isPlaying = connection.player.playWhenReady,
                     durationMs = connection.player.duration.takeIf { it > 0 } ?: (metadata.duration.toLong() * 1000L).coerceAtLeast(0L),
                 )
-                server.queueItemsProvider = {
-                    val windows = connection.queueWindows.value
-                    windows.mapIndexed { idx, win ->
-                        val meta = win.mediaItem.metadata
-                        LanQueueItem(
-                            index = idx,
-                            id = win.mediaItem.mediaId,
-                            title = meta?.title ?: "Unknown",
-                            artist = meta?.artists?.joinToString { it.name } ?: "Unknown Artist",
-                            durationMs = (meta?.duration?.toLong() ?: 0L) * 1000L,
-                            thumbnailUrl = meta?.thumbnailUrl
-                        )
-                    }
-                }
-                server.currentQueueIndexProvider = {
-                    connection.currentWindowIndex.value
-                }
-                server.lyricsResolver = { songId ->
-                    try {
-                        val db = com.darkxvenom.airbeats.db.InternalDatabase.newInstance(context)
-                        val cached = db.lyrics(songId).firstOrNull()?.lyrics
-                        if (!cached.isNullOrBlank() && cached != com.darkxvenom.airbeats.db.entities.LyricsEntity.LYRICS_NOT_FOUND) {
-                            cached
-                        } else {
-                            val meta = connection.mediaMetadata.value
-                            if (meta != null && meta.id == songId) {
-                                val entryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication(
-                                    context.applicationContext,
-                                    com.darkxvenom.airbeats.di.LyricsHelperEntryPoint::class.java
-                                )
-                                val fetched = entryPoint.lyricsHelper().getLyrics(meta)
-                                if (!fetched.isNullOrBlank()) {
-                                    db.upsert(com.darkxvenom.airbeats.db.entities.LyricsEntity(songId, fetched))
-                                    fetched
-                                } else null
-                            } else null
-                        }
-                    } catch (e: Exception) {
-                        null
-                    }
-                }
-
                 server.onPlaybackCommand = { action, positionMs ->
                     scope.launch(Dispatchers.Main) {
                         val player = connection.player
@@ -279,21 +235,6 @@ object ListenTogetherSync {
                             "seek" -> {
                                 if (positionMs != null && positionMs >= 0) {
                                     player.seekTo(positionMs)
-                                }
-                            }
-                            "next" -> {
-                                if (player.hasNextMediaItem()) {
-                                    player.seekToNextMediaItem()
-                                }
-                            }
-                            "prev" -> {
-                                if (player.hasPreviousMediaItem()) {
-                                    player.seekToPreviousMediaItem()
-                                }
-                            }
-                            "play_index" -> {
-                                if (positionMs != null && positionMs >= 0 && positionMs < player.mediaItemCount) {
-                                    player.seekToDefaultPosition(positionMs.toInt())
                                 }
                             }
                         }
