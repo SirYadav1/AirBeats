@@ -87,17 +87,11 @@ constructor(
     ): MediaSession.ConnectionResult {
         val connectionResult = super.onConnect(session, controller)
 
-        // FIX (media3 1.11.1): MediaSession.Callback's default onConnect() returns a sentinel
-        // result built from SessionCommands.EMPTY + Player.Commands.EMPTY (extras flag
-        // "CALLBACK_NOT_IMPLEMENTED"). Forwarding those to accept() means the media-notification
-        // controller is granted zero player commands, so
-        //   intersect(playerCommandsFromSession, playerCommandsFromPlayer) == EMPTY
-        //   -> PlayerInfo.filterByAvailableCommands() replaces the timeline with Timeline.EMPTY
-        //   -> MediaNotificationManager.shouldShowNotification() returns false
-        //   -> updateNotification() bails out before createNotification()/startForeground()
-        //   -> no media notification is ever posted, the service never enters the foreground and
-        //      the notification's play/pause tap is never delivered to onStartCommand().
-        // Start from the real defaults instead of the unimplemented-callback sentinel.
+        // media3 1.11.1+: an unimplemented Callback.onConnect() does not throw, it returns a
+        // sentinel ConnectionResult built from SessionCommands.EMPTY + Player.Commands.EMPTY
+        // with extras flag "CALLBACK_NOT_IMPLEMENTED". Forwarding that to accept() would grant
+        // the notification controller zero commands, so start from the real defaults instead.
+        // The else branch also unions DEFAULT_PLAYER_COMMANDS so core transport stays available.
         val baseSessionCommands =
             if (connectionResult.availableSessionCommands.commands.isEmpty()) {
                 MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
