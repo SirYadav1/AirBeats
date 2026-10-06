@@ -48,9 +48,6 @@ android {
         versionCode = 241
         versionName = "6.2.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // Strip out language resources from libraries that the app doesn't support
-        resConfigs("en")
     }
 
     signingConfigs {
