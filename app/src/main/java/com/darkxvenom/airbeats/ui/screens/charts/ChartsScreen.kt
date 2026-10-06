@@ -508,6 +508,13 @@ fun ChartSongRow(
         3 -> Color(0xFFCD7F32) // Bronze
         else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     }
+    val context = LocalContext.current
+    val thumbnailRequest = remember(thumbnailUrl, context) {
+        ImageRequest.Builder(context)
+            .data(thumbnailUrl)
+            .crossfade(true)
+            .build()
+    }
 
     Surface(
         color = Color.Transparent,
@@ -542,10 +549,7 @@ fun ChartSongRow(
 
             // Artwork
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(thumbnailUrl)
-                    .crossfade(true)
-                    .build(),
+                model = thumbnailRequest,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -596,6 +600,14 @@ fun ChartAlbumRow(
     onClick: () -> Unit,
     onPlayClick: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val thumbnailRequest = remember(thumbnailUrl, context) {
+        ImageRequest.Builder(context)
+            .data(thumbnailUrl)
+            .crossfade(true)
+            .build()
+    }
+
     Surface(
         color = Color.Transparent,
         modifier = Modifier
@@ -609,10 +621,7 @@ fun ChartAlbumRow(
             modifier = Modifier.fillMaxWidth()
         ) {
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(thumbnailUrl)
-                    .crossfade(true)
-                    .build(),
+                model = thumbnailRequest,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

@@ -316,10 +316,13 @@ fun Thumbnail(
                                     )
 
                                     // 🎵 Circular Album Art
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(LocalContext.current)
+                                    val thumbnailRequest = remember(item.mediaMetadata.artworkUri) {
+                                        ImageRequest.Builder(context)
                                             .data(item.mediaMetadata.artworkUri?.toString()?.highQualityThumbnail())
-                                            .build(),
+                                            .build()
+                                    }
+                                    AsyncImage(
+                                        model = thumbnailRequest,
                                         contentDescription = null,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier
