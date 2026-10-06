@@ -86,8 +86,29 @@ constructor(
         controller: MediaSession.ControllerInfo,
     ): MediaSession.ConnectionResult {
         val connectionResult = super.onConnect(session, controller)
+
+        // media3 1.11.1+: an unimplemented Callback.onConnect() does not throw, it returns a
+        // sentinel ConnectionResult built from SessionCommands.EMPTY + Player.Commands.EMPTY
+        // with extras flag "CALLBACK_NOT_IMPLEMENTED". Forwarding that to accept() would grant
+        // the notification controller zero commands, so start from the real defaults instead.
+        // The else branch also unions DEFAULT_PLAYER_COMMANDS so core transport stays available.
+        val baseSessionCommands =
+            if (connectionResult.availableSessionCommands.commands.isEmpty()) {
+                MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
+            } else {
+                connectionResult.availableSessionCommands
+            }
+        val playerCommands =
+            if (connectionResult.availablePlayerCommands.size() == 0) {
+                MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
+            } else {
+                connectionResult.availablePlayerCommands.buildUpon()
+                    .addAll(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
+                    .build()
+            }
+
         return MediaSession.ConnectionResult.accept(
-            connectionResult.availableSessionCommands
+            baseSessionCommands
                 .buildUpon()
                 .add(MediaSessionConstants.CommandToggleLike)
                 .add(MediaSessionConstants.CommandToggleStartRadio)
@@ -95,7 +116,7 @@ constructor(
                 .add(MediaSessionConstants.CommandToggleShuffle)
                 .add(MediaSessionConstants.CommandToggleRepeatMode)
                 .build(),
-            connectionResult.availablePlayerCommands,
+            playerCommands,
         )
     }
 
