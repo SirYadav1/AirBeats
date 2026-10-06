@@ -193,6 +193,7 @@ fun HomeScreen(
     val database = LocalDatabase.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
 
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -578,6 +579,18 @@ fun HomeScreen(
                             val currentSong = distinctPicks[index]
                             val isActive = currentSong.id == mediaMetadata?.id
 
+                            val thumbnailUrl = remember(currentSong.thumbnailUrl) {
+                                currentSong.thumbnailUrl?.highQualityThumbnail()
+                            }
+                            val thumbnailRequest = remember(thumbnailUrl, context) {
+                                ImageRequest.Builder(context)
+                                    .data(thumbnailUrl)
+                                    .crossfade(true)
+                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                    .diskCacheKey(thumbnailUrl)
+                                    .build()
+                            }
+
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -607,12 +620,7 @@ fun HomeScreen(
                                     )
                             ) {
                                 AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current)
-                                        .data(currentSong.thumbnailUrl?.highQualityThumbnail())
-                                        .crossfade(true)
-                                        .diskCachePolicy(CachePolicy.ENABLED)
-                                        .diskCacheKey(currentSong.thumbnailUrl?.highQualityThumbnail())
-                                        .build(),
+                                    model = thumbnailRequest,
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
