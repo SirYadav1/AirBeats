@@ -423,6 +423,17 @@ object AutoBackupManager {
             if (file != null) return file
         }
 
+        // Also search Downloads/AirBeats for any .backup file
+        val dlDir = File(
+            android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
+            STORAGE_FOLDER_NAME
+        )
+        if (dlDir.exists() && dlDir.isDirectory) {
+            val file = dlDir.listFiles { f -> f.isFile && f.name.endsWith(".backup") && f.length() > 0L }
+                ?.maxByOrNull { it.lastModified() }
+            if (file != null) return file
+        }
+
         return null
     }
 
@@ -431,6 +442,7 @@ object AutoBackupManager {
         Timber.i("AutoBackupManager: Restoring from storage backup file at ${file.absolutePath} (${file.length()} bytes)")
         val targetFile = getAutoBackupFile(context)
         runCatching { file.copyTo(targetFile, overwrite = true) }
+        markInitialStorageRestoreCheckComplete(context)
         return runCatching {
             FileInputStream(file).use { stream ->
                 restoreFromInputStream(context, stream, shouldRestart)
@@ -607,7 +619,8 @@ object AutoBackupManager {
 
     fun restoreFromInputStream(context: Context, rawStream: InputStream, shouldRestart: Boolean = true): Boolean {
         return try {
-            var databaseFilesPrepared = false
+            prepareDatabaseFilesForRestore(context)
+            var databaseFilesPrepared = true
             rawStream.zipInputStream().use { inputStream ->
                 var entry = tryOrNull { inputStream.nextEntry }
                 while (entry != null) {
@@ -766,6 +779,22 @@ object AutoBackupManager {
                     db.close()
                 }
             }
+
+            markInitialStorageRestoreCheckComplete(context)
+            resetRestartAttempts(context)
+            val backupFile = getAutoBackupFile(context)
+            val currentSig = if (backupFile.exists() && backupFile.length() > 0L) {
+                "${backupFile.length()}_${backupFile.lastModified()}"
+            } else {
+                "restored_${System.currentTimeMillis()}"
+            }
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_LAST_RESTORED_SIG, currentSig)
+                .putLong(KEY_LAST_BACKUP_TIME, backupFile.takeIf { it.exists() }?.lastModified() ?: System.currentTimeMillis())
+                .commit()
+
+            Timber.i("AutoBackupManager: Restore completed successfully with signature $currentSig")
 
             if (shouldRestart) {
                 restartApp(context)
@@ -1060,7 +1089,7 @@ object AutoBackupManager {
 
         val packageManager = context.packageManager
         val intent = packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
 
         if (intent != null) {

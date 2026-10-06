@@ -667,9 +667,25 @@ class MainActivity : FragmentActivity() {
                         delay(500)
                         showSplash = false
                     }
-                } else if (isNameSet == true) {
+                } else {
                     AutoBackupManager.resetRestartAttempts(this@MainActivity)
-                    delay(1500)
+                    delay(1200)
+                    showSplash = false
+                }
+            }
+
+            LaunchedEffect(isNameSet) {
+                if (isNameSet != null && AutoBackupManager.hasCompletedInitialStorageRestoreCheck(this@MainActivity)) {
+                    delay(1200)
+                    showSplash = false
+                }
+            }
+
+            // Fail-safe watchdog: ensure splash screen never hangs permanently
+            LaunchedEffect(Unit) {
+                delay(4000)
+                if (showSplash) {
+                    timber.log.Timber.w("Splash screen safety watchdog triggered: auto-dismissing splash")
                     showSplash = false
                 }
             }
