@@ -55,23 +55,13 @@ class BackupRestoreViewModel @Inject constructor(
 ) : ViewModel() {
 
 
-    private val _lastOsBackupTime = MutableStateFlow(0L)
-    val lastOsBackupTime: StateFlow<Long> = _lastOsBackupTime.asStateFlow()
-
-    private val _isBackingUp = MutableStateFlow(false)
-    val isBackingUp: StateFlow<Boolean> = _isBackingUp.asStateFlow()
-
-    private val _isRestoring = MutableStateFlow(false)
-    val isRestoring: StateFlow<Boolean> = _isRestoring.asStateFlow()
-
     private val _backupSizeString = MutableStateFlow("~0 KB")
     val backupSizeString: StateFlow<String> = _backupSizeString.asStateFlow()
 
     private val _isAutoBackupToStorage = MutableStateFlow(false)
     val isAutoBackupToStorage: StateFlow<Boolean> = _isAutoBackupToStorage.asStateFlow()
 
-    fun loadOsBackupState(context: Context) {
-        _lastOsBackupTime.value = AutoBackupManager.getLastBackupTime(context)
+    fun loadStorageBackupState(context: Context) {
         _isAutoBackupToStorage.value = AutoBackupManager.isAutoBackupToStorageEnabled(context)
         updateBackupSize(context)
     }
@@ -243,97 +233,6 @@ class BackupRestoreViewModel @Inject constructor(
         }
     }
 
-    fun backupNow(context: Context, onComplete: ((Boolean) -> Unit)? = null) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _isBackingUp.value = true
-            try {
-                val success = AutoBackupManager.createAutoBackup(context, database, notifyBackupManager = true)
-                if (success) {
-                    val backupFile = AutoBackupManager.getAutoBackupFile(context)
-                    val cloudSuccess = AutoBackupManager.uploadToCloud(context, backupFile)
-                    val now = System.currentTimeMillis()
-                    _lastOsBackupTime.value = now
-                    updateBackupSize(context)
-                    withContext(Dispatchers.Main) {
-                        val message = if (cloudSuccess) {
-                            "Cloud backup saved successfully!"
-                        } else {
-                            context.getString(R.string.backup_now_success)
-                        }
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                        onComplete?.invoke(true)
-                    }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, R.string.backup_create_failed, Toast.LENGTH_SHORT).show()
-                        onComplete?.invoke(false)
-                    }
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "backupNow failed")
-                reportException(e)
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, R.string.backup_create_failed, Toast.LENGTH_SHORT).show()
-                    onComplete?.invoke(false)
-                }
-            } finally {
-                _isBackingUp.value = false
-            }
-        }
-    }
-
-    fun restoreFromLatestBackup(context: Context) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _isRestoring.value = true
-            try {
-                var success = AutoBackupManager.restoreAutoBackup(context, shouldRestart = true)
-                if (!success) {
-                    // Try fetching device cloud backup from server
-                    success = AutoBackupManager.checkAndRestoreDeviceCloudBackup(context)
-                }
-                if (!success) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, R.string.backup_no_snapshot, Toast.LENGTH_LONG).show()
-                    }
-                }
-            } finally {
-                _isRestoring.value = false
-            }
-        }
-    }
-
-    fun deleteBackup(context: Context) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                AutoBackupManager.deleteBackup(context)
-                AutoBackupManager.deleteFromCloud(context)
-                _lastOsBackupTime.value = 0L
-                updateBackupSize(context)
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Cloud and device backup deleted", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "deleteBackup failed")
-            }
-        }
-    }
-
-    fun openDeviceBackupSettings(context: Context) {
-        val intentList = listOf(
-            Intent("android.settings.BACKUP_SETTINGS"),
-            Intent("com.google.android.gms.BACKUP"),
-            Intent(android.provider.Settings.ACTION_PRIVACY_SETTINGS),
-            Intent(android.provider.Settings.ACTION_SETTINGS)
-        )
-        for (intentListEntry in intentList) {
-            try {
-                intentListEntry.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intentListEntry)
-                return
-            } catch (_: Exception) {}
-        }
-        Toast.makeText(context, "Could not open system backup settings", Toast.LENGTH_SHORT).show()
-    }
 
     fun restore(context: Context, uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {

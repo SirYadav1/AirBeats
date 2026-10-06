@@ -925,31 +925,7 @@
     <string name="android_auto_tutorial_step4">4. Tap the 3 dots at the top and go to \"Developer settings\", then enable \"Unknown sources\"</string>
     <string name="android_auto_tutorial_step5">5. Restart Android Auto and AirBeats will appear in the media apps list</string>
 
-    <!-- Android OS Backup -->
-    <string name="android_os_backup_category">Android OS Backup</string>
-    <string name="android_os_backup_title">Android OS Backup</string>
-    <string name="android_os_backup_subtitle">Auto-syncs playlists, stats &amp; library across installs</string>
-    <string name="backup_status_active">Active</string>
-    <string name="backup_status_syncing">Syncing…</string>
-    <string name="last_backup_prefix">Last Backup: </string>
-    <string name="backup_not_yet">Not yet backed up — Tap Backup Now</string>
-    <string name="backup_now_everything">Backup Now</string>
     <string name="backup_restore_action">Restore</string>
-    <string name="backup_delete_action">Delete</string>
-    <string name="backup_device_settings">Device Backup Settings</string>
-    <string name="backup_scope_title">Everything Included in Backup</string>
-    <string name="backup_item_playlists">Playlists, custom order &amp; tracks</string>
-    <string name="backup_item_stats">User stats &amp; listening history</string>
-    <string name="backup_item_library">Liked songs, favorites &amp; albums</string>
-    <string name="backup_item_profile">Guest profile, name &amp; avatar</string>
-    <string name="backup_item_covers">Playlist covers &amp; custom artwork</string>
-    <string name="backup_item_settings">App settings &amp; audio preferences</string>
-    <string name="backup_now_success">Backup saved to device &amp; scheduled with Android OS</string>
-    <string name="backup_delete_confirm_title">Delete Backup Data?</string>
-    <string name="backup_delete_confirm_desc">This will delete the local backup snapshot and reset your backup state. Android OS will be notified.</string>
-    <string name="backup_restore_confirm_title">Restore from Backup?</string>
-    <string name="backup_restore_confirm_desc">This will restore all playlists, stats, history, and settings from your latest backup. The app will restart to apply changes.</string>
-    <string name="backup_no_snapshot">No backup snapshot found. Please tap Backup Now first.</string>
 
     <!-- Animation Preferences -->
     <string name="reduce_animations">Reduce animations</string>

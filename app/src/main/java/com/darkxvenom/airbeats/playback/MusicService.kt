@@ -450,6 +450,8 @@ class MusicService :
     private var infiniteQueueLoadJob: Job? = null
 
     private var consecutivePlaybackErr = 0
+    private var offlineBufferingJob: Job? = null
+    private var isAutoSkippingUncached = false
 
     // Google Cast / Chromecast audio streaming state
     private var castPlayback: CastPlayback? = null
@@ -1265,6 +1267,8 @@ class MusicService :
         queueLoadingJob?.cancel()
         queueLoadingJob = null
         songLoadingRetryJob?.cancel()
+        offlineBufferingJob?.cancel()
+        offlineBufferingJob = null
         waitingForNetworkConnection.value = false
         clearAutomix()
         player.stop()
@@ -1277,9 +1281,9 @@ class MusicService :
         val total = dlBytes + plBytes
         if (total > 0L) return total
         val safeMediaId = mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-        val offlineFile = java.io.File(cacheDir, "offline_cache").listFiles()?.firstOrNull {
-            it.name.startsWith("cached_${safeMediaId}.")
-        }
+        val offlineFile = java.io.File(cacheDir, "offline_cache").listFiles { _, name ->
+            name.startsWith("cached_${safeMediaId}.")
+        }?.firstOrNull()
         return offlineFile?.length() ?: 0L
     }
 
@@ -1288,19 +1292,28 @@ class MusicService :
             return true
         }
         val safeMediaId = mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-        val offlineFile = java.io.File(cacheDir, "offline_cache").listFiles()?.firstOrNull {
-            it.name.startsWith("cached_${safeMediaId}.") && it.length() > 500_000L
-        }
+        val offlineFile = java.io.File(cacheDir, "offline_cache").listFiles { _, name ->
+            name.startsWith("cached_${safeMediaId}.")
+        }?.firstOrNull { it.length() > 50_000L }
         if (offlineFile != null) return true
+
+        val cachedPlaybackFile = java.io.File(cacheDir, "cached_playback").listFiles { _, name ->
+            name.startsWith("cached_${safeMediaId}.")
+        }?.firstOrNull { it.length() > 50_000L }
+        if (cachedPlaybackFile != null) return true
+
+        val dlBytes = runCatching { downloadCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE) }.getOrDefault(0L)
+        if (downloadCache.keys.contains(mediaId) && dlBytes > 100_000L) {
+            return true
+        }
 
         if (downloadCache.isFullyCached(mediaId)) {
             return true
         }
 
-        val dlBytes = runCatching { downloadCache.getCachedSpans(mediaId).sumOf { it.length } }.getOrDefault(0L)
-        val plBytes = runCatching { playerCache.getCachedSpans(mediaId).sumOf { it.length } }.getOrDefault(0L)
+        val plBytes = runCatching { playerCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE) }.getOrDefault(0L)
         val totalCached = dlBytes + plBytes
-        if (totalCached <= 0L) return false
+        if (totalCached <= 50_000L) return false
 
         // Try getting content length from cache metadata
         val dlMeta = runCatching { downloadCache.getContentMetadata(mediaId) }.getOrNull()
@@ -1310,7 +1323,7 @@ class MusicService :
             .firstOrNull { it > 0L } ?: -1L
 
         if (metaLen > 0L) {
-            return totalCached >= (metaLen * 0.95).toLong()
+            return totalCached >= (metaLen * 0.90).toLong()
         }
 
         val dbLen: Long = runCatching {
@@ -1320,10 +1333,85 @@ class MusicService :
         }.getOrNull() ?: -1L
 
         if (dbLen > 0L) {
-            return totalCached >= (dbLen * 0.95).toLong()
+            return totalCached >= (dbLen * 0.90).toLong()
         }
 
-        return totalCached >= 2_500_000L
+        val durationSec: Int = runCatching {
+            runBlocking(Dispatchers.IO) {
+                database.song(mediaId).firstOrNull()?.duration ?: -1
+            }
+        }.getOrNull() ?: -1
+
+        if (durationSec > 0) {
+            val minExpectedBytes = (durationSec * 8_000L).coerceAtLeast(250_000L)
+            return totalCached >= minExpectedBytes
+        }
+
+        return totalCached >= 800_000L
+    }
+
+    fun skipToNextPlayableTrack() {
+        if (isAutoSkippingUncached) return
+        isAutoSkippingUncached = true
+        scope.launch(Dispatchers.Main) {
+            try {
+                val totalItems = player.mediaItemCount
+                if (totalItems <= 1) {
+                    Log.w(TAG, "No more items in queue to skip to")
+                    offlineBufferingJob?.cancel()
+                    PlayerConnection.instance?.clearError()
+                    player.pause()
+                    Toast.makeText(this@MusicService, "No cached songs available to play offline", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                val currentIdx = player.currentMediaItemIndex
+                val isOffline = !isNetworkConnected.value
+                val isSkipUncached = dataStore.get(SkipUncachedPartKey, false)
+                var nextPlayableIndex = -1
+
+                // Search forward from currentIdx + 1 to end of queue
+                for (i in (currentIdx + 1) until totalItems) {
+                    val item = player.getMediaItemAt(i)
+                    if (!isOffline || !isSkipUncached || isSongFullyCached(item.mediaId)) {
+                        nextPlayableIndex = i
+                        break
+                    }
+                }
+
+                // If not found, wrap around from 0 to currentIdx if repeatMode is ALL or queue has multiple items
+                if (nextPlayableIndex == -1 && (player.repeatMode == Player.REPEAT_MODE_ALL || totalItems > 1)) {
+                    for (i in 0 until currentIdx) {
+                        val item = player.getMediaItemAt(i)
+                        if (!isOffline || !isSkipUncached || isSongFullyCached(item.mediaId)) {
+                            nextPlayableIndex = i
+                            break
+                        }
+                    }
+                }
+
+                if (nextPlayableIndex != -1 && nextPlayableIndex != currentIdx) {
+                    Log.i(TAG, "Skipping to playable cached song at index $nextPlayableIndex (mediaId: ${player.getMediaItemAt(nextPlayableIndex).mediaId})")
+                    offlineBufferingJob?.cancel()
+                    songLoadingRetryJob?.cancel()
+                    songLoadingRetryCount = 0
+                    consecutivePlaybackErr = 0
+                    PlayerConnection.instance?.clearError()
+                    player.seekToDefaultPosition(nextPlayableIndex)
+                    player.prepare()
+                    player.play()
+                } else {
+                    Log.w(TAG, "No playable cached songs found anywhere in queue")
+                    offlineBufferingJob?.cancel()
+                    PlayerConnection.instance?.clearError()
+                    player.pause()
+                    Toast.makeText(this@MusicService, "No cached songs available to play offline", Toast.LENGTH_SHORT).show()
+                }
+            } finally {
+                delay(300)
+                isAutoSkippingUncached = false
+            }
+        }
     }
 
     private fun keepLoadingCurrentSongOnError() {
@@ -2529,6 +2617,18 @@ class MusicService :
         mediaItem: MediaItem?,
         reason: Int,
     ) {
+        offlineBufferingJob?.cancel()
+        val isOffline = !isNetworkConnected.value
+        val isSkipUncached = dataStore.get(SkipUncachedPartKey, false)
+        if (isOffline && isSkipUncached) {
+            val mediaId = mediaItem?.mediaId
+            if (mediaId != null && !isSongFullyCached(mediaId)) {
+                Log.i(TAG, "Song $mediaId is uncached while offline with SkipUncachedPart enabled. Skipping.")
+                skipToNextPlayableTrack()
+                return
+            }
+        }
+
         if (isCasting.value) {
             player.pause()
             val metadata = mediaItem?.metadata ?: player.currentMetadata
@@ -2603,6 +2703,24 @@ class MusicService :
     override fun onPlaybackStateChanged(
         @Player.State playbackState: Int,
     ) {
+        offlineBufferingJob?.cancel()
+        if (playbackState == Player.STATE_BUFFERING) {
+            val isOffline = !isNetworkConnected.value
+            val isSkipUncached = dataStore.get(SkipUncachedPartKey, false)
+            if (isOffline && isSkipUncached) {
+                val currentMediaId = player.currentMediaItem?.mediaId
+                offlineBufferingJob = scope.launch(Dispatchers.Main) {
+                    delay(1200)
+                    if (player.playbackState == Player.STATE_BUFFERING && !isNetworkConnected.value) {
+                        if (currentMediaId != null && !isSongFullyCached(currentMediaId)) {
+                            Log.i(TAG, "Playback stalled buffering offline for uncached track $currentMediaId. Skipping.")
+                            skipToNextPlayableTrack()
+                        }
+                    }
+                }
+            }
+        }
+
         // Guardar estado cuando cambia el estado de reproducción
         if (dataStore.get(PersistentQueueKey, true) && playbackState != Player.STATE_BUFFERING) {
             scope.launch {
@@ -2869,6 +2987,20 @@ class MusicService :
             YTPlayerUtils.invalidateCachedStreamUrls(currentMediaId)
         }
 
+        val isOffline = !isNetworkConnected.value
+        val skipUncachedPart = dataStore.get(SkipUncachedPartKey, false)
+        val isConnectionError = error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+            error.message?.contains("Connect to the internet", ignoreCase = true) == true ||
+            error.message?.contains("partially cached", ignoreCase = true) == true
+
+        if ((isOffline || isConnectionError) && skipUncachedPart && (currentMediaId == null || !isSongFullyCached(currentMediaId))) {
+            Log.i(TAG, "Uncached or partially cached track $currentMediaId failed offline with skipUncached enabled. Skipping to next playable track.")
+            offlineBufferingJob?.cancel()
+            skipToNextPlayableTrack()
+            return
+        }
+
         // Mid-track playback recovery: if the song was already playing (>3s), NEVER auto-skip it!
         // Stalls or expired stream URLs should be refreshed and resumed from current position.
         if (wasActivelyPlaying && consecutivePlaybackErr < 3) {
@@ -2886,51 +3018,20 @@ class MusicService :
             return
         }
 
-        val isOffline = !isNetworkConnected.value
-        val skipUncachedPart = dataStore.get(SkipUncachedPartKey, false)
         val autoSkipOnError = dataStore.get(AutoSkipNextOnErrorKey, false)
-
-        val canAutoSkip = if (isOffline) {
-            skipUncachedPart && currentMediaId != null && !isSongFullyCached(currentMediaId)
-        } else {
-            autoSkipOnError && !wasActivelyPlaying
-        }
-
-        if (canAutoSkip) {
+        if (autoSkipOnError && !wasActivelyPlaying) {
             PlayerConnection.instance?.clearError()
-
-            val currentIdx = player.currentMediaItemIndex
-            val totalItems = player.mediaItemCount
-            var nextPlayableIndex = -1
-
-            if (totalItems > 1) {
-                if (isOffline) {
-                    for (i in (currentIdx + 1) until totalItems) {
-                        val item = player.getMediaItemAt(i)
-                        if (isSongFullyCached(item.mediaId)) {
-                            nextPlayableIndex = i
-                            break
-                        }
-                    }
-                } else if (player.hasNextMediaItem()) {
-                    nextPlayableIndex = currentIdx + 1
-                }
-            }
-
-            if (nextPlayableIndex != -1) {
-                Log.i(TAG, "Auto-skipping failed/uncached song to playable track at index $nextPlayableIndex")
+            if (isOffline && skipUncachedPart) {
+                skipToNextPlayableTrack()
+                return
+            } else if (player.hasNextMediaItem()) {
+                val nextIdx = player.currentMediaItemIndex + 1
+                Log.i(TAG, "Auto-skipping failed song to next index $nextIdx")
                 scope.launch(Dispatchers.Main) {
                     PlayerConnection.instance?.clearError()
-                    player.seekToDefaultPosition(nextPlayableIndex)
+                    player.seekToDefaultPosition(nextIdx)
                     player.prepare()
                     player.play()
-                }
-                return
-            } else {
-                Log.w(TAG, "No more playable cached songs found in current queue")
-                scope.launch(Dispatchers.Main) {
-                    PlayerConnection.instance?.clearError()
-                    player.pause()
                 }
                 return
             }
@@ -3247,6 +3348,13 @@ class MusicService :
         // If offline, check if downloadCache or playerCache has any cached data for this song
         val hasCache = downloadCache.keys.contains(mediaId) || playerCache.keys.contains(mediaId)
         if (hasCache && !isNetworkConnected.value) {
+            if (dataStore.get(SkipUncachedPartKey, false) && !isSongFullyCached(mediaId)) {
+                throw PlaybackException(
+                    "This song is only partially cached and skip uncached is enabled.",
+                    null,
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                )
+            }
             val cachedBytes = maxOf(
                 downloadCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE),
                 playerCache.getCachedBytes(mediaId, 0L, Long.MAX_VALUE),
@@ -3865,6 +3973,8 @@ class MusicService :
     }
 
     override fun onDestroy() {
+        offlineBufferingJob?.cancel()
+        offlineBufferingJob = null
         if (dataStore.get(PersistentQueueKey, true)) {
             saveQueueToDisk()
         }

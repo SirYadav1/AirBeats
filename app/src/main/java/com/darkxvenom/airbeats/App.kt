@@ -78,9 +78,6 @@ class App : LocaleAwareApplication(), ImageLoaderFactory {
         }
         Timber.plant(com.darkxvenom.airbeats.utils.GlobalLogTree())
 
-        // Auto-restore Android OS unified backup file on open if present
-        AutoBackupManager.checkAndRestoreOnOpen(this)
-
         // Sanitize and heal any corrupted or fragmented playback events
         GlobalScope.launch(Dispatchers.IO) {
             com.darkxvenom.airbeats.db.DatabaseSanitizer.sanitizeDatabase(database)
@@ -116,7 +113,7 @@ class App : LocaleAwareApplication(), ImageLoaderFactory {
                 if (startedActivities <= 0) {
                     GlobalScope.launch(Dispatchers.IO) {
                         tryOrNull {
-                            val success = AutoBackupManager.createAutoBackup(this@App, database, notifyBackupManager = true)
+                            val success = AutoBackupManager.createAutoBackup(this@App, database)
                             if (success) {
                                 val file = AutoBackupManager.getAutoBackupFile(this@App)
                                 AutoBackupManager.uploadToCloud(this@App, file)

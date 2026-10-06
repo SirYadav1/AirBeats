@@ -484,7 +484,7 @@ object AutoBackupManager {
     }
 
     fun findAvailableAutoBackup(context: Context): File? {
-        // 1. Check internal filesDir (restored by Android OS BackupAgent from Google Drive)
+        // 1. Check internal filesDir
         val internalFile = getAutoBackupFile(context)
         if (internalFile.exists() && internalFile.length() > 0L) {
             return internalFile
@@ -533,7 +533,7 @@ object AutoBackupManager {
         return null
     }
 
-    fun createAutoBackup(context: Context, database: MusicDatabase?, notifyBackupManager: Boolean = true): Boolean {
+    fun createAutoBackup(context: Context, database: MusicDatabase?): Boolean {
         return try {
             // Guard: Never overwrite existing backups with an empty, uninitialized state
             if (!hasBackableData(context, database)) {
@@ -563,18 +563,8 @@ object AutoBackupManager {
                     .putString(KEY_LAST_RESTORED_SIG, currentSig)
                     .commit()
 
-                // Documents/Downloads backup is explicitly opt-in. Keep the
-                // internal Android OS snapshot, but never overwrite a user's
-                // surviving external backup on a fresh install.
                 if (isAutoBackupToStorageEnabled(context)) {
                     savePersistentExternalBackup(context, targetFile)
-                }
-
-                if (notifyBackupManager) {
-                    runCatching {
-                        android.app.backup.BackupManager(context).dataChanged()
-                        Timber.i("AutoBackupManager: Notified Android BackupManager for scheduled OS backup pass")
-                    }
                 }
 
                 Timber.i("AutoBackupManager: auto_backup snapshot created successfully (${targetFile.length()} bytes)")
@@ -846,60 +836,6 @@ object AutoBackupManager {
         }.getOrDefault(false)
     }
 
-    fun checkAndRestoreOnOpen(context: Context) {
-        try {
-            var backupFile = getAutoBackupFile(context)
-            if (!backupFile.exists() || backupFile.length() == 0L) {
-                val candidate = findAvailableAutoBackup(context)
-                if (candidate != null && candidate.exists() && candidate.length() > 0L) {
-                    backupFile.parentFile?.mkdirs()
-                    candidate.copyTo(backupFile, overwrite = true)
-                    Timber.i("AutoBackupManager: Discovered persistent backup at ${candidate.absolutePath} and primed local backup file")
-                }
-            }
-
-            if (!backupFile.exists() || backupFile.length() == 0L) {
-                return
-            }
-
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val lastRestoredSig = prefs.getString(KEY_LAST_RESTORED_SIG, null)
-            val currentSig = "${backupFile.length()}_${backupFile.lastModified()}"
-
-            // Safeguard: Do not unpack if already restored
-            if (lastRestoredSig == currentSig) {
-                return
-            }
-
-            // Loop prevention: Max 2 restart attempts
-            val restartAttempts = prefs.getInt(KEY_RESTART_ATTEMPTS, 0)
-            if (restartAttempts >= 2) {
-                Timber.w("AutoBackupManager: Aborting auto-restore to prevent restart loop ($restartAttempts attempts)")
-                return
-            }
-
-            Timber.i("AutoBackupManager: Discovered un-restored backup file (${backupFile.length()} bytes). Restoring on app open...")
-            val success = runCatching {
-                FileInputStream(backupFile).use { stream ->
-                    restoreFromInputStream(context, stream, shouldRestart = false)
-                }
-            }.getOrDefault(false)
-
-            if (success) {
-                prefs.edit()
-                    .putString(KEY_LAST_RESTORED_SIG, currentSig)
-                    .putInt(KEY_RESTART_ATTEMPTS, restartAttempts + 1)
-                    .putLong(KEY_LAST_BACKUP_TIME, backupFile.lastModified())
-                    .commit()
-
-                Timber.i("AutoBackupManager: Unpack on open succeeded. Restarting app with restored state...")
-                restartApp(context)
-            }
-        } catch (t: Throwable) {
-            Timber.e(t, "AutoBackupManager: checkAndRestoreOnOpen encountered error")
-        }
-    }
-
     suspend fun uploadToCloud(context: Context, backupFile: File): Boolean = withContext(Dispatchers.IO) {
         if (!backupFile.exists() || backupFile.length() == 0L) {
             Timber.w("AutoBackupManager: Cannot upload non-existent or empty backup file")
@@ -918,7 +854,7 @@ object AutoBackupManager {
             httpClient.newCall(request).execute().use { response ->
                 val isSuccess = response.isSuccessful
                 if (response.code == 404) {
-                    Timber.d("AutoBackupManager: Custom cloud storage endpoint not active on worker (404). Local/OS backup preserved.")
+                    Timber.d("AutoBackupManager: Custom cloud storage endpoint not active on worker (404). Local backup preserved.")
                 } else {
                     Timber.i("AutoBackupManager: Cloud upload response code=${response.code}, success=$isSuccess")
                 }
@@ -1001,7 +937,7 @@ object AutoBackupManager {
         if (availableFile != null && availableFile.exists() && availableFile.length() > 0L) {
             val restored = restoreAutoBackup(context, shouldRestart = false)
             if (restored) {
-                Timber.i("AutoBackupManager: Restored state from discovered local/OS backup file (${availableFile.length()} bytes)")
+                Timber.i("AutoBackupManager: Restored state from discovered local backup file (${availableFile.length()} bytes)")
                 prefs.edit()
                     .putInt(KEY_RESTART_ATTEMPTS, restartAttempts + 1)
                     .putLong(KEY_LAST_BACKUP_TIME, availableFile.lastModified())
@@ -1070,11 +1006,6 @@ object AutoBackupManager {
                 .edit()
                 .clear()
                 .commit()
-
-            runCatching {
-                android.app.backup.BackupManager(context).dataChanged()
-                Timber.i("AutoBackupManager: Backup deleted and Android BackupManager notified")
-            }
             true
         } catch (e: Exception) {
             Timber.e(e, "AutoBackupManager: deleteBackup failed")

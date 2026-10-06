@@ -372,93 +372,25 @@ fun GuestProfileSetupScreen(navController: NavController) {
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Option 1: Restore from Android OS / Auto Backup
+                        // Option 1: Restore from Documents / AirBeats
                         Surface(
                             onClick = {
                                 showRestoreOptionsDialog = false
                                 isRestoringBackup = true
-                                restoringStatusText = "Searching for Auto Backup..."
+                                restoringStatusText = "Restoring from Documents/AirBeats..."
                                 coroutineScope.launch {
                                     val restored = withContext(Dispatchers.IO) {
-                                        var success = AutoBackupManager.restoreAutoBackup(context, shouldRestart = true)
-                                        if (!success) {
-                                            success = AutoBackupManager.checkAndRestoreDeviceCloudBackup(context)
-                                        }
-                                        success
+                                        AutoBackupManager.restoreFromStorageBackup(context, shouldRestart = true)
                                     }
                                     if (!restored) {
                                         isRestoringBackup = false
                                         android.widget.Toast.makeText(
                                             context,
-                                            "No automatic backup found. Please choose 'Restore from Storage' to select your backup file.",
+                                            "No backup found in Documents/AirBeats. Please choose 'Pick a Backup File' instead.",
                                             android.widget.Toast.LENGTH_LONG
                                         ).show()
                                     }
                                 }
-                            },
-                            shape = RoundedCornerShape(18.dp),
-                            color = inputBg,
-                            border = BorderStroke(1.dp, if (isDark) Color(0xFF2C2C3A) else Color(0xFFE2E4EE)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(primaryColor.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.cloud_download),
-                                        contentDescription = null,
-                                        tint = primaryColor,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(14.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Restore from Android OS / Auto Backup",
-                                        style = MaterialTheme.typography.bodyLarge.copy(
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 15.sp
-                                        ),
-                                        color = textColor
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "Restore OS or persistent auto-backup snapshot",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontSize = 12.sp
-                                        ),
-                                        color = subTextColor
-                                    )
-                                }
-
-                                Icon(
-                                    painter = painterResource(R.drawable.chevron_right),
-                                    contentDescription = null,
-                                    tint = subTextColor.copy(alpha = 0.5f),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Option 2: Restore from Storage
-                        Surface(
-                            onClick = {
-                                showRestoreOptionsDialog = false
-                                restoreStorageLauncher.launch(arrayOf("application/octet-stream", "application/zip", "*/*"))
                             },
                             shape = RoundedCornerShape(18.dp),
                             color = inputBg,
@@ -490,7 +422,7 @@ fun GuestProfileSetupScreen(navController: NavController) {
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Restore from Storage",
+                                        text = "Restore from Documents / AirBeats",
                                         style = MaterialTheme.typography.bodyLarge.copy(
                                             fontWeight = FontWeight.SemiBold,
                                             fontSize = 15.sp
@@ -499,7 +431,71 @@ fun GuestProfileSetupScreen(navController: NavController) {
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "Choose a .backup file from device storage",
+                                        text = "Restore latest backup saved in Documents/AirBeats",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontSize = 12.sp
+                                        ),
+                                        color = subTextColor
+                                    )
+                                }
+
+                                Icon(
+                                    painter = painterResource(R.drawable.chevron_right),
+                                    contentDescription = null,
+                                    tint = subTextColor.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Option 2: Pick a Backup File
+                        Surface(
+                            onClick = {
+                                showRestoreOptionsDialog = false
+                                restoreStorageLauncher.launch(arrayOf("application/octet-stream", "application/zip", "*/*"))
+                            },
+                            shape = RoundedCornerShape(18.dp),
+                            color = inputBg,
+                            border = BorderStroke(1.dp, if (isDark) Color(0xFF2C2C3A) else Color(0xFFE2E4EE)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(primaryColor.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.folder),
+                                        contentDescription = null,
+                                        tint = primaryColor,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Pick a Backup File",
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 15.sp
+                                        ),
+                                        color = textColor
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Choose a .backup or .zip file from device storage",
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontSize = 12.sp
                                         ),
