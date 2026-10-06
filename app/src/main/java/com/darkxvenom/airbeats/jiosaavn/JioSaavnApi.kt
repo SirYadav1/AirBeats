@@ -227,7 +227,9 @@ object JioSaavnApi {
         // Pre-decrypt and cache stream URL if present in response
         val encryptedUrl = item.optString("encrypted_media_url")
         if (encryptedUrl.isNotBlank()) {
-            decryptMediaUrl(encryptedUrl)?.let { streamUrl ->
+            val supports320 = item.optString("320kbps").equals("true", ignoreCase = true) ||
+                item.optBoolean("320kbps", false)
+            decryptMediaUrl(encryptedUrl, supports320)?.let { streamUrl ->
                 streamUrlCache[id] = streamUrl
             }
         }

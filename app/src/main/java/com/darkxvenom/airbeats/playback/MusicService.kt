@@ -339,7 +339,19 @@ class MusicService :
     private lateinit var connectivityManager: ConnectivityManager
     lateinit var connectivityObserver: NetworkConnectivityObserver
     val waitingForNetworkConnection = MutableStateFlow(false)
-    private val isNetworkConnected = MutableStateFlow(false)
+    val isNetworkConnected = MutableStateFlow(false)
+
+    fun isNetworkAvailable(): Boolean {
+        return try {
+            val cm = if (::connectivityManager.isInitialized) connectivityManager else getSystemService() as? ConnectivityManager
+                ?: return isNetworkConnected.value
+            val activeNet = cm.activeNetwork ?: return isNetworkConnected.value
+            val caps = cm.getNetworkCapabilities(activeNet) ?: return isNetworkConnected.value
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (_: Exception) {
+            isNetworkConnected.value
+        }
+    }
 
     private val audioQuality by enumPreference(
         this,
@@ -1288,7 +1300,7 @@ class MusicService :
     }
 
     fun isSongFullyCached(mediaId: String): Boolean {
-        if (mediaId.startsWith("content://") || mediaId.startsWith("file://")) {
+        if (mediaId.startsWith("content://") || mediaId.startsWith("file://") || mediaId.startsWith("local:")) {
             return true
         }
         val safeMediaId = mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
@@ -1351,6 +1363,10 @@ class MusicService :
     }
 
     fun skipToNextPlayableTrack() {
+        if (isNetworkAvailable()) {
+            Log.d(TAG, "Device is online; skipToNextPlayableTrack ignored.")
+            return
+        }
         if (isAutoSkippingUncached) return
         isAutoSkippingUncached = true
         scope.launch(Dispatchers.Main) {
@@ -1366,7 +1382,7 @@ class MusicService :
                 }
 
                 val currentIdx = player.currentMediaItemIndex
-                val isOffline = !isNetworkConnected.value
+                val isOffline = !isNetworkAvailable()
                 val isSkipUncached = dataStore.get(SkipUncachedPartKey, false)
                 var nextPlayableIndex = -1
 
@@ -2618,12 +2634,12 @@ class MusicService :
         reason: Int,
     ) {
         offlineBufferingJob?.cancel()
-        val isOffline = !isNetworkConnected.value
+        val isDeviceOffline = !isNetworkAvailable()
         val isSkipUncached = dataStore.get(SkipUncachedPartKey, false)
-        if (isOffline && isSkipUncached) {
+        if (isDeviceOffline && isSkipUncached && reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
             val mediaId = mediaItem?.mediaId
             if (mediaId != null && !isSongFullyCached(mediaId)) {
-                Log.i(TAG, "Song $mediaId is uncached while offline with SkipUncachedPart enabled. Skipping.")
+                Log.i(TAG, "Song $mediaId is uncached while offline with SkipUncachedPart enabled (auto-advance). Skipping.")
                 skipToNextPlayableTrack()
                 return
             }
@@ -2705,13 +2721,14 @@ class MusicService :
     ) {
         offlineBufferingJob?.cancel()
         if (playbackState == Player.STATE_BUFFERING) {
-            val isOffline = !isNetworkConnected.value
+            val isDeviceOffline = !isNetworkAvailable()
             val isSkipUncached = dataStore.get(SkipUncachedPartKey, false)
-            if (isOffline && isSkipUncached) {
+            val autoSkipOnError = dataStore.get(AutoSkipNextOnErrorKey, false)
+            if (isDeviceOffline && isSkipUncached && autoSkipOnError) {
                 val currentMediaId = player.currentMediaItem?.mediaId
                 offlineBufferingJob = scope.launch(Dispatchers.Main) {
-                    delay(1200)
-                    if (player.playbackState == Player.STATE_BUFFERING && !isNetworkConnected.value) {
+                    delay(2500)
+                    if (player.playbackState == Player.STATE_BUFFERING && !isNetworkAvailable()) {
                         if (currentMediaId != null && !isSongFullyCached(currentMediaId)) {
                             Log.i(TAG, "Playback stalled buffering offline for uncached track $currentMediaId. Skipping.")
                             skipToNextPlayableTrack()
@@ -2987,19 +3004,9 @@ class MusicService :
             YTPlayerUtils.invalidateCachedStreamUrls(currentMediaId)
         }
 
-        val isOffline = !isNetworkConnected.value
+        val isDeviceOffline = !isNetworkAvailable()
         val skipUncachedPart = dataStore.get(SkipUncachedPartKey, false)
-        val isConnectionError = error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
-            error.message?.contains("Connect to the internet", ignoreCase = true) == true ||
-            error.message?.contains("partially cached", ignoreCase = true) == true
-
-        if ((isOffline || isConnectionError) && skipUncachedPart && (currentMediaId == null || !isSongFullyCached(currentMediaId))) {
-            Log.i(TAG, "Uncached or partially cached track $currentMediaId failed offline with skipUncached enabled. Skipping to next playable track.")
-            offlineBufferingJob?.cancel()
-            skipToNextPlayableTrack()
-            return
-        }
+        val autoSkipOnError = dataStore.get(AutoSkipNextOnErrorKey, false)
 
         // Mid-track playback recovery: if the song was already playing (>3s), NEVER auto-skip it!
         // Stalls or expired stream URLs should be refreshed and resumed from current position.
@@ -3018,10 +3025,34 @@ class MusicService :
             return
         }
 
-        val autoSkipOnError = dataStore.get(AutoSkipNextOnErrorKey, false)
+        // CRITICAL: When "Auto-skip on error" is DISABLED by user preference,
+        // NEVER skip to the next track under ANY circumstances (online or offline).
+        if (!autoSkipOnError) {
+            Log.w(TAG, "Auto-skip on error is disabled. Pausing player and preserving current track selection.")
+            offlineBufferingJob?.cancel()
+            songLoadingRetryJob?.cancel()
+            songLoadingRetryCount = 0
+            consecutivePlaybackErr = 0
+            scope.launch(Dispatchers.Main) {
+                val errorMsg = error.message?.takeIf { it.isNotBlank() } ?: getString(R.string.error_unknown)
+                player.pause()
+                Toast.makeText(this@MusicService, errorMsg, Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+
+        // AutoSkipOnError is TRUE from here onwards:
+        // Only skip offline uncached tracks when genuinely offline AND autoSkipOnError is true
+        if (isDeviceOffline && skipUncachedPart && (currentMediaId == null || !isSongFullyCached(currentMediaId))) {
+            Log.i(TAG, "Uncached track $currentMediaId cannot play offline with skipUncached enabled. Skipping to next playable track.")
+            offlineBufferingJob?.cancel()
+            skipToNextPlayableTrack()
+            return
+        }
+
         if (autoSkipOnError && !wasActivelyPlaying) {
             PlayerConnection.instance?.clearError()
-            if (isOffline && skipUncachedPart) {
+            if (isDeviceOffline && skipUncachedPart) {
                 skipToNextPlayableTrack()
                 return
             } else if (player.hasNextMediaItem()) {
@@ -3037,9 +3068,7 @@ class MusicService :
             }
         }
 
-        // Under no circumstances should the player skip to the next song when loading takes time or errors occur.
-        // It must keep loading the current track.
-        if (!isNetworkConnected.value && error.message?.contains("partially cached") != true) {
+        if (isDeviceOffline) {
             waitOnNetworkError()
             return
         }
@@ -3294,6 +3323,28 @@ class MusicService :
         }
     }
 
+    private fun verifyJioSaavnUrl(rawUrl: String): String? {
+        fun testUrl(targetUrl: String): Boolean {
+            return runCatching {
+                val req = okhttp3.Request.Builder()
+                    .url(targetUrl)
+                    .header("Range", "bytes=0-10")
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .build()
+                mediaOkHttpClient.newCall(req).execute().use { resp ->
+                    resp.isSuccessful || resp.code in 200..206
+                }
+            }.getOrDefault(false)
+        }
+
+        if (testUrl(rawUrl)) return rawUrl
+        val fallback160 = if (rawUrl.contains("_320.")) rawUrl.replace("_320.", "_160.") else null
+        if (fallback160 != null && testUrl(fallback160)) return fallback160
+        val fallback96 = if (rawUrl.contains("_320.")) rawUrl.replace("_320.", "_96.") else if (rawUrl.contains("_160.")) rawUrl.replace("_160.", "_96.") else null
+        if (fallback96 != null && testUrl(fallback96)) return fallback96
+        return null
+    }
+
     private fun resolvePlaybackDataSpec(dataSpec: DataSpec): DataSpec {
         if (dataSpec.uri.shouldBypassPlayerCache()) {
             return dataSpec
@@ -3347,7 +3398,7 @@ class MusicService :
 
         // If offline, check if downloadCache or playerCache has any cached data for this song
         val hasCache = downloadCache.keys.contains(mediaId) || playerCache.keys.contains(mediaId)
-        if (hasCache && !isNetworkConnected.value) {
+        if (hasCache && !isNetworkAvailable()) {
             if (dataStore.get(SkipUncachedPartKey, false) && !isSongFullyCached(mediaId)) {
                 throw PlaybackException(
                     "This song is only partially cached and skip uncached is enabled.",
@@ -3379,7 +3430,7 @@ class MusicService :
         }
 
         // If offline and not in any cache, fail gracefully without attempting network
-        if (!isNetworkConnected.value) {
+        if (!isNetworkAvailable()) {
             throw PlaybackException(
                 "This song is not cached for offline playback. Connect to the internet to stream it.",
                 null,
@@ -3403,7 +3454,9 @@ class MusicService :
                     Timber.e(e, "JioSaavn stream fetching error for $mediaId")
                 }
 
-                if (streamUrl != null) {
+                val verifiedUrl = streamUrl?.let { verifyJioSaavnUrl(it) }
+
+                if (verifiedUrl != null) {
                     database.query {
                         upsert(
                             FormatEntity(
@@ -3415,27 +3468,42 @@ class MusicService :
                                 sampleRate = 44100,
                                 contentLength = 0L,
                                 loudnessDb = null,
-                                playbackUrl = streamUrl
+                                playbackUrl = verifiedUrl
                             )
                         )
                     }
                     songUrlCache[mediaId] = CachedSongUrl(
-                        url = streamUrl,
+                        url = verifiedUrl,
                         expiresAt = System.currentTimeMillis() + 3600000L,
                         contentLength = null,
                     )
                     scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                    return dataSpec.withStreamUrl(streamUrl, null)
+                    return dataSpec.withStreamUrl(verifiedUrl, null)
                 }
 
                 // Seamless Fallback: JioSaavn stream failed or null -> find matching YouTube song
                 Timber.w("JioSaavn stream unavailable for $mediaId, falling back to YouTube")
                 val mediaMetadata = kotlinx.coroutines.runBlocking(Dispatchers.Main) {
                     player.mediaItems.find { it.mediaId == mediaId }?.metadata
+                        ?: (if (player.currentMediaItem?.mediaId == mediaId) player.currentMediaItem?.metadata else null)
+                        ?: (if (currentMediaMetadata.value?.id == mediaId) currentMediaMetadata.value else null)
+                } ?: runBlocking(Dispatchers.IO) {
+                    database.song(mediaId).firstOrNull()?.toMediaMetadata()
                 }
-                if (mediaMetadata != null) {
-                    val artistName = mediaMetadata.artists.firstOrNull()?.name ?: ""
-                    val query = "${mediaMetadata.title} $artistName".trim()
+
+                val songTitle = mediaMetadata?.title?.takeIf { it.isNotBlank() }
+                    ?: kotlinx.coroutines.runBlocking(Dispatchers.Main) {
+                        player.mediaItems.find { it.mediaId == mediaId }?.mediaMetadata?.title?.toString()
+                            ?: player.currentMediaItem?.mediaMetadata?.title?.toString()
+                    }
+                val artistName = mediaMetadata?.artists?.firstOrNull()?.name
+                    ?: kotlinx.coroutines.runBlocking(Dispatchers.Main) {
+                        player.mediaItems.find { it.mediaId == mediaId }?.mediaMetadata?.artist?.toString()
+                            ?: player.currentMediaItem?.mediaMetadata?.artist?.toString()
+                    }.orEmpty()
+
+                if (!songTitle.isNullOrBlank()) {
+                    val query = "$songTitle $artistName".trim()
                     val ytSong = kotlinx.coroutines.runBlocking(Dispatchers.IO) {
                         runCatching {
                             YouTube.search(query, com.darkxvenom.airbeats.innertube.YouTube.SearchFilter.FILTER_SONG)
@@ -3466,6 +3534,10 @@ class MusicService :
                 } else {
                     val mediaMetadata = kotlinx.coroutines.runBlocking(Dispatchers.Main) {
                         player.mediaItems.find { it.mediaId == mediaId }?.metadata
+                            ?: (if (player.currentMediaItem?.mediaId == mediaId) player.currentMediaItem?.metadata else null)
+                            ?: (if (currentMediaMetadata.value?.id == mediaId) currentMediaMetadata.value else null)
+                    } ?: runBlocking(Dispatchers.IO) {
+                        database.song(mediaId).firstOrNull()?.toMediaMetadata()
                     }
                     if (mediaMetadata != null) {
                         val artistName = mediaMetadata.artists.firstOrNull()?.name ?: ""
@@ -3492,29 +3564,6 @@ class MusicService :
                 dataStore.data.map { preferences ->
                     preferences[EnableJioSaavnKey] ?: true
                 }.first()
-            }
-
-            // Helper for verifying JioSaavn stream URLs quickly via GET byte-range
-            fun verifyJioSaavnUrl(rawUrl: String): String? {
-                fun testUrl(targetUrl: String): Boolean {
-                    return runCatching {
-                        val req = okhttp3.Request.Builder()
-                            .url(targetUrl)
-                            .header("Range", "bytes=0-10")
-                            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                            .build()
-                        mediaOkHttpClient.newCall(req).execute().use { resp ->
-                            resp.isSuccessful || resp.code in 200..206
-                        }
-                    }.getOrDefault(false)
-                }
-
-                if (testUrl(rawUrl)) return rawUrl
-                val fallback160 = if (rawUrl.contains("_320.")) rawUrl.replace("_320.", "_160.") else null
-                if (fallback160 != null && testUrl(fallback160)) return fallback160
-                val fallback96 = if (rawUrl.contains("_320.")) rawUrl.replace("_320.", "_96.") else if (rawUrl.contains("_160.")) rawUrl.replace("_160.", "_96.") else null
-                if (fallback96 != null && testUrl(fallback96)) return fallback96
-                return null
             }
 
             // When JioSaavn integration is enabled, prioritize JioSaavn 320kbps streams first
@@ -4314,7 +4363,7 @@ class MusicService :
     }
 
     fun fetchAutomixRecommendations(seedId: String) {
-        if (!isNetworkConnected.value || seedId.isBlank()) return
+        if (!isNetworkAvailable() || seedId.isBlank()) return
         scope.launch(Dispatchers.IO) {
             try {
                 val effectiveYtId = if (seedId.startsWith("JS:") || seedId.startsWith("local:")) {

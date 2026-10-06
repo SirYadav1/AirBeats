@@ -27,8 +27,7 @@ class NetworkConnectivityObserver(context: Context) {
                 network: Network,
                 networkCapabilities: NetworkCapabilities
             ) {
-                val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                        networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 trySend(hasInternet)
             }
         }
@@ -42,8 +41,7 @@ class NetworkConnectivityObserver(context: Context) {
         // Send initial state
         val isConnected = connectivityManager.activeNetwork?.let { network ->
             connectivityManager.getNetworkCapabilities(network)?.let { capabilities ->
-                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             }
         } ?: false
         trySend(isConnected)
