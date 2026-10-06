@@ -210,13 +210,6 @@ fun BackupAndRestore(
             }
         }
 
-    val storagePermissionLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-            if (results.values.any { it }) {
-                Toast.makeText(context, "Storage permission granted", Toast.LENGTH_SHORT).show()
-            }
-        }
-
     SettingsPage(
         title = stringResource(R.string.backup_restore),
         navController = navController,
@@ -243,25 +236,6 @@ fun BackupAndRestore(
                         icon = { Icon(painterResource(R.drawable.backup), null) },
                         description = "Save an immediate backup file to Documents/AirBeats/airbeats_backup.backup",
                         onClick = {
-                            if (!AutoBackupManager.hasStoragePermission(context)) {
-                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                                    try {
-                                        val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                                            data = android.net.Uri.parse("package:${context.packageName}")
-                                        }
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        context.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-                                    }
-                                } else {
-                                    storagePermissionLauncher.launch(
-                                        arrayOf(
-                                            android.Manifest.permission.READ_EXTERNAL_STORAGE,
-                                            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-                                        )
-                                    )
-                                }
-                            }
                             viewModel.backupToStorageNow(context) { success ->
                                 Toast.makeText(
                                     context,
@@ -278,27 +252,7 @@ fun BackupAndRestore(
                         icon = { Icon(painterResource(R.drawable.restore), null) },
                         description = "Restore full profile, playlists, and settings from Documents/AirBeats",
                         onClick = {
-                            if (!AutoBackupManager.hasStoragePermission(context)) {
-                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                                    try {
-                                        val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                                            data = android.net.Uri.parse("package:${context.packageName}")
-                                        }
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        context.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-                                    }
-                                } else {
-                                    storagePermissionLauncher.launch(
-                                        arrayOf(
-                                            android.Manifest.permission.READ_EXTERNAL_STORAGE,
-                                            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-                                        )
-                                    )
-                                }
-                                return@PreferenceEntry
-                            }
-                            val backupFile = AutoBackupManager.findStorageBackupFile()
+                            val backupFile = AutoBackupManager.findStorageBackupFile(context)
                             if (backupFile != null && backupFile.exists() && backupFile.length() > 0L) {
                                 showStorageRestoreConfirmDialog = true
                             } else {

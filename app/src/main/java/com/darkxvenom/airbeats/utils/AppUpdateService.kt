@@ -301,25 +301,36 @@ class AppUpdateService : Service() {
         }
 
         fun openInstaller(context: Context, apk: File) {
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", apk)
-            val canInstall = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                runCatching { context.packageManager.canRequestPackageInstalls() }.getOrDefault(false)
-            } else {
-                true
-            }
-            if (!canInstall && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val intent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                    data = Uri.parse("package:${context.packageName}")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", apk)
+                val canInstall = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    runCatching { context.packageManager.canRequestPackageInstalls() }.getOrDefault(false)
+                } else {
+                    true
+                }
+                if (!canInstall && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val intent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                    return
+                }
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/vnd.android.package-archive")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
                 context.startActivity(intent)
-                return
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to open package installer, falling back to release page")
+                runCatching {
+                    val releaseUrl = com.darkxvenom.airbeats.utils.RemoteConfigManager.getLatestReleasePageUrl()
+                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(releaseUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(browserIntent)
+                }
             }
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(intent)
         }
 
         fun start(context: Context, downloadUrl: String) {

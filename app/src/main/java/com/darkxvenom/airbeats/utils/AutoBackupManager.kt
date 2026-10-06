@@ -335,7 +335,7 @@ object AutoBackupManager {
 
     fun hasStoragePermission(context: Context): Boolean {
         return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            android.os.Environment.isExternalStorageManager()
+            true
         } else {
             androidx.core.content.ContextCompat.checkSelfPermission(
                 context,
@@ -381,6 +381,13 @@ object AutoBackupManager {
                     destFile.copyTo(File(dlDir, STORAGE_BACKUP_FILENAME), overwrite = true)
                 }
 
+                // Also copy to app external files dir for guaranteed scoped-storage persistence without permissions
+                runCatching {
+                    context.getExternalFilesDir(null)?.let { extDir ->
+                        destFile.copyTo(File(extDir, STORAGE_BACKUP_FILENAME), overwrite = true)
+                    }
+                }
+
                 Timber.i("AutoBackupManager: Successfully saved backup to Documents/AirBeats (${destFile.length()} bytes)")
                 true
             } else {
@@ -398,8 +405,8 @@ object AutoBackupManager {
         }
     }
 
-    fun findStorageBackupFile(): File? {
-        val candidates = listOf(
+    fun findStorageBackupFile(context: Context? = null): File? {
+        val candidates = mutableListOf(
             getDocumentsBackupFile(),
             File(getDocumentsBackupDir(), "airbeats_auto_backup.backup"),
             File(
@@ -411,34 +418,42 @@ object AutoBackupManager {
                 "$STORAGE_FOLDER_NAME/airbeats_auto_backup.backup"
             )
         )
+        context?.getExternalFilesDir(null)?.let { extDir ->
+            candidates.add(File(extDir, STORAGE_BACKUP_FILENAME))
+            candidates.add(File(extDir, "airbeats_auto_backup.backup"))
+        }
         for (f in candidates) {
-            if (f.exists() && f.length() > 0L) return f
+            if (runCatching { f.exists() && f.length() > 0L }.getOrDefault(false)) return f
         }
 
         // Search Documents/AirBeats for any .backup file
-        val docsDir = getDocumentsBackupDir()
-        if (docsDir.exists() && docsDir.isDirectory) {
-            val file = docsDir.listFiles { f -> f.isFile && f.name.endsWith(".backup") && f.length() > 0L }
-                ?.maxByOrNull { it.lastModified() }
-            if (file != null) return file
+        runCatching {
+            val docsDir = getDocumentsBackupDir()
+            if (docsDir.exists() && docsDir.isDirectory) {
+                val file = docsDir.listFiles { f -> f.isFile && f.name.endsWith(".backup") && f.length() > 0L }
+                    ?.maxByOrNull { it.lastModified() }
+                if (file != null) return file
+            }
         }
 
         // Also search Downloads/AirBeats for any .backup file
-        val dlDir = File(
-            android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
-            STORAGE_FOLDER_NAME
-        )
-        if (dlDir.exists() && dlDir.isDirectory) {
-            val file = dlDir.listFiles { f -> f.isFile && f.name.endsWith(".backup") && f.length() > 0L }
-                ?.maxByOrNull { it.lastModified() }
-            if (file != null) return file
+        runCatching {
+            val dlDir = File(
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
+                STORAGE_FOLDER_NAME
+            )
+            if (dlDir.exists() && dlDir.isDirectory) {
+                val file = dlDir.listFiles { f -> f.isFile && f.name.endsWith(".backup") && f.length() > 0L }
+                    ?.maxByOrNull { it.lastModified() }
+                if (file != null) return file
+            }
         }
 
         return null
     }
 
     fun restoreFromStorageBackup(context: Context, shouldRestart: Boolean = true): Boolean {
-        val file = findStorageBackupFile() ?: return false
+        val file = findStorageBackupFile(context) ?: return false
         Timber.i("AutoBackupManager: Restoring from storage backup file at ${file.absolutePath} (${file.length()} bytes)")
         val targetFile = getAutoBackupFile(context)
         runCatching { file.copyTo(targetFile, overwrite = true) }

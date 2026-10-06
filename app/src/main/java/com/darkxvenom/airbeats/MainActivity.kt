@@ -546,13 +546,11 @@ class MainActivity : FragmentActivity() {
             var showSplash by remember { mutableStateOf(true) }
             var splashStatusText by remember { mutableStateOf<String?>(null) }
             var hasCheckedCloudRestore by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-            var showStoragePermissionDialog by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-            var storageRestoreAttempted by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
 
             fun triggerStorageCheckAndRestore() {
                 splashStatusText = "Checking Documents/AirBeats..."
                 lifecycleScope.launch(Dispatchers.IO) {
-                    val storageFile = AutoBackupManager.findStorageBackupFile()
+                    val storageFile = AutoBackupManager.findStorageBackupFile(this@MainActivity)
                     if (storageFile != null && storageFile.exists() && storageFile.length() > 0L) {
                         AutoBackupManager.markInitialStorageRestoreCheckComplete(this@MainActivity)
                         withContext(Dispatchers.Main) {
@@ -594,79 +592,9 @@ class MainActivity : FragmentActivity() {
                 }
             }
 
-            val storagePermissionLauncher = rememberLauncherForActivityResult(
-                ActivityResultContracts.RequestMultiplePermissions()
-            ) { _ ->
-                storageRestoreAttempted = true
-                triggerStorageCheckAndRestore()
-            }
-
-            val manageStorageLauncher = rememberLauncherForActivityResult(
-                ActivityResultContracts.StartActivityForResult()
-            ) { _ ->
-                storageRestoreAttempted = true
-                triggerStorageCheckAndRestore()
-            }
-
-            fun requestStorageAccess() {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    try {
-                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                            data = Uri.parse("package:$packageName")
-                        }
-                        manageStorageLauncher.launch(intent)
-                    } catch (_: Exception) {
-                        try {
-                            manageStorageLauncher.launch(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-                        } catch (_: Exception) {
-                            storageRestoreAttempted = true
-                            triggerStorageCheckAndRestore()
-                        }
-                    }
-                } else {
-                    storagePermissionLauncher.launch(
-                        arrayOf(
-                            Manifest.permission.READ_EXTERNAL_STORAGE,
-                            Manifest.permission.WRITE_EXTERNAL_STORAGE
-                        )
-                    )
-                }
-            }
-
-            val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-            DisposableEffect(lifecycleOwner, storageRestoreAttempted) {
-                val observer = LifecycleEventObserver { _, event ->
-                    if (event == Lifecycle.Event.ON_RESUME &&
-                        !AutoBackupManager.hasCompletedInitialStorageRestoreCheck(this@MainActivity)
-                    ) {
-                        if (AutoBackupManager.hasStoragePermission(this@MainActivity)) {
-                            showStoragePermissionDialog = false
-                            if (!storageRestoreAttempted) {
-                                storageRestoreAttempted = true
-                                triggerStorageCheckAndRestore()
-                            }
-                        }
-                    }
-                }
-                lifecycleOwner.lifecycle.addObserver(observer)
-                onDispose {
-                    lifecycleOwner.lifecycle.removeObserver(observer)
-                }
-            }
-
             LaunchedEffect(Unit) {
                 if (!AutoBackupManager.hasCompletedInitialStorageRestoreCheck(this@MainActivity)) {
-                    val hasPerm = AutoBackupManager.hasStoragePermission(this@MainActivity)
-                    if (hasPerm) {
-                        triggerStorageCheckAndRestore()
-                    } else if (!storageRestoreAttempted) {
-                        delay(500)
-                        showSplash = false
-                        showStoragePermissionDialog = true
-                    } else {
-                        delay(500)
-                        showSplash = false
-                    }
+                    triggerStorageCheckAndRestore()
                 } else {
                     AutoBackupManager.resetRestartAttempts(this@MainActivity)
                     delay(1200)
@@ -815,60 +743,6 @@ class MainActivity : FragmentActivity() {
                 }
 
                 val backdrop = rememberBackdrop()
-
-                if (showStoragePermissionDialog) {
-                    AlertDialog(
-                        onDismissRequest = {
-                            showStoragePermissionDialog = false
-                            storageRestoreAttempted = true
-                            showSplash = false
-                        },
-                        icon = {
-                            Icon(
-                                painter = painterResource(R.drawable.save_to_storage),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        },
-                        title = {
-                            Text(
-                                text = "Restore Existing Backup",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                        },
-                        text = {
-                            Text(
-                                text = "Check Documents/AirBeats for previous backup data? Granting storage access allows AirBeats to automatically find and restore your playlists, accounts, and settings.",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        },
-                        confirmButton = {
-                            Button(
-                                onClick = {
-                                    showStoragePermissionDialog = false
-                                    requestStorageAccess()
-                                },
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Text("Check Storage")
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(
-                                onClick = {
-                                    showStoragePermissionDialog = false
-                                    storageRestoreAttempted = true
-                                    showSplash = false
-                                }
-                            ) {
-                                Text("Set Up New")
-                            }
-                        },
-                        shape = RoundedCornerShape(24.dp)
-                    )
-                }
 
                 if (showSplash) {
                     HeadphoneSplashScreen(statusText = splashStatusText)
