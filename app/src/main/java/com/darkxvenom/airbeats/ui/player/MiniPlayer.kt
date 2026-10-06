@@ -243,7 +243,7 @@ fun MiniPlayer(
     fun calculateAutoSwipeThreshold(swipeSensitivity: Float): Int {
         return (600 / (1f + exp(-(-11.44748 * swipeSensitivity + 9.04945)))).roundToInt()
     }
-    val autoSwipeThreshold = calculateAutoSwipeThreshold(0.73f)
+    val autoSwipeThreshold = remember { calculateAutoSwipeThreshold(0.73f) }
 
     Box(
         modifier = modifier
