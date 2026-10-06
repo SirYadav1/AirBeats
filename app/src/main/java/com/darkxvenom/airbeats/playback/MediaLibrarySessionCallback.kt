@@ -86,8 +86,35 @@ constructor(
         controller: MediaSession.ControllerInfo,
     ): MediaSession.ConnectionResult {
         val connectionResult = super.onConnect(session, controller)
+
+        // FIX (media3 1.11.1): MediaSession.Callback's default onConnect() returns a sentinel
+        // result built from SessionCommands.EMPTY + Player.Commands.EMPTY (extras flag
+        // "CALLBACK_NOT_IMPLEMENTED"). Forwarding those to accept() means the media-notification
+        // controller is granted zero player commands, so
+        //   intersect(playerCommandsFromSession, playerCommandsFromPlayer) == EMPTY
+        //   -> PlayerInfo.filterByAvailableCommands() replaces the timeline with Timeline.EMPTY
+        //   -> MediaNotificationManager.shouldShowNotification() returns false
+        //   -> updateNotification() bails out before createNotification()/startForeground()
+        //   -> no media notification is ever posted, the service never enters the foreground and
+        //      the notification's play/pause tap is never delivered to onStartCommand().
+        // Start from the real defaults instead of the unimplemented-callback sentinel.
+        val baseSessionCommands =
+            if (connectionResult.availableSessionCommands.commands.isEmpty()) {
+                MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
+            } else {
+                connectionResult.availableSessionCommands
+            }
+        val playerCommands =
+            if (connectionResult.availablePlayerCommands.size() == 0) {
+                MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
+            } else {
+                connectionResult.availablePlayerCommands.buildUpon()
+                    .addAll(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
+                    .build()
+            }
+
         return MediaSession.ConnectionResult.accept(
-            connectionResult.availableSessionCommands
+            baseSessionCommands
                 .buildUpon()
                 .add(MediaSessionConstants.CommandToggleLike)
                 .add(MediaSessionConstants.CommandToggleStartRadio)
@@ -95,7 +122,7 @@ constructor(
                 .add(MediaSessionConstants.CommandToggleShuffle)
                 .add(MediaSessionConstants.CommandToggleRepeatMode)
                 .build(),
-            connectionResult.availablePlayerCommands,
+            playerCommands,
         )
     }
 
