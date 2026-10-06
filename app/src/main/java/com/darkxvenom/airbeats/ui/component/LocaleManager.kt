@@ -317,14 +317,21 @@ class LocaleManager private constructor(private val context: Context) {
      */
     private fun parseLocaleCode(code: String): Locale {
         return when {
-            code == "zh-rCN" || code == "zh-CN" -> Locale.SIMPLIFIED_CHINESE
-            code == "zh-rTW" || code == "zh-TW" -> Locale.TRADITIONAL_CHINESE
+            code == "zh-rCN" || code == "zh-CN" || code == "zh_CN" || code == "zh" -> Locale.SIMPLIFIED_CHINESE
+            code == "zh-rTW" || code == "zh-TW" || code == "zh_TW" -> Locale.TRADITIONAL_CHINESE
+            code == "iw" || code == "iw-rIL" || code == "he" || code == "he-rIL" -> Locale("he", "IL")
+            code == "in" || code == "id" -> Locale("id")
+            code == "fr" || code == "fr-rFR" || code == "fr-FR" || code == "fr_FR" -> Locale.FRENCH
             code.contains("-r") -> {
                 val parts = code.split("-r")
                 Locale(parts[0], parts[1])
             }
             code.contains("-") -> {
                 val parts = code.split("-")
+                Locale(parts[0], parts[1])
+            }
+            code.contains("_") -> {
+                val parts = code.split("_")
                 Locale(parts[0], parts[1])
             }
             else -> Locale(code)
@@ -451,22 +458,18 @@ class LocaleManager private constructor(private val context: Context) {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val localeManager = context.getSystemService(android.app.LocaleManager::class.java)
-                // Android 13 keeps its own per-app locale.  It must be cleared when
-                // the user selects "System default"; otherwise the previous language
-                // remains active even after the activity is recreated.
                 if (useSystemLocale) {
                     localeManager?.applicationLocales = LocaleList.getEmptyLocaleList()
                 } else {
-                    localeManager?.applicationLocales =
-                        LocaleList.forLanguageTags(locale.toLanguageTag())
+                    localeManager?.applicationLocales = LocaleList(locale)
                 }
 
-                val localeList = LocaleList.forLanguageTags(locale.toLanguageTag())
+                val localeList = LocaleList(locale)
                 LocaleList.setDefault(localeList)
                 config.setLocales(localeList)
                 config.setLocale(locale)
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                val localeList = LocaleList.forLanguageTags(locale.toLanguageTag())
+                val localeList = LocaleList(locale)
                 LocaleList.setDefault(localeList)
                 config.setLocales(localeList)
                 config.setLocale(locale)
@@ -490,10 +493,10 @@ class LocaleManager private constructor(private val context: Context) {
             val config = Configuration(baseContext.resources.configuration)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                config.setLocale(locale)
-                val localeList = LocaleList.forLanguageTags(locale.toLanguageTag())
+                val localeList = LocaleList(locale)
                 LocaleList.setDefault(localeList)
                 config.setLocales(localeList)
+                config.setLocale(locale)
                 baseContext.createConfigurationContext(config)
             } else {
                 config.locale = locale
@@ -515,7 +518,10 @@ class LocaleManager private constructor(private val context: Context) {
             val activity = findActivity(context)
             Handler(Looper.getMainLooper()).postDelayed({
                 if (activity != null && !activity.isFinishing) {
-                    activity.recreate()
+                    val intent = Intent(activity, activity.javaClass)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+                    activity.startActivity(intent)
+                    activity.finish()
                     activity.overridePendingTransition(
                         android.R.anim.fade_in,
                         android.R.anim.fade_out

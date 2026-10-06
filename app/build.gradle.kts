@@ -48,9 +48,6 @@ android {
         versionCode = 241
         versionName = "6.2.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // Strip out language resources from libraries that the app doesn't support
-        resConfigs("en")
     }
 
     signingConfigs {
@@ -214,7 +211,7 @@ dependencies {
     implementation(libs.media3)
     implementation(libs.media3.session)
     implementation(libs.media3.okhttp)
-    implementation("androidx.media3:media3-ui:1.8.0")
+    implementation(libs.media3.ui)
     implementation(libs.squigglyslider)
 
     // Google Cast & local streaming proxy

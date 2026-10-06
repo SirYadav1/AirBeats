@@ -75,8 +75,8 @@ import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -187,7 +187,15 @@ fun MiniPlayer(
         else -> MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f)
     }
 
-    val currentView = LocalView.current
+    val context = LocalContext.current
+    val thumbnailRequest = remember(mediaMetadata?.thumbnailUrl) {
+        mediaMetadata?.thumbnailUrl?.highQualityThumbnail()?.let { thumbnailUrl ->
+            ImageRequest.Builder(context)
+                .data(thumbnailUrl)
+                .crossfade(true)
+                .build()
+        }
+    }
     val layoutDirection = LocalLayoutDirection.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -382,12 +390,9 @@ fun MiniPlayer(
                                     }
                                 }
                         ) {
-                            mediaMetadata?.let { metadata ->
+                            thumbnailRequest?.let { request ->
                                 AsyncImage(
-                                    model = ImageRequest.Builder(LocalView.current.context)
-                                        .data(metadata.thumbnailUrl?.highQualityThumbnail())
-                                        .crossfade(true)
-                                        .build(),
+                                    model = request,
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
