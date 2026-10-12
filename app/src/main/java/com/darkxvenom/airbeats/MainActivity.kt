@@ -586,6 +586,7 @@ class MainActivity : FragmentActivity() {
             val playerScreenStyle by rememberEnumPreference<PlayerScreenStyle>(PlayerScreenStyleKey, defaultValue = PlayerScreenStyle.IOS_STYLED)
             val homeScreenStyle by rememberEnumPreference(HomeScreenStyleKey, defaultValue = HomeScreenStyle.CLASSIC)
             val navBarStyle by rememberEnumPreference(NavBarStyleKey, defaultValue = NavBarStyle.APPLE)
+            val isBetterNavBar = navBarStyle == NavBarStyle.BETTER
             val enableNewLyricsScreen by rememberPreference(com.darkxvenom.airbeats.constants.EnableNewLyricsScreenKey, defaultValue = true)
             val lyricsScreenStyle by rememberEnumPreference(com.darkxvenom.airbeats.constants.LyricsScreenStyleKey, defaultValue = com.darkxvenom.airbeats.constants.LyricsScreenStyle.LYRICS_2)
 
@@ -775,7 +776,7 @@ class MainActivity : FragmentActivity() {
                             val (previousTab) = rememberSaveable { mutableStateOf("home") }
 
                             val navigationItems = remember(homeScreenStyle, navBarStyle, enableLiquidGlass) { 
-                                if (navBarStyle == NavBarStyle.LIQUID_GLASS || enableLiquidGlass) {
+                                if (navBarStyle == NavBarStyle.LIQUID_GLASS || enableLiquidGlass || isBetterNavBar) {
                                     listOf(Screens.Home, Screens.Search, Screens.Explore, Screens.Library)
                                 } else {
                                     when (navBarStyle) {
@@ -784,6 +785,7 @@ class MainActivity : FragmentActivity() {
                                         NavBarStyle.APPLE -> listOf(Screens.Home, Screens.Stats, Screens.Explore, Screens.Library, Screens.Search)
                                         NavBarStyle.NEW_CLASSIC -> listOf(Screens.Home, Screens.Search, Screens.Explore, Screens.Library)
                                         NavBarStyle.MATERIAL -> listOf(Screens.Home, Screens.Explore, Screens.Library, Screens.Search)
+                                        NavBarStyle.BETTER -> listOf(Screens.Home, Screens.Search, Screens.Explore, Screens.Library)
                                     }
                                 }
                             }
@@ -892,7 +894,7 @@ class MainActivity : FragmentActivity() {
                             val playerBottomSheetState =
                                 rememberBottomSheetState(
                                     dismissedBound = 0.dp,
-                                    collapsedBound = bottomInset + (if (shouldShowNavigationBar) NavigationBarHeight - 16.dp else 0.dp) + MiniPlayerHeight,
+                                    collapsedBound = bottomInset + (if (shouldShowNavigationBar && !isBetterNavBar) NavigationBarHeight - 16.dp else 0.dp) + MiniPlayerHeight,
                                     expandedBound = maxHeight,
                                 )
 
@@ -900,10 +902,11 @@ class MainActivity : FragmentActivity() {
                                 remember(
                                     bottomInset,
                                     shouldShowNavigationBar,
+                                    isBetterNavBar,
                                     playerBottomSheetState.isDismissed
                                 ) {
                                     var bottom = bottomInset
-                                    if (shouldShowNavigationBar) bottom += NavigationBarHeight - 16.dp
+                                    if (shouldShowNavigationBar && !isBetterNavBar) bottom += NavigationBarHeight - 16.dp
                                     if (!playerBottomSheetState.isDismissed) bottom += MiniPlayerHeight
                                     windowsInsets
                                         .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
@@ -1477,13 +1480,115 @@ class MainActivity : FragmentActivity() {
                                             val isTabletLandscape = configuration.screenWidthDp >= 600 &&
                                                     configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-                                            val isBetterHome = (currentRoute == Screens.Home.route) && homeScreenStyle == HomeScreenStyle.BETTER
+                                            val offsetY by animateDpAsState(
+                                                targetValue = if (playIntroAnimation) 120.dp else 0.dp,
+                                                animationSpec = tween(600),
+                                                label = "nav_offset"
+                                            )
+
+                                            val scale by animateFloatAsState(
+                                                targetValue = if (playIntroAnimation) 0.3f else 1f,
+                                                animationSpec = tween(600),
+                                                label = "nav_scale"
+                                            )
+
+                                            val alpha by animateFloatAsState(
+                                                targetValue = if (playIntroAnimation) 0.6f else 1f,
+                                                animationSpec = tween(600),
+                                                label = "nav_alpha"
+                                            )
+
+                                            val curvedItems = navigationItems.map { screen ->
+                                                CurvedBottomNavigationItem(
+                                                    iconInactive = screen.iconIdInactive,
+                                                    iconActive = screen.iconIdActive,
+                                                    titleId = screen.titleId
+                                                )
+                                            }
+
+                                            val currentDestRoute = navBackStackEntry?.destination?.route
+                                            val selectedIndex = if (currentDestRoute == Screens.Home.route) {
+                                                rootPagerState.currentPage.coerceIn(0, navigationItems.lastIndex)
+                                            } else {
+                                                navigationItems.indexOfFirst { screen ->
+                                                    navBackStackEntry?.destination?.hierarchy?.any { it.route == screen.route } == true
+                                                }.takeIf { it >= 0 } ?: 0
+                                            }
+
+                                            var lastTapTime by remember { mutableLongStateOf(0L) }
+                                            var lastTappedIcon by remember { mutableStateOf<Int?>(null) }
+                                            var navigateToExplore by remember { mutableStateOf(false) }
+
+                                            val onItemSelectedAction: (Int) -> Unit = { index ->
+                                                 if (index in navigationItems.indices) {
+                                                     val screen = navigationItems[index]
+                                                     val isSelected = if (currentDestRoute == Screens.Home.route) {
+                                                         rootPagerState.currentPage == index
+                                                     } else {
+                                                         screen.route == currentDestRoute
+                                                     }
+
+                                                     val currentTapTime = System.currentTimeMillis()
+                                                     val timeSinceLastTap = currentTapTime - lastTapTime
+                                                     val isDoubleTap =
+                                                         screen.titleId == R.string.explore &&
+                                                                 lastTappedIcon == R.string.explore &&
+                                                                 timeSinceLastTap < 300L
+
+                                                     lastTapTime = currentTapTime
+                                                     lastTappedIcon = screen.titleId
+
+                                                     if (screen.titleId == R.string.explore && navBarStyle != NavBarStyle.MATERIAL) {
+                                                         if (isDoubleTap) {
+                                                             onActiveChange(true)
+                                                             navigateToExplore = false
+                                                         } else {
+                                                             navigateToExplore = true
+                                                             coroutineScope.launch {
+                                                                 delay(300L)
+                                                                 if (navigateToExplore) {
+                                                                     if (currentDestRoute == Screens.Home.route) {
+                                                                         rootPagerState.animateScrollToPage(index)
+                                                                     } else {
+                                                                         navigateToScreen(navController, Screens.Home)
+                                                                         rootPagerState.scrollToPage(index)
+                                                                     }
+                                                                 }
+                                                             }
+                                                         }
+                                                     } else {
+                                                         if (isSelected) {
+                                                             navController.currentBackStackEntry?.savedStateHandle?.set("scrollToTop", true)
+                                                             coroutineScope.launch {
+                                                                 searchBarScrollBehavior.state.resetHeightOffset()
+                                                             }
+                                                         } else {
+                                                             if (currentDestRoute == Screens.Home.route) {
+                                                                 coroutineScope.launch {
+                                                                     rootPagerState.animateScrollToPage(index)
+                                                                 }
+                                                             } else {
+                                                                 navigateToScreen(navController, Screens.Home)
+                                                                 coroutineScope.launch {
+                                                                     rootPagerState.scrollToPage(index)
+                                                                 }
+                                                             }
+                                                         }
+                                                     }
+                                                 }
+                                             }
 
                                             val shouldShowBottomNav =
                                                 shouldShowNavigationBar &&
                                                         playerBottomSheetState.progress < 0.95f &&
                                                         !isPlayfulHome &&
-                                                        !isBetterHome
+                                                        !isBetterNavBar
+
+                                            val shouldShowBetterSideNav =
+                                                shouldShowNavigationBar &&
+                                                        playerBottomSheetState.progress < 0.95f &&
+                                                        !isAuthScreen &&
+                                                        isBetterNavBar
 
                                             if (shouldShowBottomNav) {
 
@@ -1505,193 +1610,99 @@ class MainActivity : FragmentActivity() {
                                                     contentAlignment = Alignment.Center
                                                 ) {
 
-                                                    val offsetY by animateDpAsState(
-                                                        targetValue = if (playIntroAnimation) 120.dp else 0.dp,
-                                                        animationSpec = tween(600),
-                                                        label = "nav_offset"
-                                                    )
-
-                                                    val scale by animateFloatAsState(
-                                                        targetValue = if (playIntroAnimation) 0.3f else 1f,
-                                                        animationSpec = tween(600),
-                                                        label = "nav_scale"
-                                                    )
-
-                                                    val alpha by animateFloatAsState(
-                                                        targetValue = if (playIntroAnimation) 0.6f else 1f,
-                                                        animationSpec = tween(600),
-                                                        label = "nav_alpha"
-                                                    )
-
-                                                    // ═══════════════════════════════════════════════════════
-                                                    // LIQUID GLASS NAV BAR — works on both dark & light themes
-                                                    // Strategy:
-                                                    //   • BLUR layer  — Android 12+ real blur, older = tinted fallback
-                                                    //   • TINT layer  — semi-transparent surface tint (adapts to theme)
-                                                    //   • HIGHLIGHT   — white-to-transparent vertical gradient (top sheen)
-                                                    //   • BORDER      — dual-stroke: outer white shimmer + inner bright line
-                                                    //   • SHADOW      — outer drop shadow for lift / separation
-                                                    // The tint uses colorScheme.surface so it is warm-white in light
-                                                    // mode and dark-grey in dark mode, making the bar always visible.
-                                                    // ═══════════════════════════════════════════════════════
-
                                                     val surfaceColor = MaterialTheme.colorScheme.surface
                                                     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
 
-                                                    val curvedItems = navigationItems.map { screen ->
-                                                        CurvedBottomNavigationItem(
-                                                            iconInactive = screen.iconIdInactive,
-                                                            iconActive = screen.iconIdActive,
-                                                            titleId = screen.titleId
+                                                    if (navBarStyle == NavBarStyle.NEW_CLASSIC) {
+                                                        com.darkxvenom.airbeats.ui.component.NewClassicBottomNavigationBar(
+                                                            items = curvedItems,
+                                                            selectedIndex = selectedIndex,
+                                                            onItemSelected = onItemSelectedAction,
+                                                            onNavigateRoute = { route -> navController.navigate(route) },
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .offset(y = offsetY)
+                                                                .scale(scale)
+                                                                .alpha(alpha)
+                                                        )
+                                                    } else if (navBarStyle == NavBarStyle.SPOTIFY) {
+                                                        com.darkxvenom.airbeats.ui.component.SpotifyBottomNavigationBar(
+                                                            items = curvedItems,
+                                                            selectedIndex = selectedIndex,
+                                                            onItemSelected = onItemSelectedAction,
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .offset(y = offsetY)
+                                                                .scale(scale)
+                                                                .alpha(alpha)
+                                                        )
+                                                    } else if (navBarStyle == NavBarStyle.APPLE) {
+                                                        com.darkxvenom.airbeats.ui.component.AppleNavigationBar(
+                                                            items = curvedItems,
+                                                            selectedIndex = selectedIndex,
+                                                            onItemSelected = onItemSelectedAction,
+                                                            backdrop = backdrop,
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .offset(y = offsetY)
+                                                                .scale(scale)
+                                                                .alpha(alpha)
+                                                        )
+                                                    } else if (navBarStyle == NavBarStyle.MATERIAL) {
+                                                        com.darkxvenom.airbeats.ui.component.MaterialBottomNavigationBar(
+                                                            items = curvedItems,
+                                                            selectedIndex = selectedIndex,
+                                                            onItemSelected = onItemSelectedAction,
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .offset(y = offsetY)
+                                                                .scale(scale)
+                                                                .alpha(alpha)
+                                                        )
+                                                    } else if (navBarStyle == NavBarStyle.LIQUID_GLASS || enableLiquidGlass) {
+                                                        LiquidGlassBottomNavigationBar(
+                                                            items = curvedItems,
+                                                            selectedIndex = selectedIndex,
+                                                            onItemSelected = onItemSelectedAction,
+                                                            backdrop = backdrop,
+                                                            modifier = Modifier
+                                                                .offset(y = offsetY)
+                                                                .scale(scale)
+                                                                .alpha(alpha)
+                                                        )
+                                                    } else {
+                                                         com.darkxvenom.airbeats.ui.component.NewClassicBottomNavigationBar(
+                                                             onNavigateRoute = { route -> navController.navigate(route) },
+                                                            items = curvedItems,
+                                                            selectedIndex = selectedIndex,
+                                                            onItemSelected = onItemSelectedAction,
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .offset(y = offsetY)
+                                                                .scale(scale)
+                                                                .alpha(alpha)
                                                         )
                                                     }
-
-                                                    val currentDestRoute = navBackStackEntry?.destination?.route
-                                                    val selectedIndex = if (currentDestRoute == Screens.Home.route) {
-                                                        rootPagerState.currentPage.coerceIn(0, navigationItems.lastIndex)
-                                                    } else {
-                                                        navigationItems.indexOfFirst { screen ->
-                                                            navBackStackEntry?.destination?.hierarchy?.any { it.route == screen.route } == true
-                                                        }.takeIf { it >= 0 } ?: 0
-                                                    }
-
-                                                    var lastTapTime by remember { mutableLongStateOf(0L) }
-                                                    var lastTappedIcon by remember { mutableStateOf<Int?>(null) }
-                                                    var navigateToExplore by remember { mutableStateOf(false) }
-
-                                                    val onItemSelectedAction: (Int) -> Unit = { index ->
-                                                         if (index in navigationItems.indices) {
-                                                             val screen = navigationItems[index]
-                                                             val isSelected = if (currentDestRoute == Screens.Home.route) {
-                                                                 rootPagerState.currentPage == index
-                                                             } else {
-                                                                 screen.route == currentDestRoute
-                                                             }
-
-                                                             val currentTapTime = System.currentTimeMillis()
-                                                             val timeSinceLastTap = currentTapTime - lastTapTime
-                                                             val isDoubleTap =
-                                                                 screen.titleId == R.string.explore &&
-                                                                         lastTappedIcon == R.string.explore &&
-                                                                         timeSinceLastTap < 300L
-
-                                                             lastTapTime = currentTapTime
-                                                             lastTappedIcon = screen.titleId
-
-                                                             if (screen.titleId == R.string.explore && navBarStyle != NavBarStyle.MATERIAL) {
-                                                                 if (isDoubleTap) {
-                                                                     onActiveChange(true)
-                                                                     navigateToExplore = false
-                                                                 } else {
-                                                                     navigateToExplore = true
-                                                                     coroutineScope.launch {
-                                                                         delay(300L)
-                                                                         if (navigateToExplore) {
-                                                                             if (currentDestRoute == Screens.Home.route) {
-                                                                                 rootPagerState.animateScrollToPage(index)
-                                                                             } else {
-                                                                                 navigateToScreen(navController, Screens.Home)
-                                                                                 rootPagerState.scrollToPage(index)
-                                                                             }
-                                                                         }
-                                                                     }
-                                                                 }
-                                                             } else {
-                                                                 if (isSelected) {
-                                                                     navController.currentBackStackEntry?.savedStateHandle?.set("scrollToTop", true)
-                                                                     coroutineScope.launch {
-                                                                         searchBarScrollBehavior.state.resetHeightOffset()
-                                                                     }
-                                                                 } else {
-                                                                     if (currentDestRoute == Screens.Home.route) {
-                                                                         coroutineScope.launch {
-                                                                             rootPagerState.animateScrollToPage(index)
-                                                                         }
-                                                                     } else {
-                                                                         navigateToScreen(navController, Screens.Home)
-                                                                         coroutineScope.launch {
-                                                                             rootPagerState.scrollToPage(index)
-                                                                         }
-                                                                     }
-                                                                 }
-                                                             }
-                                                         }
-                                                     }
-
-                                                     if (navBarStyle == NavBarStyle.NEW_CLASSIC) {
-                                                         com.darkxvenom.airbeats.ui.component.NewClassicBottomNavigationBar(
-                                                             items = curvedItems,
-                                                             selectedIndex = selectedIndex,
-                                                             onItemSelected = onItemSelectedAction,
-                                                             onNavigateRoute = { route -> navController.navigate(route) },
-                                                             modifier = Modifier
-                                                                 .fillMaxSize()
-                                                                 .offset(y = offsetY)
-                                                                 .scale(scale)
-                                                                 .alpha(alpha)
-                                                         )
-                                                     } else if (navBarStyle == NavBarStyle.SPOTIFY) {
-                                                         com.darkxvenom.airbeats.ui.component.SpotifyBottomNavigationBar(
-                                                             items = curvedItems,
-                                                             selectedIndex = selectedIndex,
-                                                             onItemSelected = onItemSelectedAction,
-                                                             modifier = Modifier
-                                                                 .fillMaxSize()
-                                                                 .offset(y = offsetY)
-                                                                 .scale(scale)
-                                                                 .alpha(alpha)
-                                                         )
-                                                     } else if (navBarStyle == NavBarStyle.APPLE) {
-                                                         com.darkxvenom.airbeats.ui.component.AppleNavigationBar(
-                                                             items = curvedItems,
-                                                             selectedIndex = selectedIndex,
-                                                             onItemSelected = onItemSelectedAction,
-                                                             backdrop = backdrop,
-                                                             modifier = Modifier
-                                                                 .fillMaxSize()
-                                                                 .offset(y = offsetY)
-                                                                 .scale(scale)
-                                                                 .alpha(alpha)
-                                                         )
-                                                     } else if (navBarStyle == NavBarStyle.MATERIAL) {
-                                                         com.darkxvenom.airbeats.ui.component.MaterialBottomNavigationBar(
-                                                             items = curvedItems,
-                                                             selectedIndex = selectedIndex,
-                                                             onItemSelected = onItemSelectedAction,
-                                                             modifier = Modifier
-                                                                 .fillMaxSize()
-                                                                 .offset(y = offsetY)
-                                                                 .scale(scale)
-                                                                 .alpha(alpha)
-                                                         )
-                                                     } else if (navBarStyle == NavBarStyle.LIQUID_GLASS || enableLiquidGlass) {
-                                                         LiquidGlassBottomNavigationBar(
-                                                             items = curvedItems,
-                                                             selectedIndex = selectedIndex,
-                                                             onItemSelected = onItemSelectedAction,
-                                                             backdrop = backdrop,
-                                                             modifier = Modifier
-                                                                 .offset(y = offsetY)
-                                                                 .scale(scale)
-                                                                 .alpha(alpha)
-                                                         )
-                                                     } else {
-                                                          com.darkxvenom.airbeats.ui.component.NewClassicBottomNavigationBar(
-                                                              onNavigateRoute = { route -> navController.navigate(route) },
-                                                             items = curvedItems,
-                                                             selectedIndex = selectedIndex,
-                                                             onItemSelected = onItemSelectedAction,
-                                                             modifier = Modifier
-                                                                 .fillMaxSize()
-                                                                 .offset(y = offsetY)
-                                                                 .scale(scale)
-                                                                 .alpha(alpha)
-                                                         )
-                                                     }
                                                 }
 
-                                            } else {
-                                                // Removed redundant bottomInsetDp box
+                                            }
+
+                                            if (shouldShowBetterSideNav) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .navigationBarsPadding(),
+                                                    contentAlignment = Alignment.CenterEnd
+                                                ) {
+                                                    com.darkxvenom.airbeats.ui.component.BetterRightEdgeNavBar(
+                                                        selectedIndex = selectedIndex,
+                                                        onItemSelected = onItemSelectedAction,
+                                                        modifier = Modifier
+                                                            .padding(end = 12.dp)
+                                                            .scale(scale)
+                                                            .alpha(alpha)
+                                                    )
+                                                }
                                             }
                                         }
                                     },

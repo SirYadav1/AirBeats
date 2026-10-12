@@ -294,8 +294,11 @@ fun Lyrics(
     var position by rememberSaveable(playbackState) { mutableLongStateOf(playerConnection.player.currentPosition) }
     var duration by rememberSaveable(playbackState) { mutableLongStateOf(playerConnection.player.duration) }
 
-    val expressiveAccent = Color.White
-    val textColor = Color.White
+    val expressiveAccent = when (playerBackground) {
+        PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.tertiary
+    }
+    val textColor = expressiveAccent
 
     LaunchedEffect(currentSongId) {
         currentSongId?.let { songId ->
@@ -409,31 +412,29 @@ fun Lyrics(
         val songId = currentSongId ?: return@LaunchedEffect
         if (lines.isEmpty()) return@LaunchedEffect
 
-        if (autoTranslate) {
-            val hasLoaded = LyricsTranslationHelper.loadTranslationsFromCache(
-                lyrics = lines,
-                context = context,
-                songId = songId,
-                targetLanguageCode = targetLanguage
-            )
+        val hasLoaded = LyricsTranslationHelper.loadTranslationsForSong(
+            lyrics = lines,
+            context = context,
+            songId = songId,
+            preferredLanguageCode = targetLanguage
+        )
 
-            if (!hasLoaded && !LyricsTranslationHelper.isTranslating()) {
-                val key = if (aiProvider == "DeepL") deeplApiKey else openRouterApiKey
-                if (key.isNotBlank()) {
-                    LyricsTranslationHelper.translateLyrics(
-                        lyrics = lines,
-                        targetLanguageCode = targetLanguage,
-                        apiKey = key,
-                        baseUrl = openRouterBaseUrl,
-                        model = openRouterModel,
-                        mode = translateMode,
-                        customPrompt = customPrompt.takeIf { it.isNotBlank() },
-                        provider = aiProvider,
-                        context = context,
-                        songId = songId,
-                        scope = scope
-                    )
-                }
+        if (!hasLoaded && autoTranslate && !LyricsTranslationHelper.isTranslating() && !LyricsTranslationHelper.isSongCleared(songId)) {
+            val key = if (aiProvider == "DeepL") deeplApiKey else openRouterApiKey
+            if (key.isNotBlank()) {
+                LyricsTranslationHelper.translateLyrics(
+                    lyrics = lines,
+                    targetLanguageCode = targetLanguage,
+                    apiKey = key,
+                    baseUrl = openRouterBaseUrl,
+                    model = openRouterModel,
+                    mode = translateMode,
+                    customPrompt = customPrompt.takeIf { it.isNotBlank() },
+                    provider = aiProvider,
+                    context = context,
+                    songId = songId,
+                    scope = scope
+                )
             }
         }
     }
@@ -544,13 +545,13 @@ fun Lyrics(
             return@LaunchedEffect
         }
         while (isActive) {
+            delay(50)
             val sliderPos = sliderPositionProvider()
             isSeeking = sliderPos != null
             currentLineIndex = findCurrentLineIndex(
                 lines,
                 sliderPos ?: playerConnection.player.currentPosition
             )
-            delay(16)
         }
     }
 
@@ -755,7 +756,16 @@ fun Lyrics(
                                     if (selectedIndices.isNotEmpty()) {
                                         val sortedIndices = selectedIndices.sorted()
                                         val selectedLyricsText = sortedIndices
-                                            .mapNotNull { lines.getOrNull(it)?.text }
+                                            .mapNotNull {
+                                                val entry = lines.getOrNull(it) ?: return@mapNotNull null
+                                                val translated = entry.translatedTextFlow.value
+                                                if (replaceOriginalLyrics && !translated.isNullOrBlank()) {
+                                                    translated
+                                                } else {
+                                                    entry.text
+                                                }
+                                            }
+                                            .filter { it.isNotBlank() }
                                             .joinToString("\n")
 
                                         if (selectedLyricsText.isNotBlank()) {
@@ -1391,8 +1401,12 @@ fun Lyrics(
                                     val showDirectTranslation = replaceOriginalLyrics && !translatedText.isNullOrBlank()
                                     val displayText = if (showDirectTranslation) translatedText!! else item.text
 
-                                    // Línea inactiva con color blanco puro
-                                    val lineColor = Color.White.copy(alpha = 0.45f)
+                                    // Línea inactiva con color expresivo
+                                    val lineColor = if (isFullscreen) {
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                                    } else {
+                                        expressiveAccent.copy(alpha = 0.7f)
+                                    }
 
                                     Text(
                                         text = displayText,
@@ -1418,9 +1432,9 @@ fun Lyrics(
                                         text = translatedText!!,
                                         fontSize = if (isFullscreen) 16.sp else 15.sp,
                                         color = if (isActiveLine) {
-                                            Color.White.copy(alpha = 0.9f)
+                                            expressiveAccent.copy(alpha = 0.9f)
                                         } else {
-                                            Color.White.copy(alpha = 0.45f)
+                                            (if (isFullscreen) MaterialTheme.colorScheme.onSurface else expressiveAccent).copy(alpha = 0.55f)
                                         },
                                         textAlign = when (lyricsTextPosition) {
                                             LyricsPosition.LEFT -> TextAlign.Left
@@ -1532,7 +1546,16 @@ fun Lyrics(
                                             if (selectedIndices.isNotEmpty()) {
                                                 val sortedIndices = selectedIndices.sorted()
                                                 val selectedLyricsText = sortedIndices
-                                                    .mapNotNull { lines.getOrNull(it)?.text }
+                                                    .mapNotNull {
+                                                        val entry = lines.getOrNull(it) ?: return@mapNotNull null
+                                                        val translated = entry.translatedTextFlow.value
+                                                        if (replaceOriginalLyrics && !translated.isNullOrBlank()) {
+                                                            translated
+                                                        } else {
+                                                            entry.text
+                                                        }
+                                                    }
+                                                    .filter { it.isNotBlank() }
                                                     .joinToString("\n")
 
                                                 if (selectedLyricsText.isNotBlank()) {

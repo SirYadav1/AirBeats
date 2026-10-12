@@ -120,6 +120,7 @@ fun LyricsMenu(
     val translationStatus by LyricsTranslationHelper.status.collectAsState()
     val hasTranslations by LyricsTranslationHelper.hasActiveTranslations.collectAsState()
     val activeSongId by LyricsTranslationHelper.activeSongId.collectAsState()
+    val translationVersion by LyricsTranslationHelper.translationVersion.collectAsState()
 
     var showEditDialog by rememberSaveable { mutableStateOf(false) }
     var showSearchDialog by rememberSaveable { mutableStateOf(false) }
@@ -455,7 +456,7 @@ fun LyricsMenu(
         val currentLyricsEntity = lyricsProvider()
         val rawLyrics = currentLyricsEntity?.lyrics.orEmpty()
         val isTranslating = translationStatus is LyricsTranslationHelper.TranslationStatus.Translating
-        val isCached = remember(currentLyricsEntity?.id, selectedTargetLanguage) {
+        val isCached = remember(currentLyricsEntity?.id, selectedTargetLanguage, translationVersion) {
             LyricsTranslationHelper.hasCachedTranslation(context, mediaMetadataProvider().id, selectedTargetLanguage)
         }
 
@@ -495,6 +496,7 @@ fun LyricsMenu(
                                     context = context,
                                     songId = mediaMetadataProvider().id
                                 )
+                                onLyricsUpdated()
                                 Toast.makeText(context, "Translation cleared", Toast.LENGTH_SHORT).show()
                                 showTranslateDialog = false
                             }

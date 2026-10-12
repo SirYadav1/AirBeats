@@ -112,6 +112,7 @@ import com.darkxvenom.airbeats.constants.EqualizerPresetKey
 import com.darkxvenom.airbeats.constants.PlayPauseButtonShapeKey
 import com.darkxvenom.airbeats.constants.TranslateLanguageKey
 import com.darkxvenom.airbeats.db.entities.LyricsEntity
+import com.darkxvenom.airbeats.lyrics.AirBeatsLyricsUtils
 import com.darkxvenom.airbeats.lyrics.LyricsEntry
 import com.darkxvenom.airbeats.lyrics.LyricsTranslationHelper
 import com.darkxvenom.airbeats.lyrics.LyricsUtils
@@ -320,39 +321,12 @@ fun MaterialPlayer(
         val songId = mediaMetadata?.id ?: return@LaunchedEffect
         if (parsedLyrics.isEmpty()) return@LaunchedEffect
 
-        if (autoTranslate) {
-            val activeLang = currentTranslationLang.ifBlank { targetLanguage }
-            var loaded = LyricsTranslationHelper.loadTranslationsFromCache(
-                lyrics = parsedLyrics,
-                context = context,
-                songId = songId,
-                targetLanguageCode = activeLang
-            )
-            if (!loaded && activeLang != targetLanguage) {
-                loaded = LyricsTranslationHelper.loadTranslationsFromCache(
-                    lyrics = parsedLyrics,
-                    context = context,
-                    songId = songId,
-                    targetLanguageCode = targetLanguage
-                )
-            }
-            if (!loaded) {
-                val dir = File(context.filesDir, "lyrics_translations")
-                val safeSongId = songId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-                val cachedFile = dir.listFiles { _, name -> name.startsWith("${safeSongId}_") && name.endsWith(".json") }?.firstOrNull()
-                if (cachedFile != null) {
-                    val foundLang = cachedFile.name.removePrefix("${safeSongId}_").removeSuffix(".json")
-                    if (foundLang.isNotBlank()) {
-                        LyricsTranslationHelper.loadTranslationsFromCache(
-                            lyrics = parsedLyrics,
-                            context = context,
-                            songId = songId,
-                            targetLanguageCode = foundLang
-                        )
-                    }
-                }
-            }
-        }
+        LyricsTranslationHelper.loadTranslationsForSong(
+            lyrics = parsedLyrics,
+            context = context,
+            songId = songId,
+            preferredLanguageCode = targetLanguage
+        )
     }
 
     val activeEntry = remember(parsedLyrics, position) {
@@ -371,33 +345,20 @@ fun MaterialPlayer(
 
     val activeWords = remember(activeEntry, activeTranslatedText) {
         if (!activeTranslatedText.isNullOrBlank() && activeEntry != null && activeEntry.time >= 0) {
-            val nextEntry = parsedLyrics.getOrNull(parsedLyrics.indexOf(activeEntry) + 1)
-            val lineDurationMs = if (nextEntry != null && nextEntry.time > activeEntry.time) {
-                (nextEntry.time - activeEntry.time).coerceIn(800L, 10000L)
+            val lineStartMs = if (!activeEntry.words.isNullOrEmpty()) {
+                (activeEntry.words.first().startTime * 1000.0).toLong().coerceAtLeast(activeEntry.time)
             } else {
-                4000L
+                activeEntry.time
             }
-            val lineStartSec = activeEntry.time / 1000.0
-            val tokens = activeTranslatedText!!.split(Regex("\\s+")).filter { it.isNotBlank() }
-            val totalChars = tokens.sumOf { it.length }.coerceAtLeast(1)
-            val words = mutableListOf<WordTimestamp>()
-            var currentOffsetMs = 0.0
-            tokens.forEachIndexed { wordIdx, token ->
-                val weight = token.length.toDouble() / totalChars
-                val wordDurMs = lineDurationMs * weight
-                val wordStartSec = lineStartSec + (currentOffsetMs / 1000.0)
-                val wordEndSec = wordStartSec + (wordDurMs / 1000.0)
-                val wordText = if (wordIdx < tokens.lastIndex) "$token " else token
-                words.add(
-                    WordTimestamp(
-                        text = wordText,
-                        startTime = wordStartSec,
-                        endTime = wordEndSec,
-                    )
-                )
-                currentOffsetMs += wordDurMs
+            val lineDurationMs = if (!activeEntry.words.isNullOrEmpty()) {
+                val endMs = (activeEntry.words.last().endTime * 1000.0).toLong()
+                if (endMs > lineStartMs) (endMs - lineStartMs).coerceIn(800L, 12000L) else 4000L
+            } else {
+                val nextEntry = parsedLyrics.getOrNull(parsedLyrics.indexOf(activeEntry) + 1)
+                val nextTime = nextEntry?.time ?: (activeEntry.time + 4000L)
+                if (nextTime > lineStartMs) (nextTime - lineStartMs).coerceIn(800L, 10000L) else 4000L
             }
-            words
+            AirBeatsLyricsUtils.synthesizeWordTimestamps(activeTranslatedText!!, lineStartMs, lineDurationMs)
         } else {
             activeEntry?.words
         }

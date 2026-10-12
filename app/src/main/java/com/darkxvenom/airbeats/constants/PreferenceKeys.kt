@@ -72,7 +72,7 @@ enum class HomeScreenStyle {
 }
 
 enum class NavBarStyle {
-    LIQUID_GLASS, SPOTIFY, APPLE, NEW_CLASSIC, MATERIAL
+    LIQUID_GLASS, SPOTIFY, APPLE, NEW_CLASSIC, MATERIAL, BETTER
 }
 
 val HiddenHomeSectionsKey = stringSetPreferencesKey("hiddenHomeSections")

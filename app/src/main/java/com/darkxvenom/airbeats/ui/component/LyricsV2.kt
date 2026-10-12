@@ -113,6 +113,7 @@ import com.darkxvenom.airbeats.constants.TranslateModeKey
 import com.darkxvenom.airbeats.lyrics.LyricsTranslationHelper
 import com.darkxvenom.airbeats.db.entities.LyricsEntity.Companion.LYRICS_NOT_FOUND
 import com.darkxvenom.airbeats.lyrics.LyricsEntry
+import com.darkxvenom.airbeats.lyrics.AirBeatsLyricsUtils
 import com.darkxvenom.airbeats.lyrics.AirBeatsLyricsUtils.findCurrentLineIndex
 import com.darkxvenom.airbeats.lyrics.AirBeatsLyricsUtils.isChinese
 import com.darkxvenom.airbeats.lyrics.AirBeatsLyricsUtils.isJapanese
@@ -140,7 +141,7 @@ import kotlin.math.abs
 // ──────────────────────────────────────────────────────────────────────
 
 /** Lead time offset for LRC-style line-synced lyrics (ms). */
-private const val LRC_LEAD_MS = 0L
+private const val LRC_LEAD_MS = 300L
 
 /** Lead time offset for TTML word-synced lyrics (ms). */
 private const val TTML_LEAD_MS = 0L
@@ -203,8 +204,11 @@ fun LyricsV2(
     val (replaceOriginalLyrics) = rememberPreference(ReplaceOriginalLyricsWithTranslationKey, defaultValue = false)
     val translationVersion by LyricsTranslationHelper.translationVersion.collectAsState()
 
-    // ── Text colour: pure white in all themes ──
-    val textColor = Color.White
+    // ── Text colour derived from background style ──
+    val textColor = if (playerBackground == PlayerBackgroundStyle.DEFAULT)
+        MaterialTheme.colorScheme.onBackground
+    else
+        Color.White
 
     val inactiveAlpha = 0.35f
 
@@ -286,32 +290,30 @@ fun LyricsV2(
         val songId = mediaMetadata?.id ?: return@LaunchedEffect
         if (entriesWithWords.isEmpty()) return@LaunchedEffect
 
-        if (autoTranslate) {
-            val hasLoaded = LyricsTranslationHelper.loadTranslationsFromCache(
-                lyrics = entriesWithWords,
-                context = context,
-                songId = songId,
-                targetLanguageCode = targetLanguage
-            )
+        val hasLoaded = LyricsTranslationHelper.loadTranslationsForSong(
+            lyrics = entriesWithWords,
+            context = context,
+            songId = songId,
+            preferredLanguageCode = targetLanguage
+        )
 
-            // Auto-translate if enabled and not already translated or translating
-            if (!hasLoaded && !LyricsTranslationHelper.isTranslating()) {
-                val key = if (aiProvider == "DeepL") deeplApiKey else openRouterApiKey
-                if (key.isNotBlank()) {
-                    LyricsTranslationHelper.translateLyrics(
-                        lyrics = entriesWithWords,
-                        targetLanguageCode = targetLanguage,
-                        apiKey = key,
-                        baseUrl = openRouterBaseUrl,
-                        model = openRouterModel,
-                        mode = translateMode,
-                        customPrompt = customPrompt.takeIf { it.isNotBlank() },
-                        provider = aiProvider,
-                        context = context,
-                        songId = songId,
-                        scope = scope
-                    )
-                }
+        // Auto-translate if enabled and not already translated or translating
+        if (!hasLoaded && autoTranslate && !LyricsTranslationHelper.isTranslating() && !LyricsTranslationHelper.isSongCleared(songId)) {
+            val key = if (aiProvider == "DeepL") deeplApiKey else openRouterApiKey
+            if (key.isNotBlank()) {
+                LyricsTranslationHelper.translateLyrics(
+                    lyrics = entriesWithWords,
+                    targetLanguageCode = targetLanguage,
+                    apiKey = key,
+                    baseUrl = openRouterBaseUrl,
+                    model = openRouterModel,
+                    mode = translateMode,
+                    customPrompt = customPrompt.takeIf { it.isNotBlank() },
+                    provider = aiProvider,
+                    context = context,
+                    songId = songId,
+                    scope = scope
+                )
             }
         }
     }
@@ -329,7 +331,10 @@ fun LyricsV2(
             val sliderPos = sliderPositionProvider()
             val pos = sliderPos ?: player.currentPosition
 
-            currentPositionMs = pos + leadMs
+            // Add a visual tuning offset so animations feel instantly responsive and perfectly land on beat
+            val visualTuningOffsetMs = 150L
+            currentPositionMs = pos + leadMs + visualTuningOffsetMs
+
             currentLineIndex = findCurrentLineIndex(entriesWithWords, currentPositionMs, 0L)
             delay(16L) // ~60fps polling
         }
@@ -770,7 +775,16 @@ fun LyricsV2(
                                     if (selectedIndices.isNotEmpty()) {
                                         val sortedIndices = selectedIndices.sorted()
                                         val selectedLyricsText = sortedIndices
-                                            .mapNotNull { entriesWithWords.getOrNull(it)?.text }
+                                            .mapNotNull {
+                                                val entry = entriesWithWords.getOrNull(it) ?: return@mapNotNull null
+                                                val translated = entry.translatedTextFlow.value
+                                                if (replaceOriginalLyrics && !translated.isNullOrBlank()) {
+                                                    translated
+                                                } else {
+                                                    entry.text
+                                                }
+                                            }
+                                            .filter { it.isNotBlank() }
                                             .joinToString("\n")
 
                                         if (selectedLyricsText.isNotBlank()) {
@@ -1187,74 +1201,8 @@ private fun synthesizeWordTimestamps(
     text: String,
     startTimeMs: Long,
     durationMs: Long,
-): List<WordTimestamp> {
-    if (text.isBlank() || startTimeMs < 0) return emptyList()
-    val lineStartSec = startTimeMs / 1000.0
-    val isCjkText = isJapanese(text) || isChinese(text) || isKorean(text)
-    val tokens = if (isCjkText) {
-        val chars = mutableListOf<String>()
-        var currentWord = StringBuilder()
-        text.forEach { char ->
-            if (char.isWhitespace()) {
-                if (currentWord.isNotEmpty()) {
-                    chars.add(currentWord.toString())
-                    currentWord.clear()
-                }
-                chars.add(char.toString())
-            } else if (isJapanese(char.toString()) || isChinese(char.toString()) || isKorean(char.toString())) {
-                if (currentWord.isNotEmpty()) {
-                    chars.add(currentWord.toString())
-                    currentWord.clear()
-                }
-                chars.add(char.toString())
-            } else {
-                currentWord.append(char)
-            }
-        }
-        if (currentWord.isNotEmpty()) {
-            chars.add(currentWord.toString())
-        }
+): List<WordTimestamp> = AirBeatsLyricsUtils.synthesizeWordTimestamps(text, startTimeMs, durationMs)
 
-        // Group spaces onto the preceding word
-        val groupedTokens = mutableListOf<String>()
-        chars.forEachIndexed { _, c ->
-            if (c.isBlank()) {
-                if (groupedTokens.isNotEmpty()) {
-                    groupedTokens[groupedTokens.lastIndex] = groupedTokens.last() + c
-                }
-            } else {
-                groupedTokens.add(c)
-            }
-        }
-        groupedTokens
-    } else {
-        text.split(Regex("\\s+")).filter { it.isNotBlank() }
-    }
-    if (tokens.isEmpty()) return emptyList()
-
-    // Weight each token by character count for proportional distribution
-    val totalChars = tokens.sumOf { it.length }.coerceAtLeast(1)
-    val words = mutableListOf<WordTimestamp>()
-    var currentOffsetMs = 0.0
-
-    tokens.forEachIndexed { wordIdx, token ->
-        val weight = token.length.toDouble() / totalChars
-        val wordDurMs = durationMs * weight
-        val wordStartSec = lineStartSec + (currentOffsetMs / 1000.0)
-        val wordEndSec = wordStartSec + (wordDurMs / 1000.0)
-
-        val wordText = if (wordIdx < tokens.lastIndex && !isCjkText) "$token " else token
-        words.add(
-            WordTimestamp(
-                text = wordText,
-                startTime = wordStartSec,
-                endTime = wordEndSec,
-            )
-        )
-        currentOffsetMs += wordDurMs
-    }
-    return words
-}
 
 
 // ──────────────────────────────────────────────────────────────────────

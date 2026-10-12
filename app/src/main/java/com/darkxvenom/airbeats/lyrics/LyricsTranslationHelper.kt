@@ -41,6 +41,10 @@ object LyricsTranslationHelper {
 
     private var translationJob: Job? = null
     private val memoryCache = mutableMapOf<String, List<String>>()
+    private val manuallyClearedSongIds = mutableSetOf<String>()
+
+    fun isSongCleared(songId: String): Boolean =
+        songId.isNotBlank() && manuallyClearedSongIds.contains(songId)
 
     fun getCacheKey(lyricsText: String, lang: String): String =
         "${lyricsText.hashCode()}_$lang"
@@ -52,10 +56,20 @@ object LyricsTranslationHelper {
         return File(dir, "${safeSongId}_${lang}.json")
     }
 
-    fun hasCachedTranslation(context: Context, songId: String, lang: String): Boolean {
+    fun hasCachedTranslation(context: Context, songId: String, lang: String? = null): Boolean {
         if (songId.isBlank()) return false
-        val file = getCacheFile(context, songId, lang)
-        return file.exists() && file.length() > 2
+        if (isSongCleared(songId)) return false
+        if (!lang.isNullOrBlank()) {
+            val file = getCacheFile(context, songId, lang)
+            if (file.exists() && file.length() > 2) return true
+        }
+        val dir = File(context.filesDir, "lyrics_translations")
+        if (dir.exists()) {
+            val safeSongId = songId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            return dir.listFiles { _, name -> name.startsWith("${safeSongId}_") && name.endsWith(".json") }
+                ?.any { it.length() > 2 } == true
+        }
+        return false
     }
 
     fun parseLyricsToEntries(lyrics: String?): List<LyricsEntry> {
@@ -106,6 +120,9 @@ object LyricsTranslationHelper {
 
     fun clearTranslations(lyrics: List<LyricsEntry>? = null, context: Context? = null, songId: String? = null) {
         cancelTranslation()
+        if (!songId.isNullOrBlank()) {
+            manuallyClearedSongIds.add(songId)
+        }
         val targetLyrics = lyrics ?: activeLyricsList
         targetLyrics?.forEach { it.translatedTextFlow.value = null }
         _activeSongId.value = null
@@ -123,12 +140,64 @@ object LyricsTranslationHelper {
         _translationVersion.value += 1
     }
 
+    fun loadTranslationsForSong(
+        lyrics: List<LyricsEntry>,
+        context: Context,
+        songId: String,
+        preferredLanguageCode: String? = null
+    ): Boolean {
+        if (lyrics.isEmpty() || songId.isBlank()) return false
+        if (isSongCleared(songId)) return false
+
+        // 1. Try preferred language code
+        if (!preferredLanguageCode.isNullOrBlank()) {
+            if (loadTranslationsFromCache(lyrics, context, songId, preferredLanguageCode)) {
+                return true
+            }
+        }
+
+        // 2. Try current language code if different
+        val currentLang = _currentLanguageCode.value
+        if (currentLang.isNotBlank() && currentLang != preferredLanguageCode) {
+            if (loadTranslationsFromCache(lyrics, context, songId, currentLang)) {
+                return true
+            }
+        }
+
+        // 3. Check memory cache for any key for this songId
+        val memKey = memoryCache.keys.firstOrNull { it.startsWith("${songId}_") }
+        if (memKey != null) {
+            val lang = memKey.removePrefix("${songId}_")
+            if (lang.isNotBlank() && loadTranslationsFromCache(lyrics, context, songId, lang)) {
+                return true
+            }
+        }
+
+        // 4. Check disk cache for ANY language file for this songId
+        return runCatching {
+            val dir = File(context.filesDir, "lyrics_translations")
+            if (dir.exists()) {
+                val safeSongId = songId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+                val files = dir.listFiles { _, name -> name.startsWith("${safeSongId}_") && name.endsWith(".json") }
+                val targetFile = files?.firstOrNull { it.length() > 2 }
+                if (targetFile != null) {
+                    val lang = targetFile.name.removePrefix("${safeSongId}_").removeSuffix(".json")
+                    if (lang.isNotBlank() && loadTranslationsFromCache(lyrics, context, songId, lang)) {
+                        return@runCatching true
+                    }
+                }
+            }
+            false
+        }.getOrDefault(false)
+    }
+
     fun loadTranslationsFromCache(
         lyrics: List<LyricsEntry>,
         context: Context,
         songId: String,
         targetLanguageCode: String
     ): Boolean {
+        if (songId.isNotBlank() && isSongCleared(songId)) return false
         registerLyrics(lyrics)
         _currentLanguageCode.value = targetLanguageCode
         val nonEmptyEntries = lyrics.mapIndexedNotNull { index, entry ->
@@ -142,35 +211,35 @@ object LyricsTranslationHelper {
         val fullText = nonEmptyEntries.joinToString("\n") { it.second.text }
         val memKey = getCacheKey(fullText, targetLanguageCode)
 
-        // 1. Check memory cache
+        // 1. Check memory cache (by lyrics hash or songId)
         val cachedMem = memoryCache[memKey]
-        if (cachedMem != null && cachedMem.size >= nonEmptyEntries.size) {
+            ?: if (songId.isNotBlank()) memoryCache["${songId}_$targetLanguageCode"] else null
+        if (cachedMem != null && cachedMem.isNotEmpty()) {
             nonEmptyEntries.forEachIndexed { idx, (originalIndex, _) ->
                 lyrics[originalIndex].translatedTextFlow.value = cachedMem.getOrNull(idx)
             }
             _activeSongId.value = songId
             _hasActiveTranslations.value = true
-            _translationVersion.value += 1
             return true
         }
 
         // 2. Check disk cache
         if (songId.isNotBlank()) {
             val file = getCacheFile(context, songId, targetLanguageCode)
-            if (file.exists()) {
+            if (file.exists() && file.length() > 2) {
                 val list = runCatching {
                     val jsonArray = JSONArray(file.readText())
                     (0 until jsonArray.length()).map { jsonArray.optString(it) }
                 }.getOrNull()
 
-                if (list != null && list.size >= nonEmptyEntries.size) {
+                if (list != null && list.isNotEmpty()) {
                     memoryCache[memKey] = list
+                    memoryCache["${songId}_$targetLanguageCode"] = list
                     nonEmptyEntries.forEachIndexed { idx, (originalIndex, _) ->
                         lyrics[originalIndex].translatedTextFlow.value = list.getOrNull(idx)
                     }
                     _activeSongId.value = songId
                     _hasActiveTranslations.value = true
-                    _translationVersion.value += 1
                     return true
                 }
             }
@@ -195,6 +264,9 @@ object LyricsTranslationHelper {
         scope: CoroutineScope
     ) {
         cancelTranslation()
+        if (songId.isNotBlank()) {
+            manuallyClearedSongIds.remove(songId)
+        }
         _currentLanguageCode.value = targetLanguageCode
         _status.value = TranslationStatus.Translating(listOf("Initializing AI translation engine..."))
 
@@ -252,6 +324,9 @@ object LyricsTranslationHelper {
                     val fullText = linesToTranslate.joinToString("\n")
                     val memKey = getCacheKey(fullText, targetLanguageCode)
                     memoryCache[memKey] = translatedLines
+                    if (songId.isNotBlank()) {
+                        memoryCache["${songId}_$targetLanguageCode"] = translatedLines
+                    }
 
                     // Save to disk cache
                     if (songId.isNotBlank()) {

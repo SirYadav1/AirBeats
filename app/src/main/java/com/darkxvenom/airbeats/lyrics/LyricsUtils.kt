@@ -43,17 +43,11 @@ object LyricsUtils {
         lines: List<LyricsEntry>,
         position: Long,
     ): Int {
-        if (lines.isEmpty()) return -1
-        var low = 0
-        var high = lines.lastIndex
-        while (low <= high) {
-            val mid = (low + high).ushr(1)
-            if (lines[mid].time <= position) {
-                low = mid + 1
-            } else {
-                high = mid - 1
+        for (index in lines.indices) {
+            if (lines[index].time >= position + ANIMATE_SCROLL_DURATION) {
+                return index - 1
             }
         }
-        return high.coerceIn(0, lines.lastIndex)
+        return lines.lastIndex
     }
 }

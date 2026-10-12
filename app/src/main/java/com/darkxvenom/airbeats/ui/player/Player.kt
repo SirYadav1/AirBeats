@@ -480,7 +480,15 @@ fun BottomSheetPlayer(
 
     LaunchedEffect(playerScreenStyle, mediaMetadata?.id, currentLyrics) {
         val metadata = mediaMetadata
-        if ((playerScreenStyle != PlayerScreenStyle.SPOTIFY && playerScreenStyle != PlayerScreenStyle.GALAXY) || metadata == null) {
+        val stylesNeedingLyrics = setOf(
+            PlayerScreenStyle.SPOTIFY,
+            PlayerScreenStyle.GALAXY,
+            PlayerScreenStyle.BETTER,
+            PlayerScreenStyle.MATERIAL,
+            PlayerScreenStyle.FROST,
+            PlayerScreenStyle.FOLD
+        )
+        if (playerScreenStyle !in stylesNeedingLyrics || metadata == null) {
             spotifyLyricsEntity = null
             return@LaunchedEffect
         }
@@ -1208,7 +1216,7 @@ fun BottomSheetPlayer(
                 com.darkxvenom.airbeats.constants.NavBarStyleKey,
                 defaultValue = com.darkxvenom.airbeats.constants.NavBarStyle.NEW_CLASSIC
             )
-            if (navBarStyle == com.darkxvenom.airbeats.constants.NavBarStyle.NEW_CLASSIC) {
+            if (navBarStyle == com.darkxvenom.airbeats.constants.NavBarStyle.NEW_CLASSIC || navBarStyle == com.darkxvenom.airbeats.constants.NavBarStyle.BETTER) {
                 NewClassicMiniPlayer(
                     position = position,
                     duration = duration,
@@ -2569,7 +2577,7 @@ fun BottomSheetPlayer(
                         showChoosePlaylistDialog = true
                     },
                     currentFormat = currentFormat,
-                    currentLyrics = currentLyrics,
+                    currentLyrics = (spotifyLyricsEntity ?: currentLyrics),
                     modifier = Modifier
                         .fillMaxSize()
                         .nestedScroll(state.preUpPostDownNestedScrollConnection)

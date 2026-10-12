@@ -154,14 +154,12 @@ fun SpotifyLyrics(
     LaunchedEffect(lines, mediaMetadata?.id, targetLanguage, translationVersion, autoTranslate) {
         val songId = mediaMetadata?.id ?: return@LaunchedEffect
         if (lines.isEmpty()) return@LaunchedEffect
-        if (autoTranslate) {
-            LyricsTranslationHelper.loadTranslationsFromCache(
-                lyrics = lines,
-                context = context,
-                songId = songId,
-                targetLanguageCode = targetLanguage
-            )
-        }
+        LyricsTranslationHelper.loadTranslationsForSong(
+            lyrics = lines,
+            context = context,
+            songId = songId,
+            preferredLanguageCode = targetLanguage
+        )
     }
 
     val activeLineIndex = remember(lines, position) {

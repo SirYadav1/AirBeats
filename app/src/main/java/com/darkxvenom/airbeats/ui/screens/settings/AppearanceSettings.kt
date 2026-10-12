@@ -566,7 +566,12 @@ fun AppearanceSettings(
                             title = { Text(stringResource(R.string.home_screen_style)) },
                             icon = { Icon(painterResource(R.drawable.home), null) },
                             selectedValue = homeScreenStyle,
-                            onValueSelected = onHomeScreenStyleChange,
+                            onValueSelected = { selected ->
+                                onHomeScreenStyleChange(selected)
+                                if (selected == HomeScreenStyle.BETTER) {
+                                    onNavBarStyleChange(NavBarStyle.BETTER)
+                                }
+                            },
                             valueText = {
                                 when (it) {
                                     HomeScreenStyle.NEW_CLASSIC -> "New Classic"
@@ -595,6 +600,7 @@ fun AppearanceSettings(
                             valueText = {
                                 when (it) {
                                     NavBarStyle.NEW_CLASSIC -> "New Classic"
+                                    NavBarStyle.BETTER -> "Better"
                                     NavBarStyle.LIQUID_GLASS -> "Liquid Glass"
                                     NavBarStyle.SPOTIFY -> "Spotify"
                                     NavBarStyle.APPLE -> "Apple"
