@@ -2,6 +2,7 @@
 
 package com.darkxvenom.airbeats.playback
 
+import android.app.ForegroundServiceStartNotAllowedException
 import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
@@ -4454,10 +4455,15 @@ class MusicService :
         return try {
             super.startForegroundService(service)
         } catch (e: Exception) {
-            // Android 12+ (API 31+) / Android 14+ / Android 15 (API 35) throws
-            // ForegroundServiceStartNotAllowedException when startForegroundService() is called from background.
-            // Catching here prevents uncaught fatal crash during async MediaNotificationManager transitions.
-            Timber.e(e, "ForegroundServiceStartNotAllowedException caught and suppressed in startForegroundService")
+            Timber.e(e, "startForegroundService denied in MusicService")
+            // media3 1.11.1 only catches IllegalStateException in its notification
+            // dispatch, so rethrowing as ISE lets it abort the promotion gracefully
+            // instead of reaching its uncatchable direct Service.startForeground call.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                e is ForegroundServiceStartNotAllowedException
+            ) {
+                throw IllegalStateException("FGS start denied by system; aborting media3 promotion", e)
+            }
             null
         }
     }
